@@ -12,6 +12,7 @@
 #if USE_CBLAS_H
 extern "C" {
 #include <cblas.h>
+#include <clapack.h>
 }
 #elif USE_MKL_CBLAS_H
 #include "mkl_cblas.h"
@@ -158,7 +159,7 @@ public:
     traceSolveLocalLU = traceRegisterUserEvent("Solve local LU");
     
 
-    BLKSIZE = 1 << staticPoint("Block Size", 11,11); 
+    BLKSIZE = 1 << staticPoint("Block Size", 9,9); 
     whichMapping = 0; 
     doPrioritize = 0;
 
@@ -222,11 +223,10 @@ public:
     
     staticPoint("Block Size", 5,9); // call this so it gets recorded for this phase
     int whichMulticastStrategy = controlPoint("which multicast strategy", 0,0);
-    int useBLASforUL = controlPoint("Use BLAS for U,L", 1,1);
   
     CkCallback *cb = new CkCallback(CkIndex_Main::arrayIsCreated(NULL), thisProxy); 
     luArrProxy.ckSetReductionClient(cb);
-    luArrProxy.init(whichMulticastStrategy, useBLASforUL);
+    luArrProxy.init(whichMulticastStrategy);
     
   }
   
@@ -276,8 +276,6 @@ public:
   
   double *LU;
   int whichMulticastStrategy;
-  int useBLASforUL; 
-  
   bool done;
 
   int alreadyReEnqueuedDuringPhase;
@@ -295,7 +293,6 @@ private:
 public:
   LUBlk() {
     whichMulticastStrategy = 0;
-    useBLASforUL = 1;
     done = false;
     alreadyReEnqueuedDuringPhase = -1;
 
@@ -318,13 +315,12 @@ public:
   }
 
 
-  void init(int _whichMulticastStrategy, int _useBLASforUL){
+  void init(int _whichMulticastStrategy){
     
     done = false;
     alreadyReEnqueuedDuringPhase = -1;
 
     whichMulticastStrategy = _whichMulticastStrategy;
-    useBLASforUL = _useBLASforUL;
     
     internalStep = 0; 
     
@@ -382,7 +378,7 @@ public:
 
     double luStart = CmiWallTimer();
 
-#ifdef USE_LAPACK
+    //#ifdef USE_LAPACK
 #warning "Using lapack for solveLocalLU"
     //There's an output for permuation array which is not
     //used in the current non-lapack version. This permuation
@@ -390,29 +386,30 @@ public:
     //only needs ComputeL and ComputeU (???)
     int *ipiv = new int[BLKSIZE];
     clapack_dgetrf(CblasRowMajor, BLKSIZE, BLKSIZE, LU, BLKSIZE, ipiv);
-    CkPrintf("Permutation info: ");
-    for (int i=0; i<BLKSIZE; i++) CkPrintf("%d, ", ipiv[i]);
-    CkPrintf("\n");
+
+    //  CkPrintf("Permutation info: ");
+//     for (int i=0; i<BLKSIZE; i++) CkPrintf("%d, ", ipiv[i]);
+//     CkPrintf("\n");
     delete [] ipiv;
-#else
-    //first compute local LU
-    for (int iter=0; iter<BLKSIZE; iter++) {
-      double pivot = LU[iter*BLKSIZE+iter];
-      //compute L of [iter]th column
-      //L[iter*BLKSIZE+iter]=1.0;
-      for (int row=iter+1; row<BLKSIZE; row++) {
-	LU[row*BLKSIZE+iter] = LU[row*BLKSIZE+iter]/pivot;
-	//U[row*BLKSIZE+iter] = 0.0;
-      }
+// #else
+//     //first compute local LU
+//     for (int iter=0; iter<BLKSIZE; iter++) {
+//       double pivot = LU[iter*BLKSIZE+iter];
+//       //compute L of [iter]th column
+//       //L[iter*BLKSIZE+iter]=1.0;
+//       for (int row=iter+1; row<BLKSIZE; row++) {
+// 	LU[row*BLKSIZE+iter] = LU[row*BLKSIZE+iter]/pivot;
+// 	//U[row*BLKSIZE+iter] = 0.0;
+//       }
 
-      //The [iter]th row of U need not to be changed
+//       //The [iter]th row of U need not to be changed
 
-      //update the remaining matrix
-      for (int row=iter+1; row<BLKSIZE; row++)
-	for (int col=iter+1; col<BLKSIZE; col++)
-	  LU[row*BLKSIZE+col] -= LU[row*BLKSIZE+iter]*LU[iter*BLKSIZE+col];
-    }
-#endif
+//       //update the remaining matrix
+//       for (int row=iter+1; row<BLKSIZE; row++)
+// 	for (int col=iter+1; col<BLKSIZE; col++)
+// 	  LU[row*BLKSIZE+col] -= LU[row*BLKSIZE+iter]*LU[iter*BLKSIZE+col];
+//     }
+// #endif
 
     traceUserBracketEvent(traceSolveLocalLU, luStart, CmiWallTimer());
   }
@@ -433,16 +430,8 @@ public:
     //solve following rows based on previously solved rows
     //row indicates the row of U that is just solved
 
-    if (useBLASforUL){
-      cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU, BLKSIZE);
-    }
-    else {
-      for (int row=0; row<BLKSIZE-1; row++) {
-	for (int i=row+1; i<BLKSIZE; i++)
-	  for (int col=0; col<BLKSIZE; col++)
-	    LU[i*BLKSIZE+col] -= givenL[i*BLKSIZE+row]*LU[row*BLKSIZE+col];
-      }
-    }
+    cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU, BLKSIZE);
+    
 
     traceUserBracketEvent(traceComputeU, uStart, CmiWallTimer());
   }
@@ -459,26 +448,7 @@ public:
     DEBUG_PRINT("elem[%d,%d]::computeL called at step %d\n", thisIndex.x, thisIndex.y, internalStep);
 
 
-    if (useBLASforUL){
-      cblas_dtrsm(CblasRowMajor, CblasRight, CblasUpper, CblasNoTrans, CblasNonUnit, BLKSIZE, BLKSIZE, 1.0, givenU, BLKSIZE, LU, BLKSIZE);
-    } 
-    else {
-      //Backward substitution
-      
-      //solve the first column
-      for (int i=0; i<BLKSIZE; i++) LU[i*BLKSIZE] /= givenU[0];
-      
-      //solve following columns based on the previously solved columns
-      //col inidates the column of L that is just solved
-      for (int col=0; col<BLKSIZE-1; col++) {
-	for (int j=col+1; j<BLKSIZE; j++)
-	  for (int row=0; row<BLKSIZE; row++)
-	    LU[row*BLKSIZE+j] -= LU[row*BLKSIZE+col]*givenU[col*BLKSIZE+j];
-	
-	for (int row=0; row<BLKSIZE; row++)
-	  LU[row*BLKSIZE+col+1] /= givenU[(col+1)*BLKSIZE+(col+1)];
-      }
-    }
+    cblas_dtrsm(CblasRowMajor, CblasRight, CblasUpper, CblasNoTrans, CblasNonUnit, BLKSIZE, BLKSIZE, 1.0, givenU, BLKSIZE, LU, BLKSIZE);
     
     traceUserBracketEvent(traceComputeL, lStart, CmiWallTimer());
   }
@@ -494,23 +464,13 @@ public:
     double *incomingL = givenLMsg->data;
     double *incomingU = givenUMsg->data;
 
-#ifdef USE_BLAS
-    //		LU = LU -1.0 * incomingL * incomingU
-
     cblas_dgemm( CblasRowMajor,
 		 CblasNoTrans, CblasNoTrans,
 		 BLKSIZE, BLKSIZE, BLKSIZE,
 		 -1.0, incomingL,
 		 BLKSIZE, incomingU, BLKSIZE,
 		 1.0, LU, BLKSIZE);
-
-#else
-    //do the update on the local block (a matrix multiplication)
-    for (int i=0; i<BLKSIZE; i++)
-      for (int j=0; j<BLKSIZE; j++)
-	for (int k=0; k<BLKSIZE; k++)
-	  LU[i*BLKSIZE+j] -= incomingL[i*BLKSIZE+k]*incomingU[k*BLKSIZE+j];
-#endif
+    
 
     traceUserBracketEvent(traceTrailingUpdate, updateStart, CmiWallTimer());
   }

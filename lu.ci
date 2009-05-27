@@ -30,7 +30,7 @@ mainmodule lu {
   array [2D] LUBlk {
     entry LUBlk(void);
     entry void begin(void);
-    entry void init(int whichMulticastStrategy,int useBLASforUL);     
+    entry void init(int whichMulticastStrategy);     
     entry [nokeep] void updateRecvU(blkMsg *);
     entry [nokeep] void updateRecvL(blkMsg *);
     entry void progress();

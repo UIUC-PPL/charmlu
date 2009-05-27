@@ -13,8 +13,8 @@ OPTS=-g -O0
 #BLAS_LD = -framework Accelerate
 
 # To compile against a custom atlas install on linux:
-BLAS_INC = -I/scratch/idooley2/atlas-install -DUSE_BLAS  -DUSE_CBLAS_H
-BLAS_LD = -L/scratch/idooley2/atlas-install -lcblas -latlas
+BLAS_INC = -I/scratch/idooley2/atlas-install/include -DUSE_BLAS  -DUSE_CBLAS_H
+BLAS_LD = -L/scratch/idooley2/atlas-install/lib -llapack -lf77blas -lcblas -latlas
 
 
 # ----------------------------------------------
