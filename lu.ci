@@ -1,0 +1,44 @@
+mainmodule lu {
+  readonly CProxy_Main mainProxy;
+  readonly CProxy_LUBlk luArrProxy;
+
+  readonly int gMatSize;
+  readonly int numBlks;
+  readonly int BLKSIZE;
+  readonly int whichMapping;
+  readonly int traceTrailingUpdate;
+  readonly int traceComputeU;
+  readonly int traceComputeL;
+  readonly int traceSolveLocalLU;
+  readonly int doPrioritize;
+//  readonly ComlibInstanceHandle cinst0; 
+//  readonly ComlibInstanceHandle cinst1; 
+
+  message blkMsg {
+    double data[];
+  };
+	
+  mainchare Main {
+    entry Main(CkArgMsg *m);
+    entry void arrayIsCreated(CkReductionMsg *);
+    entry void terminateProg();
+    entry void done(pathInformationMsg *m);
+
+    entry void iterationCompleted();
+  };
+
+  array [2D] LUBlk {
+    entry LUBlk(void);
+    entry void begin(void);
+    entry void init(int whichMulticastStrategy,int useBLASforUL);     
+    entry [nokeep] void updateRecvU(blkMsg *);
+    entry [nokeep] void updateRecvL(blkMsg *);
+    entry void progress();
+    entry void printInfo();
+  };        	
+
+  group BlockCyclicMap : CkArrayMap{
+    entry BlockCyclicMap();
+  };
+
+};
