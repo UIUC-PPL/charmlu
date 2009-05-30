@@ -45,18 +45,11 @@ int doPrioritize;
 #define DEBUG_PRINT(...) 
 
 
-
-
-
-
 /// Called periodically for debugging
 static void periodicDebug(void* ptr, double currWallTime){
   //  CcdCallFnAfterOnPE((CcdVoidFn)periodicDebug, (void*)NULL, controlPointSamplePeriod, CkMyPe());
   luArrProxy.printInfo();
 }
-
-
-
 
 
 
@@ -221,7 +214,7 @@ public:
     traceUserSuppliedNote("*** New Iteration");
     
     staticPoint("Block Size", 8,8); // call this so it gets recorded for this phase
-    int whichMulticastStrategy = controlPoint("which multicast strategy", 0,0);
+    int whichMulticastStrategy = controlPoint("which multicast strategy", 1,1);
     
     CkCallback *cb = new CkCallback(CkIndex_Main::arrayIsCreated(NULL), thisProxy); 
     luArrProxy.ckSetReductionClient(cb);
@@ -521,7 +514,6 @@ public:
     
     CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
     
-#if 0
     switch(whichMulticastStrategy){
     case 0:
       // no delegation
@@ -535,7 +527,6 @@ public:
       ComlibAssociateProxy(cinst1, oneCol);        
       break;
     }
-#endif
 
     blkMsg *givenU = createABlkMsg();
     givenU->setMsgData(LU, internalStep);
@@ -560,7 +551,6 @@ public:
     
     CProxySection_LUBlk oneRow = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, thisIndex.x, 1, thisIndex.y+1, numBlks-1, 1);
     
-#if 0
     switch(whichMulticastStrategy){ 
     case 0: 
       // no delegation 
@@ -574,7 +564,6 @@ public:
       ComlibAssociateProxy(cinst1, oneRow);         
       break;
     }
-#endif
 
     blkMsg *givenL = createABlkMsg();
     givenL->setMsgData(LU, internalStep);

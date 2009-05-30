@@ -44,16 +44,14 @@ CHARMC=../charm/bin/charmc $(OPTS)
 
 MODULES=  -module ControlPoints  -tracemode controlPoints -module comlib
 
-#MEM= -memory gnu
-
 
 all: lu lu-proj
 
 lu: lu.o 
-	$(CHARMC) -language charm++ -o lu lu.o $(BLAS_LD) $(MULTICAST)  $(MODULES) $(MEM)
+	$(CHARMC) -language charm++ -o lu lu.o $(BLAS_LD) $(MULTICAST)  $(MODULES)
 
 lu-proj: lu.o 
-	$(CHARMC) -language charm++ -o lu-proj lu.o $(BLAS_LD) $(PROJ) $(MULTICAST)  $(MODULES) $(MEM)
+	$(CHARMC) -language charm++ -o lu-proj lu.o $(BLAS_LD) $(PROJ) $(MULTICAST)  $(MODULES)
 
 lu.decl.h: lu.ci
 	$(CHARMC)  lu.ci
