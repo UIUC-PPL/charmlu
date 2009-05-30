@@ -1,11 +1,10 @@
-
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <iostream>
 #include <pthread.h>
  
-//#include <comlib.h>
+#include <comlib.h>
 #include <controlPoints.h> // must come before user decl.h if they are using the pathInformationMsg
 #include "lu.decl.h"
 
@@ -29,8 +28,8 @@ extern "C" {
 /* readonly: */
 CProxy_Main mainProxy;
 CProxy_LUBlk luArrProxy;
-//ComlibInstanceHandle cinst0; 
-//ComlibInstanceHandle cinst1; 
+ComlibInstanceHandle cinst0; 
+ComlibInstanceHandle cinst1; 
 int gMatSize;
 int numBlks;
 int BLKSIZE;
@@ -159,7 +158,8 @@ public:
     traceSolveLocalLU = traceRegisterUserEvent("Solve local LU");
     
 
-    BLKSIZE = 1 << staticPoint("Block Size", 9,9); 
+    BLKSIZE = 1 << staticPoint("Block Size", 7,7);
+    BLKSIZE = 256;
     whichMapping = 0; 
     doPrioritize = 0;
 
@@ -173,12 +173,12 @@ public:
     CkPrintf("Running LU on %d processors (%d nodes) on matrix %dX%d with block size %d\n",
 	     CkNumPes(), CmiNumNodes(), gMatSize, gMatSize, BLKSIZE);
     
-    //    Strategy * strategy0 = new DirectMulticastStrategy();
-    //cinst0 = ComlibRegister(strategy0);
+    Strategy * strategy0 = new DirectMulticastStrategy();
+    cinst0 = ComlibRegister(strategy0);
     
-    //Strategy * strategy1 = new RingMulticastStrategy();
-    //cinst1 = ComlibRegister(strategy1);
-        
+    Strategy * strategy1 = new RingMulticastStrategy();
+    cinst1 = ComlibRegister(strategy1);
+
     if(whichMapping==0){
       CProxy_BlockCyclicMap myMap = CProxy_BlockCyclicMap::ckNew();
       CkArrayOptions opts(numBlks, numBlks);
@@ -207,8 +207,8 @@ public:
     double endTime = CmiWallTimer();
     double duration = endTime-startTime;
     registerControlPointTiming(duration); 
-
-
+    
+    
     CkPrintf("Iteration %d time: %fs\n", iteration, duration);
     if(iteration == numIterations-1){ 
       terminateProg();
@@ -218,12 +218,11 @@ public:
     iteration++;
     
     //    gotoNextPhase();
-    
     traceUserSuppliedNote("*** New Iteration");
     
-    staticPoint("Block Size", 5,9); // call this so it gets recorded for this phase
+    staticPoint("Block Size", 8,8); // call this so it gets recorded for this phase
     int whichMulticastStrategy = controlPoint("which multicast strategy", 0,0);
-  
+    
     CkCallback *cb = new CkCallback(CkIndex_Main::arrayIsCreated(NULL), thisProxy); 
     luArrProxy.ckSetReductionClient(cb);
     luArrProxy.init(whichMulticastStrategy);
@@ -252,6 +251,14 @@ public:
     double HPL_flop_count =  (2.0/3.0*n*n*n-2*n*n)/duration ;
     double HPL_gflops =  HPL_flop_count / 1000000000.0; // Giga fp ops per second
     std::cout << "HPL flop count gives \t" << HPL_gflops << "\tGFlops" << std::endl;
+
+    
+    double gflops_per_core = HPL_gflops / (double)CkNumPes();
+    double fractionOfPeakOnOrder = gflops_per_core / 7.4585;
+    double fractionOfPeakOnOrderPercent = fractionOfPeakOnOrder * 100.0;
+
+    std::cout << "If run on order.cs.uiuc.edu, I think you are getting  \t" << fractionOfPeakOnOrderPercent << "% of peak" << std::endl;
+
 
     registerControlPointTiming(duration);
 
@@ -512,38 +519,35 @@ public:
     
     DEBUG_PRINT("[PE %d] elem %d,%d Multicast to part of column %d from step %d\n", CkMyPe(), thisIndex.x, thisIndex.y, thisIndex.y, internalStep);
     
-#if USE_SECTION_MULTICAST
     CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
     
+#if 0
     switch(whichMulticastStrategy){
     case 0:
       // no delegation
       break;
     case 1:
-      //CkAssert(cinst0); 
-      //      ComlibAssociateProxy(cinst0, oneCol);
+      CkAssert(cinst0); 
+      ComlibAssociateProxy(cinst0, oneCol);
       break;
     case 2: 
-      //CkAssert(cinst1); 
-      // ComlibAssociateProxy(cinst1, oneCol);        
+      CkAssert(cinst1); 
+      ComlibAssociateProxy(cinst1, oneCol);        
       break;
     }
-    
+#endif
+
     blkMsg *givenU = createABlkMsg();
     givenU->setMsgData(LU, internalStep);
     oneCol.updateRecvU(givenU);
-#else
 
-    for(int i=thisIndex.x+1; i<numBlks; i++){
-      blkMsg *givenU = createABlkMsg();
-      givenU->setMsgData(LU, internalStep);
-      DEBUG_PRINT("P2P sending U from %d,%d down to %d,%d\n", thisIndex.x, thisIndex.y, i,thisIndex.y);
-      thisProxy(i,thisIndex.y).updateRecvU(givenU);
-    }
+//     for(int i=thisIndex.x+1; i<numBlks; i++){
+//       blkMsg *givenU = createABlkMsg();
+//       givenU->setMsgData(LU, internalStep);
+//       DEBUG_PRINT("P2P sending U from %d,%d down to %d,%d\n", thisIndex.x, thisIndex.y, i,thisIndex.y);
+//       thisProxy(i,thisIndex.y).updateRecvU(givenU);
+//     }
     
-#endif
-
-
   }
   
   
@@ -554,40 +558,37 @@ public:
     
     DEBUG_PRINT("[PE %d] elem %d,%d Multicast to part of row %d from step %d\n", CkMyPe(), thisIndex.x, thisIndex.y, thisIndex.x, internalStep);
     
-#if USE_SECTION_MULTICAST
-
     CProxySection_LUBlk oneRow = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, thisIndex.x, 1, thisIndex.y+1, numBlks-1, 1);
     
+#if 0
     switch(whichMulticastStrategy){ 
     case 0: 
       // no delegation 
       break;
     case 1: 
-      //      CkAssert(cinst0);  
-      // ComlibAssociateProxy(cinst0, oneRow); 
+      CkAssert(cinst0);  
+      ComlibAssociateProxy(cinst0, oneRow); 
       break; 
     case 2:  
-      //CkAssert(cinst1);  
-      //ComlibAssociateProxy(cinst1, oneRow);         
-      break; 
-    } 
-    
+      CkAssert(cinst1);  
+      ComlibAssociateProxy(cinst1, oneRow);         
+      break;
+    }
+#endif
+
     blkMsg *givenL = createABlkMsg();
     givenL->setMsgData(LU, internalStep);
     //CkAssert(givenL->step == 0);
     oneRow.updateRecvL(givenL);
     
-#else
     
-    for(int i=thisIndex.y+1; i<numBlks; i++){
-      blkMsg *givenL = createABlkMsg();
-      givenL->setMsgData(LU, internalStep);
-      DEBUG_PRINT("P2P sending L from %d,%d right to %d,%d\n", thisIndex.x, thisIndex.y, thisIndex.x, i);
-      thisProxy(thisIndex.x, i).updateRecvL(givenL);
-    }
+//     for(int i=thisIndex.y+1; i<numBlks; i++){
+//       blkMsg *givenL = createABlkMsg();
+//       givenL->setMsgData(LU, internalStep);
+//       DEBUG_PRINT("P2P sending L from %d,%d right to %d,%d\n", thisIndex.x, thisIndex.y, thisIndex.x, i);
+//       thisProxy(thisIndex.x, i).updateRecvL(givenL);
+//     }
     
-#endif
- 
   }
   
  

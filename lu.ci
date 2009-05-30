@@ -11,8 +11,8 @@ mainmodule lu {
   readonly int traceComputeL;
   readonly int traceSolveLocalLU;
   readonly int doPrioritize;
-//  readonly ComlibInstanceHandle cinst0; 
-//  readonly ComlibInstanceHandle cinst1; 
+  readonly ComlibInstanceHandle cinst0; 
+  readonly ComlibInstanceHandle cinst1; 
 
   message blkMsg {
     double data[];

@@ -2,7 +2,6 @@ OPTS=-g -O0
 #OPTS = -O3
 
 
-
 #------------------------------------------------
 # To compile on order or faith(Ubuntu):
 #BLAS_INC = -DUSE_BLAS -DUSE_CBLAS_H
@@ -29,9 +28,7 @@ BLAS_LD = -L/scratch/idooley2/atlas-install/lib -llapack -lf77blas -lcblas -latl
 
 
 
-
-
-PROJ = -tracemode summary -tracemode projections
+PROJ = -tracemode projections
 #MULTICAST = -module CkMulticast
 
 CHARMC=../charm/bin/charmc $(OPTS) 
@@ -45,7 +42,7 @@ CHARMC=../charm/bin/charmc $(OPTS)
 #CHARMC=charm/bin/charmc $(OPTS)
 
 
-MODULES=  -module ControlPoints  -tracemode controlPoints -tracemode projections
+MODULES=  -module ControlPoints  -tracemode controlPoints -module comlib
 
 #MEM= -memory gnu
 
