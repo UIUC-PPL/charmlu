@@ -152,8 +152,7 @@ public:
     
 
     BLKSIZE = 1 << staticPoint("Block Size", 7,7);
-    BLKSIZE = 256;
-    whichMapping = 0; 
+    whichMapping = 0;
     doPrioritize = 0;
 
     gMatSize = atoi(m->argv[1]);
@@ -514,19 +513,20 @@ public:
     
     CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
     
-    switch(whichMulticastStrategy){
-    case 0:
-      // no delegation
-      break;
-    case 1:
-      CkAssert(cinst0); 
+
+  //   switch(whichMulticastStrategy){
+//     case 0:
+//       // no delegation
+//       break;
+//     case 1:
+      CkAssert(cinst0);
       ComlibAssociateProxy(cinst0, oneCol);
-      break;
-    case 2: 
-      CkAssert(cinst1); 
-      ComlibAssociateProxy(cinst1, oneCol);        
-      break;
-    }
+//       break;
+//     case 2: 
+//       CkAssert(cinst1); 
+//       ComlibAssociateProxy(cinst1, oneCol);        
+//       break;
+//     }
 
     blkMsg *givenU = createABlkMsg();
     givenU->setMsgData(LU, internalStep);
@@ -551,19 +551,19 @@ public:
     
     CProxySection_LUBlk oneRow = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, thisIndex.x, 1, thisIndex.y+1, numBlks-1, 1);
     
-    switch(whichMulticastStrategy){ 
-    case 0: 
-      // no delegation 
-      break;
-    case 1: 
-      CkAssert(cinst0);  
+ //    switch(whichMulticastStrategy){ 
+//     case 0: 
+//       // no delegation 
+//       break;
+//     case 1:
+      CkAssert(cinst0);
       ComlibAssociateProxy(cinst0, oneRow); 
-      break; 
-    case 2:  
-      CkAssert(cinst1);  
-      ComlibAssociateProxy(cinst1, oneRow);         
-      break;
-    }
+   //    break; 
+//     case 2:  
+//       CkAssert(cinst1);  
+//       ComlibAssociateProxy(cinst1, oneRow);         
+//       break;
+//    }
 
     blkMsg *givenL = createABlkMsg();
     givenL->setMsgData(LU, internalStep);
