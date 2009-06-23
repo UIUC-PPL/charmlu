@@ -13,6 +13,7 @@ mainmodule lu {
   readonly int doPrioritize;
   readonly ComlibInstanceHandle cinst0; 
   readonly ComlibInstanceHandle cinst1; 
+  readonly ComlibInstanceHandle cinst2;
 
   message blkMsg {
     double data[];

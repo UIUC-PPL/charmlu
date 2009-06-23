@@ -4,6 +4,9 @@
 #include <iostream>
 #include <pthread.h>
  
+#include <malloc.h>
+
+
 #include <comlib.h>
 #include <controlPoints.h> // must come before user decl.h if they are using the pathInformationMsg
 #include "lu.decl.h"
@@ -30,6 +33,7 @@ CProxy_Main mainProxy;
 CProxy_LUBlk luArrProxy;
 ComlibInstanceHandle cinst0; 
 ComlibInstanceHandle cinst1; 
+ComlibInstanceHandle cinst2;  
 int gMatSize;
 int numBlks;
 int BLKSIZE;
@@ -151,7 +155,7 @@ public:
     traceSolveLocalLU = traceRegisterUserEvent("Solve local LU");
     
 
-    BLKSIZE = 1 << staticPoint("Block Size", 7,7);
+    BLKSIZE = 1 << staticPoint("Block Size", 8,8);
     whichMapping = 0;
     doPrioritize = 0;
 
@@ -170,6 +174,9 @@ public:
     
     Strategy * strategy1 = new RingMulticastStrategy();
     cinst1 = ComlibRegister(strategy1);
+
+    Strategy * strategy2 = new OneTimeMulticastStrategy();     
+    cinst2 = ComlibRegister(strategy2); 
 
     if(whichMapping==0){
       CProxy_BlockCyclicMap myMap = CProxy_BlockCyclicMap::ckNew();
@@ -213,7 +220,7 @@ public:
     traceUserSuppliedNote("*** New Iteration");
     
     staticPoint("Block Size", 8,8); // call this so it gets recorded for this phase
-    int whichMulticastStrategy = controlPoint("which multicast strategy", 1,1);
+    int whichMulticastStrategy = controlPoint("which multicast strategy", 0,0);
     
     CkCallback *cb = new CkCallback(CkIndex_Main::arrayIsCreated(NULL), thisProxy); 
     luArrProxy.ckSetReductionClient(cb);
@@ -299,8 +306,11 @@ public:
 			 // propagated soon enough. I'm assuming they
 			 // are safe to use here.
 
-    LU = new double[BLKSIZE*BLKSIZE];
-    
+    //    LU = new double[BLKSIZE*BLKSIZE];
+    LU = (double*)memalign(128, BLKSIZE*BLKSIZE*sizeof(double) );
+    //   CkPrintf("LU mod 128 = %lu\n", ((unsigned long)LU) % 128);
+
+
     internalStep = 0;  
      
     traceUserSuppliedData(-1);  
@@ -514,20 +524,24 @@ public:
     CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
     
 
-  //   switch(whichMulticastStrategy){
-//     case 0:
-//       // no delegation
-//       break;
-//     case 1:
+    switch(whichMulticastStrategy){
+    case 0:
+      // no delegation
+      break;
+    case 1:
       CkAssert(cinst0);
       ComlibAssociateProxy(cinst0, oneCol);
-//       break;
-//     case 2: 
-//       CkAssert(cinst1); 
-//       ComlibAssociateProxy(cinst1, oneCol);        
-//       break;
-//     }
-
+      break;
+    case 2: 
+      CkAssert(cinst1); 
+      ComlibAssociateProxy(cinst1, oneCol);        
+      break;
+    case 3:
+      CkAssert(cinst2);
+      ComlibAssociateProxy(cinst2, oneCol);
+      break;
+    }
+    
     blkMsg *givenU = createABlkMsg();
     givenU->setMsgData(LU, internalStep);
     oneCol.updateRecvU(givenU);
@@ -551,20 +565,24 @@ public:
     
     CProxySection_LUBlk oneRow = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, thisIndex.x, 1, thisIndex.y+1, numBlks-1, 1);
     
- //    switch(whichMulticastStrategy){ 
-//     case 0: 
-//       // no delegation 
-//       break;
-//     case 1:
+    switch(whichMulticastStrategy){ 
+    case 0: 
+      // no delegation 
+      break;
+    case 1:
       CkAssert(cinst0);
       ComlibAssociateProxy(cinst0, oneRow); 
-   //    break; 
-//     case 2:  
-//       CkAssert(cinst1);  
-//       ComlibAssociateProxy(cinst1, oneRow);         
-//       break;
-//    }
-
+      break; 
+    case 2:  
+      CkAssert(cinst1);  
+      ComlibAssociateProxy(cinst1, oneRow);         
+      break;
+    case 3:  
+      CkAssert(cinst2);  
+      ComlibAssociateProxy(cinst2, oneRow);         
+      break;
+    }
+    
     blkMsg *givenL = createABlkMsg();
     givenL->setMsgData(LU, internalStep);
     //CkAssert(givenL->step == 0);
