@@ -18,6 +18,7 @@ extern "C" {
 }
 #elif USE_MKL_CBLAS_H
 #include "mkl_cblas.h"
+#include "mkl_lapack.h"
 #elif USE_ACCELERATE_BLAS
 #include <Accelerate/Accelerate.h>
 #else
@@ -153,7 +154,9 @@ public:
     traceComputeU = traceRegisterUserEvent("Compute U");
     traceComputeL = traceRegisterUserEvent("Compute L");
     traceSolveLocalLU = traceRegisterUserEvent("Solve local LU");
-    
+
+    traceRegisterUserEvent("Local Multicast Deliveries", 10000);    
+    traceRegisterUserEvent("Remote Multicast Forwarding", 10001);
 
     BLKSIZE = 1 << staticPoint("Block Size", 8,8);
     whichMapping = 0;
@@ -169,15 +172,15 @@ public:
     CkPrintf("Running LU on %d processors (%d nodes) on matrix %dX%d with block size %d\n",
 	     CkNumPes(), CmiNumNodes(), gMatSize, gMatSize, BLKSIZE);
     
-    Strategy * strategy0 = new DirectMulticastStrategy();
-    cinst0 = ComlibRegister(strategy0);
+ //    Strategy * strategy0 = new DirectMulticastStrategy();
+//     cinst0 = ComlibRegister(strategy0);
     
-    Strategy * strategy1 = new RingMulticastStrategy();
-    cinst1 = ComlibRegister(strategy1);
-
-    Strategy * strategy2 = new OneTimeMulticastStrategy();     
+//     Strategy * strategy1 = new RingMulticastStrategy();
+//     cinst1 = ComlibRegister(strategy1);
+    
+    Strategy * strategy2 = new OneTimeTreeMulticastStrategy();     
     cinst2 = ComlibRegister(strategy2); 
-
+    
     if(whichMapping==0){
       CProxy_BlockCyclicMap myMap = CProxy_BlockCyclicMap::ckNew();
       CkArrayOptions opts(numBlks, numBlks);
@@ -220,7 +223,7 @@ public:
     traceUserSuppliedNote("*** New Iteration");
     
     staticPoint("Block Size", 8,8); // call this so it gets recorded for this phase
-    int whichMulticastStrategy = controlPoint("which multicast strategy", 0,0);
+    int whichMulticastStrategy = controlPoint("which multicast strategy", 3,3);
     
     CkCallback *cb = new CkCallback(CkIndex_Main::arrayIsCreated(NULL), thisProxy); 
     luArrProxy.ckSetReductionClient(cb);
@@ -394,8 +397,16 @@ public:
     //array should also be broadcasted to those elements that
     //only needs ComputeL and ComputeU (???)
     int *ipiv = new int[BLKSIZE];
+    
+#if 1
     clapack_dgetrf(CblasRowMajor, BLKSIZE, BLKSIZE, LU, BLKSIZE, ipiv);
-
+#else
+    int info;
+    // This one doesn't quite do what we want... it does pivoting
+    dgetrf(&BLKSIZE, &BLKSIZE, LU, &BLKSIZE, ipiv, &info);
+#endif
+    
+    
     //  CkPrintf("Permutation info: ");
 //     for (int i=0; i<BLKSIZE; i++) CkPrintf("%d, ", ipiv[i]);
 //     CkPrintf("\n");
@@ -524,23 +535,23 @@ public:
     CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
     
 
-    switch(whichMulticastStrategy){
-    case 0:
-      // no delegation
-      break;
-    case 1:
-      CkAssert(cinst0);
-      ComlibAssociateProxy(cinst0, oneCol);
-      break;
-    case 2: 
-      CkAssert(cinst1); 
-      ComlibAssociateProxy(cinst1, oneCol);        
-      break;
-    case 3:
+  //   switch(whichMulticastStrategy){
+//     case 0:
+//       // no delegation
+//       break;
+//     case 1:
+//       CkAssert(cinst0);
+//       ComlibAssociateProxy(cinst0, oneCol);
+//       break;
+//     case 2: 
+//       CkAssert(cinst1); 
+//       ComlibAssociateProxy(cinst1, oneCol);        
+//       break;
+//     case 3:
       CkAssert(cinst2);
       ComlibAssociateProxy(cinst2, oneCol);
-      break;
-    }
+    //   break;
+//     }
     
     blkMsg *givenU = createABlkMsg();
     givenU->setMsgData(LU, internalStep);
@@ -565,23 +576,23 @@ public:
     
     CProxySection_LUBlk oneRow = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, thisIndex.x, 1, thisIndex.y+1, numBlks-1, 1);
     
-    switch(whichMulticastStrategy){ 
-    case 0: 
-      // no delegation 
-      break;
-    case 1:
-      CkAssert(cinst0);
-      ComlibAssociateProxy(cinst0, oneRow); 
-      break; 
-    case 2:  
-      CkAssert(cinst1);  
-      ComlibAssociateProxy(cinst1, oneRow);         
-      break;
-    case 3:  
+//     switch(whichMulticastStrategy){ 
+//     case 0: 
+//       // no delegation 
+//       break;
+//     case 1:
+//       CkAssert(cinst0);
+//       ComlibAssociateProxy(cinst0, oneRow); 
+//       break; 
+//     case 2:  
+//       CkAssert(cinst1);  
+//       ComlibAssociateProxy(cinst1, oneRow);         
+//       break;
+//     case 3:  
       CkAssert(cinst2);  
       ComlibAssociateProxy(cinst2, oneRow);         
-      break;
-    }
+//       break;
+//     }
     
     blkMsg *givenL = createABlkMsg();
     givenL->setMsgData(LU, internalStep);

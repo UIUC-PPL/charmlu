@@ -1,19 +1,28 @@
-#OPTS=-g -O0
-OPTS = -O3
+OPTS=-g -O0
+#OPTS = -O3
 
 
 #------------------------------------------------
 # To compile on order or faith(Ubuntu):
-#BLAS_INC = -DUSE_BLAS -DUSE_CBLAS_H
+#BLAS_INC =  -DUSE_CBLAS_H
 #BLAS_LD = -lcblas
 
 # To compile on hope (OSX):
-#BLAS_INC = -DUSE_BLAS -DUSE_ACCELERATE_BLAS=1
+#BLAS_INC = -DUSE_ACCELERATE_BLAS=1
 #BLAS_LD = -framework Accelerate
 
 # To compile against a custom atlas install on linux:
-BLAS_INC = -I/scratch/idooley2/atlas-install/include -DUSE_BLAS  -DUSE_CBLAS_H
-BLAS_LD = -L/scratch/idooley2/atlas-install/lib -llapack -lf77blas -lcblas -latlas
+#BLAS_INC = -I/scratch/idooley2/atlas-install/include -DUSE_BLAS  -DUSE_CBLAS_H
+#BLAS_LD = -L/scratch/idooley2/atlas-install/lib -llapack -lf77blas -lcblas -latlas
+
+
+# To compile with mkl on abe
+#BLAS_INC = -DUSE_MKL_CBLAS_H -I${MKL_HOME}/include/
+#BLAS_LD = -L${MKL_HOME}/lib/em64t -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
+
+# To compile with ATLAS on abe
+BLAS_INC = -I/u/ac/idooley2/LU/atlas-install/include -DUSE_BLAS  -DUSE_CBLAS_H
+BLAS_LD = -L/u/ac/idooley2/LU/atlas-install/lib -llapack -lf77blas -lcblas -latlas
 
 
 # ----------------------------------------------
