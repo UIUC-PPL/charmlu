@@ -193,7 +193,7 @@ public:
     CkCallback *cb = new CkCallback(CkIndex_Main::arrayIsCreated(NULL), thisProxy);
     CkStartQD(*cb); // required currently for use with new Comlib
     
-    CcdCallFnAfterOnPE((CcdVoidFn)periodicDebug, (void*)NULL, 10000, CkMyPe());
+    //    CcdCallFnAfterOnPE((CcdVoidFn)periodicDebug, (void*)NULL, 10000, CkMyPe());
     
   }
 
