@@ -242,7 +242,7 @@ public:
 //     Strategy * strategy1 = new RingMulticastStrategy();
 //     cinst1 = ComlibRegister(strategy1);
     
-    Strategy * strategy2 = new OneTimeTreeMulticastStrategy();     
+    Strategy * strategy2 = new OneTimeNodeTreeMulticastStrategy();     
     cinst2 = ComlibRegister(strategy2); 
     
     if(whichMapping==0){
