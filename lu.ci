@@ -34,12 +34,16 @@ mainmodule lu {
     entry void init(int whichMulticastStrategy);     
     entry [nokeep] void updateRecvU(blkMsg *);
     entry [nokeep] void updateRecvL(blkMsg *);
-    entry void progress();
+    entry void progress(int ignoredParam);
     entry void printInfo();
   };        	
 
   group BlockCyclicMap : CkArrayMap{
     entry BlockCyclicMap();
+  };
+
+  group LUSnakeMap : CkArrayMap{
+    entry LUSnakeMap();
   };
 
 };

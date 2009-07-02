@@ -1,3 +1,20 @@
+/**
+   @file A Charm++ implementation of LU 
+   
+   Messages of type blkMsg contain blocks of data that are sent down and to the 
+   right as the computation progresses. 
+
+   As the blkMsg messages arrive, they are always put into a buffer, and a call 
+   to thisProxy(thisIndex.x,thisIndex.y).progress() is made if the computation 
+   can proceed without any additional messages.
+   
+   
+
+
+ */
+
+
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -107,6 +124,53 @@ public:
 };
 
 
+
+class LUSnakeMap: public CkArrayMap {
+public:
+  LUSnakeMap() {}
+  int procNum(int arrayHdl, const CkArrayIndex &idx) {
+    int *coor = (int *)idx.data();
+    int x = coor[0];
+    int y = coor[1];
+
+    int numProcs = CkNumPes();
+
+    const int numsteps=32;
+
+   
+    int p=0;
+    for(int step=0;step<numsteps;step++){
+      
+      // go along row
+      for(int i=0;i<numsteps-step;i++){
+	int curr_x = i + step;
+	int curr_y = step;
+	if(x==curr_x && y==curr_y)
+	  return p % numProcs;
+	p++;
+      }
+      
+      // visit corner
+      if(x==step && y==step)
+	return p % numProcs;
+      p++;
+      
+      // go along column
+      for(int i=1;i<numsteps-step;i++){
+	int curr_y = i + step;
+	int curr_x = step;
+	if(x==curr_x && y==curr_y)
+	  return p % numProcs;
+	p++;
+      }
+      
+    }
+    
+    CkAbort("Mapping code has a bug in it\n");
+    return -1;
+  }
+};
+
 class BlockCyclicMap: public CkArrayMap {
 public:
   BlockCyclicMap() {}
@@ -158,10 +222,10 @@ public:
     traceRegisterUserEvent("Local Multicast Deliveries", 10000);    
     traceRegisterUserEvent("Remote Multicast Forwarding", 10001);
 
-    BLKSIZE = 1 << staticPoint("Block Size", 8,8);
+    BLKSIZE = 1 << staticPoint("Block Size", 9,9);
     whichMapping = 0;
     doPrioritize = 0;
-
+    
     gMatSize = atoi(m->argv[1]);
  
     if (gMatSize%BLKSIZE!=0) 
@@ -182,7 +246,9 @@ public:
     cinst2 = ComlibRegister(strategy2); 
     
     if(whichMapping==0){
-      CProxy_BlockCyclicMap myMap = CProxy_BlockCyclicMap::ckNew();
+      // CProxy_BlockCyclicMap myMap = CProxy_BlockCyclicMap::ckNew();
+      CProxy_LUSnakeMap myMap = CProxy_LUSnakeMap::ckNew();
+
       CkArrayOptions opts(numBlks, numBlks);
       opts.setMap(myMap);
       luArrProxy = CProxy_LUBlk::ckNew(opts);
@@ -193,7 +259,7 @@ public:
     CkCallback *cb = new CkCallback(CkIndex_Main::arrayIsCreated(NULL), thisProxy);
     CkStartQD(*cb); // required currently for use with new Comlib
     
-    CcdCallFnAfterOnPE((CcdVoidFn)periodicDebug, (void*)NULL, 10000, CkMyPe());
+    //    CcdCallFnAfterOnPE((CcdVoidFn)periodicDebug, (void*)NULL, 10000, CkMyPe());
     
   }
 
@@ -258,9 +324,12 @@ public:
     double gflops_per_core = HPL_gflops / (double)CkNumPes();
     double fractionOfPeakOnOrder = gflops_per_core / 7.4585;
     double fractionOfPeakOnOrderPercent = fractionOfPeakOnOrder * 100.0;
+    
+    double fractionOfPeakOnAbe = gflops_per_core / 9.332;
+    double fractionOfPeakOnAbePercent = fractionOfPeakOnAbe * 100.0;
 
     std::cout << "If run on order.cs.uiuc.edu, I think you are getting  \t" << fractionOfPeakOnOrderPercent << "% of peak" << std::endl;
-
+    std::cout << "If run on abe.ncsa.uiuc.edu, I think you are getting  \t" << fractionOfPeakOnAbePercent << "% of peak" << std::endl;
 
     registerControlPointTiming(duration);
 
@@ -369,7 +438,7 @@ public:
     traceUserSuppliedData(internalStep);
     traceMemoryUsage();
     CkAssert(!done);
-    thisProxy(0,0).progress();
+    thisProxy(0,0).progress(0);
   }
 
 
@@ -391,7 +460,7 @@ public:
     double luStart = CmiWallTimer();
 
     //#ifdef USE_LAPACK
-#warning "Using lapack for solveLocalLU"
+
     //There's an output for permuation array which is not
     //used in the current non-lapack version. This permuation
     //array should also be broadcasted to those elements that
@@ -507,7 +576,7 @@ public:
     if(canContinue() && alreadyReEnqueuedDuringPhase < internalStep){
       alreadyReEnqueuedDuringPhase = internalStep;
       DEBUG_PRINT("NOTE   :                                  calling progress() from updateRecvU\n");
-      thisProxy(thisIndex.x,thisIndex.y).progress();
+      selfContinue();
     }
   }
 
@@ -521,7 +590,7 @@ public:
     if(canContinue() && alreadyReEnqueuedDuringPhase < internalStep){
       alreadyReEnqueuedDuringPhase = internalStep;
       DEBUG_PRINT("NOTE   :                                  calling progress() from updateRecvL\n");
-      thisProxy(thisIndex.x,thisIndex.y).progress();
+      selfContinue();
     }
   }
 
@@ -611,7 +680,7 @@ public:
   
  
 
-  void progress() {
+  void progress(int ignoredParam) {
     DEBUG_PRINT("progress() called on block %d,%d\n", thisIndex.x, thisIndex.y);
     CkAssert(!done);
     
@@ -706,7 +775,7 @@ public:
       if(canContinue() && alreadyReEnqueuedDuringPhase < internalStep){
 	alreadyReEnqueuedDuringPhase = internalStep;
 	DEBUG_PRINT("WARNING:                                  calling progress() after trailing update because work is available to process\n");
-	thisProxy(thisIndex.x,thisIndex.y).progress();
+	selfContinue();
       }
       
       MERGE_PATH_DELETE_D(A,internalStep);
@@ -734,7 +803,27 @@ public:
   }
   
 
-  /// Are there enough buffered messages for this step to perform the required work 
+  /// Call progress on myself, possibly using priorities 
+  inline void selfContinue(){
+    int integerPrio;
+    
+    //    CkPrintf("continuing %d,%d  internalStep=%d \n", thisIndex.x,thisIndex.y, internalStep);
+
+    if(thisIndex.x == thisIndex.y && thisIndex.x == internalStep){
+      integerPrio = -1; // highest priority
+    } else if(thisIndex.x == internalStep || thisIndex.y == internalStep){
+      integerPrio = internalStep+1; // high priority
+    } else {
+      // Trailing updates have lower priorities that increase from top left to bottom right
+      integerPrio = internalStep+1 + (thisIndex.x+thisIndex.y);
+    }
+    
+    CkEntryOptions eOpts; 
+    eOpts.setPriority (integerPrio); // setPriority sets the queuing type internally
+    thisProxy(thisIndex.x,thisIndex.y).progress(0, &eOpts);
+  }
+  
+  /// Are there enough buffered messages for this step to perform the required work?
   bool canContinue(){
     double *incomingL = getBufferedL(internalStep);
     double *incomingU = getBufferedU(internalStep);
@@ -836,7 +925,7 @@ public:
   }
 
 private:
-  //internal functions for creating messages to encapsulate the priority function of functions
+  //internal functions for creating messages to encapsulate the priority
   inline blkMsg* createABlkMsg() {
     blkMsg *msg;
     
@@ -852,7 +941,7 @@ private:
     return msg;
   }
   
-
+  
 };
 
 
