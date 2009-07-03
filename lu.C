@@ -135,7 +135,7 @@ public:
 
     int numProcs = CkNumPes();
 
-    const int numsteps=32;
+    const int numsteps=numBlks;
 
    
     int p=0;
@@ -218,10 +218,11 @@ public:
     traceComputeU = traceRegisterUserEvent("Compute U");
     traceComputeL = traceRegisterUserEvent("Compute L");
     traceSolveLocalLU = traceRegisterUserEvent("Solve local LU");
-
+    
     traceRegisterUserEvent("Local Multicast Deliveries", 10000);    
-    traceRegisterUserEvent("Remote Multicast Forwarding", 10001);
-
+    traceRegisterUserEvent("Remote Multicast Forwarding - preparing", 10001);
+    traceRegisterUserEvent("Remote Multicast Forwarding - sends", 10002);
+    
     BLKSIZE = 1 << staticPoint("Block Size", 9,9);
     whichMapping = 0;
     doPrioritize = 0;
@@ -242,10 +243,10 @@ public:
 //     Strategy * strategy1 = new RingMulticastStrategy();
 //     cinst1 = ComlibRegister(strategy1);
     
-    Strategy * strategy2 = new OneTimeNodeTreeMulticastStrategy();     
+    Strategy * strategy2 = new OneTimeNodeTreeRingMulticastStrategy();     
     cinst2 = ComlibRegister(strategy2); 
     
-    if(whichMapping==0){
+    if(true){
       // CProxy_BlockCyclicMap myMap = CProxy_BlockCyclicMap::ckNew();
       CProxy_LUSnakeMap myMap = CProxy_LUSnakeMap::ckNew();
 
@@ -467,12 +468,12 @@ public:
     //only needs ComputeL and ComputeU (???)
     int *ipiv = new int[BLKSIZE];
     
-#if 1
-    clapack_dgetrf(CblasRowMajor, BLKSIZE, BLKSIZE, LU, BLKSIZE, ipiv);
-#else
+#if USE_MKL_CBLAS_H 
     int info;
     // This one doesn't quite do what we want... it does pivoting
     dgetrf(&BLKSIZE, &BLKSIZE, LU, &BLKSIZE, ipiv, &info);
+#else
+    clapack_dgetrf(CblasRowMajor, BLKSIZE, BLKSIZE, LU, BLKSIZE, ipiv);
 #endif
     
     
@@ -809,6 +810,7 @@ public:
     
     //    CkPrintf("continuing %d,%d  internalStep=%d \n", thisIndex.x,thisIndex.y, internalStep);
 
+#if 1
     if(thisIndex.x == thisIndex.y && thisIndex.x == internalStep){
       integerPrio = -1; // highest priority
     } else if(thisIndex.x == internalStep || thisIndex.y == internalStep){
@@ -817,10 +819,24 @@ public:
       // Trailing updates have lower priorities that increase from top left to bottom right
       integerPrio = internalStep+1 + (thisIndex.x+thisIndex.y);
     }
-    
+#else
+    if(thisIndex.x == thisIndex.y && thisIndex.x == internalStep){
+      integerPrio = 10; // corners
+    } else if(thisIndex.x == internalStep || thisIndex.y == internalStep){
+      integerPrio = 9; // edges
+    } else {
+      // Trailing updates
+      integerPrio = -100;
+    }
+
+#endif    
+
+
     CkEntryOptions eOpts; 
     eOpts.setPriority (integerPrio); // setPriority sets the queuing type internally
     thisProxy(thisIndex.x,thisIndex.y).progress(0, &eOpts);
+
+
   }
   
   /// Are there enough buffered messages for this step to perform the required work?
