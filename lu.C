@@ -36,6 +36,8 @@ extern "C" {
 #elif USE_MKL_CBLAS_H
 #include "mkl_cblas.h"
 #include "mkl_lapack.h"
+#elif USE_ACML_H
+#include "acml.h"
 #elif USE_ACCELERATE_BLAS
 #include <Accelerate/Accelerate.h>
 #else
@@ -124,7 +126,7 @@ public:
 };
 
 
-
+/** do a space filling curve style allocation from the bottom right to the upper left. */
 class LUSnakeMap: public CkArrayMap {
 public:
   LUSnakeMap() {}
@@ -139,10 +141,10 @@ public:
 
    
     int p=0;
-    for(int step=0;step<numsteps;step++){
+    for(int step=numsteps-1;step>=0;step--){
       
       // go along row
-      for(int i=0;i<numsteps-step;i++){
+      for(int i=1;i<numsteps-step;i++){
 	int curr_x = i + step;
 	int curr_y = step;
 	if(x==curr_x && y==curr_y)
@@ -170,6 +172,68 @@ public:
     return -1;
   }
 };
+
+
+
+/** do an allocation that results in almost identical numbers of trailing updates per PE */
+class LUBalancedSnakeMap: public CkArrayMap {
+public:
+  
+  int *mapping;
+  
+  /** build and store the mapping once */
+  LUBalancedSnakeMap() {
+    mapping = new int[numBlks*numBlks];    
+    
+    int numProcs = CkNumPes();
+    
+    const int numsteps=numBlks;
+    
+    
+    int p=0;
+    for(int step=numsteps-1;step>=0;step--){
+      
+      // go along row
+      for(int i=1;i<numsteps-step;i++){
+	int x = i + step;
+	int y = step;
+	setMapping(x, y, p % numProcs);
+	p++;
+      }
+      
+      // visit corner & column
+      for(int i=0;i<numsteps-step;i++){
+	int y = i + step;
+	int x = step;
+	setMapping(x, y, p % numProcs);
+	p++;
+      }
+      
+    }
+    
+  }
+  
+  int setMapping(int x, int y, int pe){
+    mapping[y*numBlks+x] = pe;
+  }
+  
+  int numTrailingUpdates(int x, int y){
+    if(x<y)
+      return x;
+    else 
+      return y;
+  }
+  
+
+  int procNum(int arrayHdl, const CkArrayIndex &idx) {
+    int *coor = (int *)idx.data();
+  
+    
+    CkAbort("Mapping code has a bug in it\n");
+    return -1;
+  }
+};
+
 
 class BlockCyclicMap: public CkArrayMap {
 public:
@@ -329,8 +393,12 @@ public:
     double fractionOfPeakOnAbe = gflops_per_core / 9.332;
     double fractionOfPeakOnAbePercent = fractionOfPeakOnAbe * 100.0;
 
-    std::cout << "If run on order.cs.uiuc.edu, I think you are getting  \t" << fractionOfPeakOnOrderPercent << "% of peak" << std::endl;
-    std::cout << "If run on abe.ncsa.uiuc.edu, I think you are getting  \t" << fractionOfPeakOnAbePercent << "% of peak" << std::endl;
+    double fractionOfPeakOnKraken =  gflops_per_core / 9.2;
+    double fractionOfPeakOnKrakenPercent = fractionOfPeakOnKraken * 100.0;
+    
+    std::cout << "If ran on order.cs.uiuc.edu, I think you got  \t" << fractionOfPeakOnOrderPercent << "% of peak" << std::endl;
+    std::cout << "If ran on abe.ncsa.uiuc.edu, I think you got  \t" << fractionOfPeakOnAbePercent << "% of peak" << std::endl;
+    std::cout << "If ran on kraken, I think you got  \t" << fractionOfPeakOnKrakenPercent << "% of peak" << std::endl;
 
     registerControlPointTiming(duration);
 
@@ -392,8 +460,51 @@ public:
     MatGen rnd(thisIndex.x * numBlks + thisIndex.y);      
     for (int i=0; i<BLKSIZE*BLKSIZE; i++) {  
       LU[i] = rnd.toRndDouble(rnd.nextRndInt());  
-    }  
+    } 
 
+
+    testdgemm();
+
+  }
+
+
+
+  void testdgemm(){
+    if(thisIndex.x == 0 && thisIndex.y == 0){ 
+ 
+      double *m1 = new double[BLKSIZE*BLKSIZE]; 
+      double *m2 = new double[BLKSIZE*BLKSIZE]; 
+      double *m3 = new double[BLKSIZE*BLKSIZE]; 
+ 
+      MatGen rnd(0); 
+      for (int i=0; i<BLKSIZE*BLKSIZE; i++) { 
+        m1[i] = rnd.toRndDouble(rnd.nextRndInt()); 
+        m2[i] = rnd.toRndDouble(rnd.nextRndInt()); 
+        m3[i] = rnd.toRndDouble(rnd.nextRndInt()); 
+      } 
+       
+      double startTest = CmiWallTimer(); 
+       
+      cblas_dgemm( CblasRowMajor, 
+                   CblasNoTrans, CblasNoTrans, 
+                   BLKSIZE, BLKSIZE, BLKSIZE, 
+                   -1.0, m1, 
+                   BLKSIZE, m2, BLKSIZE, 
+                   1.0, m3, BLKSIZE); 
+       
+      double endTest = CmiWallTimer(); 
+      double duration = endTest-startTest; 
+ 
+      CkPrintf("The dgemm %d x %d call takes %g seconds\n", BLKSIZE, BLKSIZE, duration); 
+      double flopcount = BLKSIZE * BLKSIZE * BLKSIZE * 2.0; 
+      double gflopcount = flopcount / 1000000000; 
+      double gflopPerSec = gflopcount / duration; 
+      CkPrintf("The dgemm is %g GFlop/sec\n", gflopPerSec); 
+ 
+      delete[] m1; 
+      delete[] m2; 
+      delete[] m3;       
+    } 
   }
 
 
@@ -413,9 +524,14 @@ public:
     for (int i=0; i<BLKSIZE*BLKSIZE; i++) { 
       LU[i] = rnd.toRndDouble(rnd.nextRndInt()); 
     } 
-
+    
     contribute();
   }
+
+
+
+
+
   
 
   ~LUBlk() {
@@ -811,6 +927,8 @@ public:
     //    CkPrintf("continuing %d,%d  internalStep=%d \n", thisIndex.x,thisIndex.y, internalStep);
 
 #if 1
+    // Low priority trailing updates
+    // High priorities for critical path (solve local LUs)
     if(thisIndex.x == thisIndex.y && thisIndex.x == internalStep){
       integerPrio = -1; // highest priority
     } else if(thisIndex.x == internalStep || thisIndex.y == internalStep){
@@ -820,6 +938,7 @@ public:
       integerPrio = internalStep+1 + (thisIndex.x+thisIndex.y);
     }
 #else
+    // High priorities for trailing updates
     if(thisIndex.x == thisIndex.y && thisIndex.x == internalStep){
       integerPrio = 10; // corners
     } else if(thisIndex.x == internalStep || thisIndex.y == internalStep){
@@ -828,7 +947,6 @@ public:
       // Trailing updates
       integerPrio = -100;
     }
-
 #endif    
 
 
@@ -956,6 +1074,11 @@ private:
     
     return msg;
   }
+
+
+
+
+
   
   
 };

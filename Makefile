@@ -21,8 +21,17 @@ OPTS = -O3
 #BLAS_LD = -L${MKL_HOME}/lib/em64t -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
 
 # To compile with ATLAS on abe
-BLAS_INC = -I/u/ac/idooley2/LU/atlas-install/include -DUSE_BLAS  -DUSE_CBLAS_H
-BLAS_LD = -L/u/ac/idooley2/LU/atlas-install/lib -llapack -lf77blas -lcblas -latlas
+#BLAS_INC = -I/u/ac/idooley2/LU/atlas-install/include -DUSE_BLAS  -DUSE_CBLAS_H
+#BLAS_LD = -L/u/ac/idooley2/LU/atlas-install/lib -llapack -lf77blas -lcblas -latlas
+
+
+# To compile on Cray XT5 with "module load atlas/3.8.3"
+#BLAS_LD = -L$(ATLAS_DIR)/lib -llapack -lf77blas -lcblas -latlas
+#BLAS_INC = -I$(ATLAS_DIR)/include -DUSE_BLAS  -DUSE_CBLAS_H
+
+# To compile on Cray XT5 with "module load acml"
+BLAS_LD = -L/lustre/scratch/idooley2/LU/CBLAS/lib -lcblas -L$(ACML_DIR)/gfortran64/lib/ -llibacml 
+BLAS_INC = -I/lustre/scratch/idooley2/LU/CBLAS/include  -DUSE_CBLAS_H
 
 
 # ----------------------------------------------
@@ -57,7 +66,7 @@ MODULES=  -module ControlPoints  -tracemode controlPoints -module comlib
 all: lu lu-proj
 
 lu: lu.o 
-	$(CHARMC) -language charm++ -o lu lu.o $(BLAS_LD) $(MULTICAST)  $(MODULES)
+	$(CHARMC) -language charm++ -o lu lu.o $(BLAS_LD) $(MULTICAST)  $(MODULES) -version
 
 lu-proj: lu.o 
 	$(CHARMC) -language charm++ -o lu-proj lu.o $(BLAS_LD) $(PROJ) $(MULTICAST)  $(MODULES)
