@@ -17,7 +17,13 @@
 #include <string.h>
 #include <iostream>
 #include <pthread.h>
+ 
+#include <malloc.h>
 
+
+#include <comlib.h>
+#include <controlPoints.h> // must come before user decl.h if they are using the pathInformationMsg
+#include "lu.decl.h"
 
 #if USE_CBLAS_H
 extern "C" {
@@ -34,17 +40,6 @@ extern "C" {
 #else
 #error "No BLAS Header files included!"
 #endif
-
-
-#if USE_MEMALIGN
-#include <malloc.h>
-#endif
-
-#include <comlib.h>
-#include <controlPoints.h> // must come before user decl.h if they are using the pathInformationMsg
-#include "lu.decl.h"
-
-
 
 
 #define numIterations 1
@@ -77,13 +72,7 @@ static void periodicDebug(void* ptr, double currWallTime){
   luArrProxy.printInfo();
 }
 
-enum continueWithTask {
-  NO_CONTINUE = 0,
-  CONTINUE_LU,
-  CONTINUE_U,
-  CONTINUE_L,
-  CONTINUE_TRAIL
-};
+
 
 //A class for randomly generating matrix elements' value
 #define MAXINT (~(1<<31))
@@ -382,7 +371,7 @@ public:
   
   void arrayIsCreated(CkReductionMsg * m) {
     startTime = CmiWallTimer();
-    luArrProxy(0,0).processLocalLU(0);
+    luArrProxy(0,0).begin();
   }
   
 
@@ -498,13 +487,10 @@ public:
 			 // propagated soon enough. I'm assuming they
 			 // are safe to use here.
 
-
-#if USE_MEMALIGN
+    //    LU = new double[BLKSIZE*BLKSIZE];
     LU = (double*)memalign(128, BLKSIZE*BLKSIZE*sizeof(double) );
     //   CkPrintf("LU mod 128 = %lu\n", ((unsigned long)LU) % 128);
-#else
-    LU = new double[BLKSIZE*BLKSIZE];
-#endif
+
 
     internalStep = 0;  
      
@@ -589,12 +575,10 @@ public:
   
 
   ~LUBlk() {
-#if USE_MEMALIGN
-    free(LU);
-#else
+
     delete [] LU;
-#endif
     LU = NULL;
+
   }
 
 
@@ -605,14 +589,14 @@ public:
 
 
  
-//   // Called on element 0,0
-//   void begin() {
-//     CkAssert(thisIndex.x == 0 && thisIndex.y == 0);
-//     traceUserSuppliedData(internalStep);
-//     traceMemoryUsage();
-//     CkAssert(!done);
-//     thisProxy(0,0).processLocalLU(0);
-//   }
+  // Called on element 0,0
+  void begin() {
+    CkAssert(thisIndex.x == 0 && thisIndex.y == 0);
+    traceUserSuppliedData(internalStep);
+    traceMemoryUsage();
+    CkAssert(!done);
+    thisProxy(0,0).progress(0);
+  }
 
 
   /* Computation functions that should be called localy related with each
@@ -638,31 +622,45 @@ public:
     //used in the current non-lapack version. This permuation
     //array should also be broadcasted to those elements that
     //only needs ComputeL and ComputeU (???)
-
-#if USE_MKL_CBLAS_H 
-    int size = BLKSIZE;
     int *ipiv = new int[BLKSIZE];
+    
+#if USE_MKL_CBLAS_H 
     int info;
     // This one doesn't quite do what we want... it does pivoting
-    dgetrf(&size, &size, LU, &size, ipiv, &info);
-#elif USE_ACCELERATE_BLAS
-    __CLPK_integer size = static_cast<__CLPK_integer>(BLKSIZE);
-    __CLPK_integer *ipiv = new __CLPK_integer[BLKSIZE];
-    __CLPK_integer info;
-    dgetrf_(&size, &size, LU, &size, ipiv, &info);
-    delete[] ipiv;
+    dgetrf(&BLKSIZE, &BLKSIZE, LU, &BLKSIZE, ipiv, &info);
 #else
-    int *ipiv = new int[BLKSIZE];
     clapack_dgetrf(CblasRowMajor, BLKSIZE, BLKSIZE, LU, BLKSIZE, ipiv);
-    delete [] ipiv;
 #endif
     
-    /** @FIXME: do the permutation of the rows specified by ipiv */
+    
+    //  CkPrintf("Permutation info: ");
+//     for (int i=0; i<BLKSIZE; i++) CkPrintf("%d, ", ipiv[i]);
+//     CkPrintf("\n");
+    delete [] ipiv;
+// #else
+//     //first compute local LU
+//     for (int iter=0; iter<BLKSIZE; iter++) {
+//       double pivot = LU[iter*BLKSIZE+iter];
+//       //compute L of [iter]th column
+//       //L[iter*BLKSIZE+iter]=1.0;
+//       for (int row=iter+1; row<BLKSIZE; row++) {
+// 	LU[row*BLKSIZE+iter] = LU[row*BLKSIZE+iter]/pivot;
+// 	//U[row*BLKSIZE+iter] = 0.0;
+//       }
+
+//       //The [iter]th row of U need not to be changed
+
+//       //update the remaining matrix
+//       for (int row=iter+1; row<BLKSIZE; row++)
+// 	for (int col=iter+1; col<BLKSIZE; col++)
+// 	  LU[row*BLKSIZE+col] -= LU[row*BLKSIZE+iter]*LU[iter*BLKSIZE+col];
+//     }
+// #endif
 
     traceUserBracketEvent(traceSolveLocalLU, luStart, CmiWallTimer());
   }
 
-
+  // really is compute W
   void computeU(blkMsg *givenLMsg) {
     traceUserSuppliedData(internalStep);
     traceMemoryUsage();
@@ -836,147 +834,112 @@ public:
 //     }
     
   }
-
   
  
-  void processComputeU(int ignoredParam) {
-    DEBUG_PRINT("processComputeU() called on block %d,%d\n", thisIndex.x, thisIndex.y);
+
+  void progress(int ignoredParam) {
+    DEBUG_PRINT("progress() called on block %d,%d\n", thisIndex.x, thisIndex.y);
     CkAssert(!done);
-    CkAssert(internalStep==thisIndex.x && getBufferedL(internalStep)!=NULL);
-    // We are in the top row of active blocks, and we
-    // have received the incoming L
+    
+    double *incomingL = getBufferedL(internalStep);
+    double *incomingU = getBufferedU(internalStep);
+
+    if( internalStep==thisIndex.x && internalStep==thisIndex.y ) {
+      // If we are the top-left-most active block
+      	
+      // Verify that there are no outstanding buffered messages.
+      CkAssert(buffersEmpty());
+
+      //      CkPrintf("[%d] chare %d,%d internalStep=%d solveLocalLU\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep);
+      solveLocalLU(); // compute a local LU
+      
+
+      // If this is the very last bottom rightmost block
+      if (thisIndex.x == numBlks-1 && thisIndex.y == numBlks-1) {
+	DEBUG_PRINT("[%d] chare %d,%d calling mainProxy.iterationCompleted -------------------------------------------------\n", CkMyPe(), thisIndex.x, thisIndex.y);
+	mainProxy.iterationCompleted();
+      } else {
+	DEBUG_PRINT("[%d] chare %d,%d is top,left block this step, multicast U & L\n", CkMyPe(), thisIndex.x, thisIndex.y);
+	multicastRecvU();	//broadcast the U downwards to the blocks in the same column
+	multicastRecvL(); 	//broadcast the L rightwards to the blocks in the same row
+      }
+      
+      MERGE_PATH_DELETE_D(A,internalStep);
+      // This block is now done
+      DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
+      done = true;
+    } 
+    else if (internalStep==thisIndex.x && incomingL!=NULL) {
+      // Else, if we are in the top row of active blocks, and we
+      // have received the incoming L
 	
-    // CkPrintf("[%d] chare %d,%d internalStep=%d computeU\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep);
-    computeU(LBuffers[internalStep]);
-    
-    DEBUG_PRINT("[%d] chare %d,%d is top block this step, multicast U\n", CkMyPe(), thisIndex.x, thisIndex.y);
-    multicastRecvU(); //broadcast the newly computed U downwards to the blocks in the same column
-    
-    removeBufferedL(internalStep);	// Cleanup
-    
-    // Verify that there are no outstanding buffered messages.
-    CkAssert(buffersEmpty());
-    
-    deallocateBuffers();
-    MERGE_PATH_DELETE_D(A,internalStep);
-    // This block is now done
-    DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
-    done = true;
-    
-  }
-  
+      // CkPrintf("[%d] chare %d,%d internalStep=%d computeU\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep);
+      computeU(LBuffers[internalStep]);
 
-  void processComputeL(int ignoredParam) {
-    DEBUG_PRINT("processComputeL() called on block %d,%d\n", thisIndex.x, thisIndex.y);
-    CkAssert(!done);
-    CkAssert(internalStep==thisIndex.y && getBufferedU(internalStep)!=NULL);
-    
-    // We are in the left row of active blocks
+      DEBUG_PRINT("[%d] chare %d,%d is top block this step, multicast U\n", CkMyPe(), thisIndex.x, thisIndex.y);
+      multicastRecvU(); //broadcast the newly computed U downwards to the blocks in the same column
+	
+      removeBufferedL(internalStep);	// Cleanup
+
+      // Verify that there are no outstanding buffered messages.
+      CkAssert(buffersEmpty());
+
+      deallocateBuffers();
+      MERGE_PATH_DELETE_D(A,internalStep);
+      // This block is now done
+      DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
+      done = true;
       
-    //  CkPrintf("[%d] chare %d,%d internalStep=%d computeL\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep);
-    computeL(UBuffers[internalStep]);
+    }
+    else if (internalStep==thisIndex.y && incomingU!=NULL) {
+      // Else, if we are in the left row of active blocks
       
-    //broadcast the newly computed L rightwards to the blocks in the same row
-    DEBUG_PRINT("[%d] chare %d,%d is left block this step, multicast L\n", CkMyPe(), thisIndex.x, thisIndex.y);
-    multicastRecvL();
+      //  CkPrintf("[%d] chare %d,%d internalStep=%d computeL\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep);
+      computeL(UBuffers[internalStep]);
       
-    removeBufferedU(internalStep);	// Cleanup
+      //broadcast the newly computed L rightwards to the blocks in the same row
+      DEBUG_PRINT("[%d] chare %d,%d is left block this step, multicast L\n", CkMyPe(), thisIndex.x, thisIndex.y);
+      multicastRecvL();
+      
+      removeBufferedU(internalStep);	// Cleanup
 
-    // Verify that there are no outstanding buffered messages.
-    CkAssert(buffersEmpty());
+      // Verify that there are no outstanding buffered messages.
+      CkAssert(buffersEmpty());
 
-    deallocateBuffers();
-    MERGE_PATH_DELETE_D(A,internalStep);
-    // This block is now done
-    DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
-    done = true;
-    
-  }
-  
+      deallocateBuffers();
+      MERGE_PATH_DELETE_D(A,internalStep);
+      // This block is now done
+      DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
+      done = true;
+      
+    }
+    else if(incomingL!=NULL && incomingU!=NULL) {
+      // Do trailing update
+	
+      //CkPrintf("[%d] chare %d,%d internalStep=%d updateMatrix\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep);
+      updateMatrix(LBuffers[internalStep], UBuffers[internalStep]);
+	
+      removeBufferedL(internalStep);
+      removeBufferedU(internalStep);
 
-
-
-
-
-
-  void processTrailingUpdate(int ignoredParam) {
-    DEBUG_PRINT("processTrailingUpdate() called on block %d,%d\n", thisIndex.x, thisIndex.y);
-    CkAssert(!done);
-    
-    double *incomingL = getBufferedL(internalStep);
-    double *incomingU = getBufferedU(internalStep);
-
-    CkAssert(incomingL!=NULL && incomingU!=NULL);
-    
-    // Do trailing update
-    
-    //CkPrintf("[%d] chare %d,%d internalStep=%d updateMatrix\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep);
-    updateMatrix(LBuffers[internalStep], UBuffers[internalStep]);
-    
-    removeBufferedL(internalStep);
-    removeBufferedU(internalStep);
-    
-    DEBUG_PRINT("elem[%d,%d] advancing to step %d\n", thisIndex.x, thisIndex.y, internalStep+1);
-    internalStep++;
-    
-
-    // If we have received the L and U messages out of order, then some of the 
-    // calls into this progress method will not do anything useful.
-    // Thus we need to tell ourself to continue if possible, because
-    // we cannot rely upon a future progress call being made.
-    if(canContinue() && alreadyReEnqueuedDuringPhase < internalStep){
-      alreadyReEnqueuedDuringPhase = internalStep;
-      DEBUG_PRINT("WARNING: calling progress() after trailing update because work is available to process\n");
-      selfContinue();
+      DEBUG_PRINT("elem[%d,%d] advancing to step %d\n", thisIndex.x, thisIndex.y, internalStep+1);
+      internalStep++;
+      
+      // If we have received the L and U messages out of order, then some of the 
+      // calls into this progress method will not do anything useful.
+      // Thus we need to tell ourself to continue if possible, because
+      // we cannot rely upon a future progress call being made.
+      if(canContinue() && alreadyReEnqueuedDuringPhase < internalStep){
+	alreadyReEnqueuedDuringPhase = internalStep;
+	DEBUG_PRINT("WARNING:                                  calling progress() after trailing update because work is available to process\n");
+	selfContinue();
+      }
+      
+      MERGE_PATH_DELETE_D(A,internalStep);
     }
     
-    MERGE_PATH_DELETE_D(A,internalStep);
-    
   }
   
-
-
-
-
-
-
-
-  void processLocalLU(int ignoredParam) {
-    DEBUG_PRINT("processLocalLU() called on block %d,%d\n", thisIndex.x, thisIndex.y);
-    CkAssert(!done);
-    
-    double *incomingL = getBufferedL(internalStep);
-    double *incomingU = getBufferedU(internalStep);
-
-    CkAssert(internalStep==thisIndex.x && internalStep==thisIndex.y);
-    
-    // We are the top-left-most active block
-    
-    // Verify that there are no outstanding buffered messages.
-    CkAssert(buffersEmpty());
-
-    // CkPrintf("[%d] chare %d,%d internalStep=%d solveLocalLU\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep);
-    solveLocalLU(); // compute a local LU
-      
-
-    // If this is the very last bottom rightmost block
-    if (thisIndex.x == numBlks-1 && thisIndex.y == numBlks-1) {
-      DEBUG_PRINT("[%d] chare %d,%d calling mainProxy.iterationCompleted\n", CkMyPe(), thisIndex.x, thisIndex.y);
-      mainProxy.iterationCompleted();
-    } else {
-      DEBUG_PRINT("[%d] chare %d,%d is top,left block this step, multicast U & L\n", CkMyPe(), thisIndex.x, thisIndex.y);
-      multicastRecvU();	//broadcast the U downwards to the blocks in the same column
-      multicastRecvL(); 	//broadcast the L rightwards to the blocks in the same row
-    }
-      
-    MERGE_PATH_DELETE_D(A,internalStep);
-    // This block is now done
-    DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
-    done = true;
-    
-  }
-
-
 
   /// Store a pointer to the buffered L messages
   void bufferL(blkMsg *msg) {
@@ -1010,6 +973,8 @@ public:
     double c4 = 1.0;
 
 
+
+
 #if 1
     // Low priority trailing updates
     // High priorities for critical path (solve local LUs)
@@ -1038,46 +1003,29 @@ public:
 
     CkEntryOptions eOpts; 
     eOpts.setPriority (integerPrio); // setPriority sets the queuing type internally
-    
-    
-    switch(canContinue()) {
-    case NO_CONTINUE:
-      break;
-    case CONTINUE_LU:
-      thisProxy(thisIndex.x,thisIndex.y).processLocalLU(0, &eOpts);
-      break;
-    case CONTINUE_U:
-      thisProxy(thisIndex.x,thisIndex.y).processComputeU(0, &eOpts);
-      break;
-    case CONTINUE_L:
-      thisProxy(thisIndex.x,thisIndex.y).processComputeL(0, &eOpts);
-      break;
-    case CONTINUE_TRAIL:
-      thisProxy(thisIndex.x,thisIndex.y).processTrailingUpdate(0, &eOpts);
-      break;  
-    }
+    thisProxy(thisIndex.x,thisIndex.y).progress(0, &eOpts);
+
 
   }
-
   
   /// Are there enough buffered messages for this step to perform the required work?
-  continueWithTask canContinue(){
+  bool canContinue(){
     double *incomingL = getBufferedL(internalStep);
     double *incomingU = getBufferedU(internalStep);
     
     if(incomingL!=NULL && incomingU!=NULL) 
-      return CONTINUE_TRAIL;
+      return true;
     
     if (internalStep==thisIndex.x && incomingL!=NULL)
-      return CONTINUE_U;
+      return true;
     
     if (internalStep==thisIndex.y && incomingU!=NULL)
-      return CONTINUE_L;    
+      return true;    
     
     if(internalStep==thisIndex.x && internalStep==thisIndex.y)
-      return CONTINUE_LU;
+      return true;
     
-    return NO_CONTINUE;    
+    return false;    
   }
   
   

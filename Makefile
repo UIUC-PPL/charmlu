@@ -8,8 +8,8 @@ OPTS=-g -O0
 #BLAS_LD = -lcblas
 
 # To compile on hope (OSX):
-BLAS_INC = -DUSE_ACCELERATE_BLAS=1
-BLAS_LD = -framework Accelerate
+#BLAS_INC = -DUSE_ACCELERATE_BLAS=1
+#BLAS_LD = -framework Accelerate
 
 # To compile against a custom atlas install on linux:
 #BLAS_INC = -I/scratch/idooley2/atlas-install/include -DUSE_BLAS  -DUSE_CBLAS_H
@@ -26,8 +26,8 @@ BLAS_LD = -framework Accelerate
 
 
 # To compile on Cray XT5 with "module load atlas/3.8.3"
-#BLAS_LD = -L$(ATLAS_DIR)/lib -llapack -lf77blas -lcblas -latlas
-#BLAS_INC = -I$(ATLAS_DIR)/include -DUSE_BLAS  -DUSE_CBLAS_H -DUSE_MEMALIGN
+BLAS_LD = -L$(ATLAS_DIR)/lib -llapack -lf77blas -lcblas -latlas
+BLAS_INC = -I$(ATLAS_DIR)/include -DUSE_BLAS  -DUSE_CBLAS_H
 
 # To compile on Cray XT5 with "module load acml"
 #BLAS_LD = -L/lustre/scratch/idooley2/LU/CBLAS/lib -lcblas -L$(ACML_DIR)/gfortran64/lib/ -llibacml 
