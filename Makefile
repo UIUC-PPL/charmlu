@@ -1,5 +1,5 @@
-#OPTS=-g -O0
-OPTS = -O3
+OPTS=-g -O0
+#OPTS = -O3
 
 
 #------------------------------------------------
@@ -26,12 +26,12 @@ OPTS = -O3
 
 
 # To compile on Cray XT5 with "module load atlas/3.8.3"
-#BLAS_LD = -L$(ATLAS_DIR)/lib -llapack -lf77blas -lcblas -latlas
-#BLAS_INC = -I$(ATLAS_DIR)/include -DUSE_BLAS  -DUSE_CBLAS_H
+BLAS_LD = -L$(ATLAS_DIR)/lib -llapack -lf77blas -lcblas -latlas
+BLAS_INC = -I$(ATLAS_DIR)/include -DUSE_BLAS  -DUSE_CBLAS_H
 
 # To compile on Cray XT5 with "module load acml"
-BLAS_LD = -L/lustre/scratch/idooley2/LU/CBLAS/lib -lcblas -L$(ACML_DIR)/gfortran64/lib/ -llibacml 
-BLAS_INC = -I/lustre/scratch/idooley2/LU/CBLAS/include  -DUSE_CBLAS_H
+#BLAS_LD = -L/lustre/scratch/idooley2/LU/CBLAS/lib -lcblas -L$(ACML_DIR)/gfortran64/lib/ -llibacml 
+#BLAS_INC = -I/lustre/scratch/idooley2/LU/CBLAS/include  -DUSE_CBLAS_H
 
 
 # ----------------------------------------------
@@ -66,7 +66,7 @@ MODULES=  -module ControlPoints  -tracemode controlPoints -module comlib
 all: lu lu-proj
 
 lu: lu.o 
-	$(CHARMC) -language charm++ -o lu lu.o $(BLAS_LD) $(MULTICAST)  $(MODULES) -version
+	$(CHARMC) -language charm++ -o lu lu.o $(BLAS_LD) $(MULTICAST)  $(MODULES)
 
 lu-proj: lu.o 
 	$(CHARMC) -language charm++ -o lu-proj lu.o $(BLAS_LD) $(PROJ) $(MULTICAST)  $(MODULES)

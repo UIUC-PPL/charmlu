@@ -7,9 +7,6 @@
    As the blkMsg messages arrive, they are always put into a buffer, and a call 
    to thisProxy(thisIndex.x,thisIndex.y).progress() is made if the computation 
    can proceed without any additional messages.
-   
-   
-
 
  */
 
@@ -179,59 +176,102 @@ public:
 class LUBalancedSnakeMap: public CkArrayMap {
 public:
   
+  int mappingSize;
   int *mapping;
+  int *peLoads;
   
+
+  void setMapping(int x, int y, int pe){
+    CkAssert(y*numBlks+x < mappingSize);
+    mapping[y*numBlks+x] = pe;
+    peLoads[pe] += workLoad(x, y);
+  }
+
+  int getMapping(int x, int y){
+    CkAssert(y*numBlks+x < mappingSize);
+    return mapping[y*numBlks+x];
+  }
+
   /** build and store the mapping once */
   LUBalancedSnakeMap() {
-    mapping = new int[numBlks*numBlks];    
-    
     int numProcs = CkNumPes();
+
+    mappingSize = numBlks*numBlks;
+    mapping = new int[mappingSize];    
+
+    peLoads = new int[numProcs];
+    for(int i=0;i<numProcs;i++)
+      peLoads[i]=0;
     
     const int numsteps=numBlks;
     
+
+    // go along first row
+    int step = 0;
+    for(int i=1;i<numsteps-step;i++){
+      int x = i + step;
+      int y = step;
+      setMapping(x, y, minLoadedPE() );
+    }
     
-    int p=0;
-    for(int step=numsteps-1;step>=0;step--){
+    // visit first corner & column
+    for(int i=0;i<numsteps-step;i++){
+      int y = i + step;
+      int x = step;
+      setMapping(x, y, minLoadedPE() );
+    }
+    
+
+
+    for(int step=numsteps-1;step>=1;step--){
       
       // go along row
       for(int i=1;i<numsteps-step;i++){
 	int x = i + step;
 	int y = step;
-	setMapping(x, y, p % numProcs);
-	p++;
+	setMapping(x, y, minLoadedPE() );
       }
       
       // visit corner & column
       for(int i=0;i<numsteps-step;i++){
 	int y = i + step;
 	int x = step;
-	setMapping(x, y, p % numProcs);
-	p++;
+	setMapping(x, y, minLoadedPE() );
       }
       
     }
     
   }
   
-  int setMapping(int x, int y, int pe){
-    mapping[y*numBlks+x] = pe;
-  }
-  
-  int numTrailingUpdates(int x, int y){
-    if(x<y)
-      return x;
-    else 
-      return y;
-  }
-  
 
+
+  int minLoadedPE(){
+    int minLoadFound = 1000000000;
+    int minPEFound = CkNumPes()-1;
+    for(int p=CkNumPes()-1; p>=0; p--){
+      if(peLoads[p] < minLoadFound) {
+	minPEFound = p;
+	minLoadFound = peLoads[p];
+      }
+    }
+    return minPEFound;    
+  }
+  
+  int workLoad(int x, int y){
+    if(x<y)
+      return x+1;
+    else 
+      return y+1;
+  }
+  
+  
   int procNum(int arrayHdl, const CkArrayIndex &idx) {
     int *coor = (int *)idx.data();
-  
-    
-    CkAbort("Mapping code has a bug in it\n");
-    return -1;
+    int x = coor[0];
+    int y = coor[1];
+    return getMapping(x,y);
   }
+
 };
 
 
@@ -312,7 +352,7 @@ public:
     
     if(true){
       // CProxy_BlockCyclicMap myMap = CProxy_BlockCyclicMap::ckNew();
-      CProxy_LUSnakeMap myMap = CProxy_LUSnakeMap::ckNew();
+      CProxy_LUBalancedSnakeMap myMap = CProxy_LUBalancedSnakeMap::ckNew();
 
       CkArrayOptions opts(numBlks, numBlks);
       opts.setMap(myMap);
@@ -926,16 +966,27 @@ public:
     
     //    CkPrintf("continuing %d,%d  internalStep=%d \n", thisIndex.x,thisIndex.y, internalStep);
 
+
+    double c1 = 1.0;
+    double c2 = 1.0;
+    double c3 = 1.0;
+    double c4 = 1.0;
+
+
+
+
 #if 1
     // Low priority trailing updates
     // High priorities for critical path (solve local LUs)
     if(thisIndex.x == thisIndex.y && thisIndex.x == internalStep){
-      integerPrio = -1; // highest priority
+      integerPrio = -10*c1; // highest priority
     } else if(thisIndex.x == internalStep || thisIndex.y == internalStep){
-      integerPrio = internalStep+1; // high priority
+      integerPrio = -5; 
+    } else if(thisIndex.x == thisIndex.y){
+      integerPrio = -1; // high priority
     } else {
       // Trailing updates have lower priorities that increase from top left to bottom right
-      integerPrio = internalStep+1 + (thisIndex.x+thisIndex.y);
+      integerPrio = (internalStep+1)*c3 + (thisIndex.x+thisIndex.y)*c4;
     }
 #else
     // High priorities for trailing updates
