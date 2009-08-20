@@ -12,11 +12,11 @@
 
 
 
-#include <assert.h>
-#include <stdlib.h>
-#include <string.h>
+//#include <assert.h>
+//#include <stdlib.h>
+//#include <string.h>
 #include <iostream>
-#include <pthread.h>
+//#include <pthread.h>
 
 
 #if USE_CBLAS_H
@@ -24,13 +24,23 @@ extern "C" {
 #include <cblas.h>
 #include <clapack.h>
 }
+
 #elif USE_MKL_CBLAS_H
 #include "mkl_cblas.h"
 #include "mkl_lapack.h"
+
 #elif USE_ACML_H
 #include "acml.h"
+
 #elif USE_ACCELERATE_BLAS
 #include <Accelerate/Accelerate.h>
+
+#elif USE_ESSL
+#define _ESVCPTR
+#include <complex>
+#include <essl.h>
+
+
 #else
 #error "No BLAS Header files included!"
 #endif
@@ -447,9 +457,15 @@ public:
     double fractionOfPeakOnKraken =  gflops_per_core / 9.2;
     double fractionOfPeakOnKrakenPercent = fractionOfPeakOnKraken * 100.0;
     
+    double fractionOfPeakOnBGP =  gflops_per_core / 3.4;
+    double fractionOfPeakOnBGPPercent = fractionOfPeakOnBGP * 100.0;
+    
+
+
     std::cout << "If ran on order.cs.uiuc.edu, I think you got  \t" << fractionOfPeakOnOrderPercent << "% of peak" << std::endl;
     std::cout << "If ran on abe.ncsa.uiuc.edu, I think you got  \t" << fractionOfPeakOnAbePercent << "% of peak" << std::endl;
     std::cout << "If ran on kraken, I think you got  \t" << fractionOfPeakOnKrakenPercent << "% of peak" << std::endl;
+    std::cout << "If ran on BG/P, I think you got  \t" << fractionOfPeakOnBGPPercent << "% of peak" << std::endl;
 
     registerControlPointTiming(duration);
 
@@ -539,13 +555,21 @@ public:
        
       double startTest = CmiWallTimer(); 
        
+#if USE_ESSL
+      dgemm( "N", "N",
+	     BLKSIZE, BLKSIZE, BLKSIZE,
+	     -1.0, m1,
+	     BLKSIZE, m2, BLKSIZE,
+	     1.0, m3, BLKSIZE);
+#else
       cblas_dgemm( CblasRowMajor, 
                    CblasNoTrans, CblasNoTrans, 
                    BLKSIZE, BLKSIZE, BLKSIZE, 
                    -1.0, m1, 
                    BLKSIZE, m2, BLKSIZE, 
                    1.0, m3, BLKSIZE); 
-       
+#endif     
+  
       double endTest = CmiWallTimer(); 
       double duration = endTest-startTest; 
  
@@ -651,6 +675,12 @@ public:
     __CLPK_integer info;
     dgetrf_(&size, &size, LU, &size, ipiv, &info);
     delete[] ipiv;
+#elif USE_ESSL
+    int size = BLKSIZE;
+    int *ipiv = new int[BLKSIZE];
+    int info;
+    // This one doesn't quite do what we want... it does pivoting
+    dgetrf(size, size, LU, size, ipiv, &info);
 #else
     int *ipiv = new int[BLKSIZE];
     clapack_dgetrf(CblasRowMajor, BLKSIZE, BLKSIZE, LU, BLKSIZE, ipiv);
@@ -678,8 +708,11 @@ public:
     //solve following rows based on previously solved rows
     //row indicates the row of U that is just solved
 
+#if USE_ESSL
+    dtrsm("L", "L", "N", "U", BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU, BLKSIZE);
+#else
     cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU, BLKSIZE);
-    
+#endif
 
     traceUserBracketEvent(traceComputeU, uStart, CmiWallTimer());
   }
@@ -695,9 +728,14 @@ public:
 
     DEBUG_PRINT("elem[%d,%d]::computeL called at step %d\n", thisIndex.x, thisIndex.y, internalStep);
 
-
+#if USE_ESSL
+    dtrsm("R", "U", "N", "N", BLKSIZE, BLKSIZE, 1.0, givenU, BLKSIZE, LU, BLKSIZE);
+#else
     cblas_dtrsm(CblasRowMajor, CblasRight, CblasUpper, CblasNoTrans, CblasNonUnit, BLKSIZE, BLKSIZE, 1.0, givenU, BLKSIZE, LU, BLKSIZE);
+#endif
+
     
+
     traceUserBracketEvent(traceComputeL, lStart, CmiWallTimer());
   }
 
@@ -712,13 +750,20 @@ public:
     double *incomingL = givenLMsg->data;
     double *incomingU = givenUMsg->data;
 
+#if USE_ESSL
+    dgemm( "N", "N",
+	   BLKSIZE, BLKSIZE, BLKSIZE,
+	   -1.0, incomingL,
+	   BLKSIZE, incomingU, BLKSIZE,
+	   1.0, LU, BLKSIZE);
+#else
     cblas_dgemm( CblasRowMajor,
 		 CblasNoTrans, CblasNoTrans,
 		 BLKSIZE, BLKSIZE, BLKSIZE,
 		 -1.0, incomingL,
 		 BLKSIZE, incomingU, BLKSIZE,
 		 1.0, LU, BLKSIZE);
-    
+#endif
 
     traceUserBracketEvent(traceTrailingUpdate, updateStart, CmiWallTimer());
   }
