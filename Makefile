@@ -35,7 +35,7 @@ OPTS=-g -O0
 
 
 # To compile on BG/P with ESSL:
-BLAS_INC = -DUSE_ESSL=1 -I/soft/apps/ESSL-4.4/include
+BLAS_INC = -DUSE_ESSL=1 -I/soft/apps/ESSL-4.4/include -DUSE_MEMALIGN=1
 BGP_LIBS = -L/opt/ibmcmp/xlf/bg/11.1/bglib \
 	-L/opt/ibmcmp/xlsmp/bg/1.7/bglib \
 	-L/bgsys/ibm_essl/sles10/prod/opt/ibmmath/lib \
@@ -92,6 +92,9 @@ lu.o: lu.C lu.decl.h
 	$(CHARMC) -c lu.C -o lu.o $(BLAS_INC) $(OPTS)
 
 
+ # run for up to 15 minutes on 16 nodes * 4 pe/node. Matrix size 8192*8192
 run-BGP: lu lu-proj
-	qsub -n 16 --mode vn -t 15 ./lu 8192 # run for up to 15 minutes on 16 nodes * 4 pe/node. Matrix size 8192*8192
+	rm -r traces
+	mkdir traces
+	qsub -n 16 --mode vn -t 15 ./lu-proj 8192 +traceroot traces
 
