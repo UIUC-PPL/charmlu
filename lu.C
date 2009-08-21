@@ -368,9 +368,12 @@ public:
 //     Strategy * strategy1 = new RingMulticastStrategy();
 //     cinst1 = ComlibRegister(strategy1);
     
-    Strategy * strategy2 = new OneTimeNodeTreeRingMulticastStrategy();     
+    Strategy * strategy2 = new OneTimeNodeTreeMulticastStrategy();     
     cinst2 = ComlibRegister(strategy2); 
     
+    //Strategy * strategy2 = new OneTimeNodeTreeRingMulticastStrategy();     
+    // cinst2 = ComlibRegister(strategy2); 
+
     if(true){
       // CProxy_BlockCyclicMap myMap = CProxy_BlockCyclicMap::ckNew();
       CProxy_LUBalancedSnakeMap myMap = CProxy_LUBalancedSnakeMap::ckNew();
