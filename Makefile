@@ -34,10 +34,11 @@ OPTS=-O3 -Q -qhot -qarch=450d -qtune=450
 
 
 # To compile on BG/P with ESSL:
-BLAS_INC = -DUSE_ESSL=1 -I/soft/apps/ESSL-4.4/include -DUSE_MEMALIGN=1
+BGP_ESSL = /soft/apps/ESSL-4.4.1-0
+BLAS_INC = -DUSE_ESSL=1 -I$(BGP_ESSL)/include -DUSE_MEMALIGN=1
 BGP_LIBS = -L/opt/ibmcmp/xlf/bg/11.1/bglib \
 	-L/opt/ibmcmp/xlsmp/bg/1.7/bglib \
-	-L/bgsys/ibm_essl/sles10/prod/opt/ibmmath/lib \
+	 -L$(BGP_ESSL)/lib \
 	-L/bgsys/drivers/ppcfloor/gnu-linux/powerpc-bgp-linux/lib \
 	-lesslbg -lesslsmpbg -lxlf90_r  \
         -lmass -lmassv -lxlfmath -lxlomp_ser -lxlsmp -lpthread
@@ -59,7 +60,7 @@ BLAS_LD =  $(BGP_LIBS)
 PROJ = -tracemode projections
 #MULTICAST = -module CkMulticast
 
-CHARMC=../charm/bin/charmc $(OPTS) -verbose
+CHARMC=../charm/bin/charmc $(OPTS) 
 #CHARMC=${HOME}/current/charm/net-linux/bin/charmc $(OPTS) -g
 #CHARMC=${HOME}/current/lastestfromcvs/charm/net-linux-amd64/bin/charmc $(OPTS)
 #CHARMC=${HOME}/charm/bin/charmc $(FLAGS)
@@ -85,8 +86,8 @@ lu.decl.h: lu.ci
 	$(CHARMC)  lu.ci
 
 clean:
-	rm -f *.decl.h *.def.h conv-host *.o charmrun *~ lu lu-blas lu-mem lu-blas-proj.*.log lu-blas-proj.*.sum lu-blas-proj.*.sts lu-blas-proj.sts lu-blas-proj.projrc lu-blas-proj lu-proj controlPointData.txt lu*.log lu*.sum lu*.sts lu*.projrc SummaryDump.out *.output *.error *.cobaltlog
-
+	rm -f *.decl.h *.def.h conv-host *.o charmrun *~ lu lu-blas lu-mem lu-blas-proj.*.log lu-blas-proj.*.sum lu-blas-proj.*.sts lu-blas-proj.sts lu-blas-proj.projrc lu-blas-proj lu-proj controlPointData.txt lu*.log lu*.sum lu*.sts lu*.projrc SummaryDump.out *.output *.error *.cobaltlog traces/*
+ 
 lu.o: lu.C lu.decl.h
 	$(CHARMC) -c lu.C -o lu.o $(BLAS_INC) $(OPTS)
 
