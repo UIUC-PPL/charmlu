@@ -368,8 +368,12 @@ public:
 //     Strategy * strategy1 = new RingMulticastStrategy();
 //     cinst1 = ComlibRegister(strategy1);
     
-    Strategy * strategy2 = new OneTimeNodeTreeMulticastStrategy();     
-    cinst2 = ComlibRegister(strategy2); 
+//    Strategy * strategy2 = new OneTimeNodeTreeMulticastStrategy();     
+//    cinst2 = ComlibRegister(strategy2); 
+
+    Strategy * strategy2 = new OneTimeMulticastStrategy(); // just delivers remotely with CmiSyncListSendAndFree, might be good for optimized BG/P machine layer.
+    cinst2 = ComlibRegister(strategy2);
+
     
     //Strategy * strategy2 = new OneTimeNodeTreeRingMulticastStrategy();     
     // cinst2 = ComlibRegister(strategy2); 
@@ -521,6 +525,7 @@ public:
 #if USE_MEMALIGN
     LU = (double*)memalign(128, BLKSIZE*BLKSIZE*sizeof(double) );
     //   CkPrintf("LU mod 128 = %lu\n", ((unsigned long)LU) % 128);
+    CkAssert(LU != NULL);
 #else
     LU = new double[BLKSIZE*BLKSIZE];
 #endif
@@ -543,49 +548,93 @@ public:
 
 
   void testdgemm(){
-    if(thisIndex.x == 0 && thisIndex.y == 0){ 
- 
-      double *m1 = new double[BLKSIZE*BLKSIZE]; 
-      double *m2 = new double[BLKSIZE*BLKSIZE]; 
-      double *m3 = new double[BLKSIZE*BLKSIZE]; 
- 
+#if 0
+    unsigned long blocksize = 32 << thisIndex.x;
+    
+    if(thisIndex.y == 0 && thisIndex.x < 10){     
+      
+#if USE_MEMALIGN
+      double *m1 = (double*)memalign(128, blocksize*blocksize*sizeof(double) );
+      double *m2 = (double*)memalign(128, blocksize*blocksize*sizeof(double) ); 
+      double *m3 = (double*)memalign(128, blocksize*blocksize*sizeof(double) );
+      if(m1 == NULL || m2 == NULL || m3 == NULL)
+	return;
+#else
+      double *m1 = new double[blocksize*blocksize]; 
+      double *m2 = new double[blocksize*blocksize]; 
+      double *m3 = new double[blocksize*blocksize]; 
+#endif
+
       MatGen rnd(0); 
-      for (int i=0; i<BLKSIZE*BLKSIZE; i++) { 
+      for (int i=0; i<blocksize*blocksize; i++) { 
         m1[i] = rnd.toRndDouble(rnd.nextRndInt()); 
         m2[i] = rnd.toRndDouble(rnd.nextRndInt()); 
         m3[i] = rnd.toRndDouble(rnd.nextRndInt()); 
       } 
-       
+      
       double startTest = CmiWallTimer(); 
-       
+      
 #if USE_ESSL
       dgemm( "N", "N",
-	     BLKSIZE, BLKSIZE, BLKSIZE,
+	     blocksize, blocksize, blocksize,
 	     -1.0, m1,
-	     BLKSIZE, m2, BLKSIZE,
-	     1.0, m3, BLKSIZE);
+	     blocksize, m2, blocksize,
+	     1.0, m3, blocksize);
 #else
       cblas_dgemm( CblasRowMajor, 
                    CblasNoTrans, CblasNoTrans, 
-                   BLKSIZE, BLKSIZE, BLKSIZE, 
+                   blocksize, blocksize, blocksize, 
                    -1.0, m1, 
-                   BLKSIZE, m2, BLKSIZE, 
-                   1.0, m3, BLKSIZE); 
+                   blocksize, m2, blocksize, 
+                   1.0, m3, blocksize); 
 #endif     
-  
+      
       double endTest = CmiWallTimer(); 
       double duration = endTest-startTest; 
- 
-      CkPrintf("The dgemm %d x %d call takes %g seconds\n", BLKSIZE, BLKSIZE, duration); 
-      double flopcount = BLKSIZE * BLKSIZE * BLKSIZE * 2.0; 
-      double gflopcount = flopcount / 1000000000; 
+      
+      CkPrintf("The dgemm %d x %d call takes %g seconds\n", blocksize, blocksize, duration); 
+      double flopcount = (double)blocksize * (double)blocksize * (double)blocksize * 2.0; 
+      double gflopcount = flopcount / 1000000000.0; 
       double gflopPerSec = gflopcount / duration; 
-      CkPrintf("The dgemm is %g GFlop/sec\n", gflopPerSec); 
- 
+      CkPrintf("The dgemm\t%d\tx %d achieves\t%g\tGFlop/sec\n", blocksize, blocksize, gflopPerSec); 
+      
+
+
+      {
+
+#if USE_ESSL
+      dgemm( "T", "T",
+	     blocksize, blocksize, blocksize,
+	     -1.0, m1,
+	     blocksize, m2, blocksize,
+	     1.0, m3, blocksize);
+#else
+      cblas_dgemm( CblasRowMajor, 
+                   CblasTrans, CblasTrans, 
+                   blocksize, blocksize, blocksize, 
+                   -1.0, m1, 
+                   blocksize, m2, blocksize, 
+                   1.0, m3, blocksize); 
+#endif     
+      
+      double endTest = CmiWallTimer(); 
+      double duration = endTest-startTest; 
+      
+      CkPrintf("The dgemm %d x %d Transpose call takes %g seconds\n", blocksize, blocksize, duration); 
+      double flopcount = (double)blocksize * (double)blocksize * (double)blocksize * 2.0; 
+      double gflopcount = flopcount / 1000000000.0; 
+      double gflopPerSec = gflopcount / duration; 
+      CkPrintf("The dgemm\t%d\tx %d Transpose achieves\t%g\tGFlop/sec\n", blocksize, blocksize, gflopPerSec); 
+      
+      }
+
+
+
       delete[] m1; 
       delete[] m2; 
       delete[] m3;       
     } 
+#endif
   }
 
 
