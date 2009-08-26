@@ -93,7 +93,7 @@ lu.o: lu.C lu.decl.h
 
 
  # run for up to 15 minutes on 16 nodes * 4 pe/node. Matrix size 8192*8192
-run-BGP: lu lu-proj
+run-BGP: 
 	rm -fr traces
 	mkdir traces
 	qsub -n 16 --mode vn -t 15 ./lu-proj 16384 +traceroot traces

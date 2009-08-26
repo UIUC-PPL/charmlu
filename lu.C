@@ -296,6 +296,112 @@ public:
 };
 
 
+/** do an allocation that results in almost identical numbers of trailing updates per PE */
+class LUBalancedSnakeMap2: public CkArrayMap {
+public:
+  
+  int mappingSize;
+  int *mapping;
+  int *peLoads;
+  int stateN;
+  
+  void setMapping(int x, int y, int pe){
+    CkAssert(y*numBlks+x < mappingSize);
+    mapping[y*numBlks+x] = pe;
+    peLoads[pe] += workLoad(x, y);
+  }
+
+  int getMapping(int x, int y){
+    CkAssert(y*numBlks+x < mappingSize);
+    return mapping[y*numBlks+x];
+  }
+
+  /** build and store the mapping once */
+  LUBalancedSnakeMap2() {
+    stateN = 0;
+    int numProcs = CkNumPes();
+
+    mappingSize = numBlks*numBlks;
+    mapping = new int[mappingSize];  
+
+    peLoads = new int[numProcs];
+    for (int i = 0; i < numProcs; i++)
+      peLoads[i]=0;
+    
+    const int numsteps = numBlks;
+
+    for(int step = numsteps - 1; step >= 2; step--){
+      // go along row
+      for(int i = 1; i < numsteps - step; i++){
+	int x = i + step;
+	int y = step;
+	int minLoaded = minLoadedPE();
+	setMapping(x, y, minLoaded);
+      }
+      
+      // visit corner & column
+      for(int i = 0; i < numsteps - step; i++){
+	int y = i + step;
+	int x = step;
+	int minLoaded = minLoadedPE();
+	setMapping(x, y, minLoaded);
+      }
+    }
+
+    // go along first two rows
+    for (int x = 1; x < numsteps; x++){
+      int minLoaded = minLoadedPE();
+      setMapping(x, 0, minLoaded);
+      setMapping(x, 1, minLoaded);
+    }
+    
+    // visit first corner & first two columns
+    for (int y = 0; y < numsteps; y++) {
+      int minLoaded = minLoadedPE();
+      setMapping(0, y, minLoaded);
+      if (y != 0)
+	setMapping(1, y, minLoaded);
+    }
+
+  }
+  
+  int minLoadedPE() {
+    int minLoadFound = 1000000000;
+    int minPEFound = CkNumPes()-1;
+    for(int p = CkNumPes() - 1; p >= 0; p--){
+      if(peLoads[p] < minLoadFound) {
+	minPEFound = p;
+	minLoadFound = peLoads[p];
+      }
+    }
+
+    if (stateN == minPEFound) {
+      int proc = stateN++ % CkNumPes();
+      stateN = proc;
+      return proc;
+    }
+
+    stateN = minPEFound;
+    return minPEFound;    
+  }
+  
+  int workLoad(int x, int y){
+    if (x < y)
+      return x+1;
+    else 
+      return y+1;
+  }
+  
+  int procNum(int arrayHdl, const CkArrayIndex &idx) {
+    int *coor = (int *)idx.data();
+    int x = coor[0];
+    int y = coor[1];
+    return getMapping(x,y);
+  }
+
+};
+
+
 class BlockCyclicMap: public CkArrayMap {
 public:
   BlockCyclicMap() {}
@@ -380,7 +486,7 @@ public:
 
     if(true){
       // CProxy_BlockCyclicMap myMap = CProxy_BlockCyclicMap::ckNew();
-      CProxy_LUBalancedSnakeMap myMap = CProxy_LUBalancedSnakeMap::ckNew();
+      CProxy_LUBalancedSnakeMap2 myMap = CProxy_LUBalancedSnakeMap2::ckNew();
 
       CkArrayOptions opts(numBlks, numBlks);
       opts.setMap(myMap);

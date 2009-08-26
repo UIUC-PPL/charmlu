@@ -54,4 +54,8 @@ mainmodule lu {
     entry LUBalancedSnakeMap();
   };
 
+  group LUBalancedSnakeMap2 : CkArrayMap{
+    entry LUBalancedSnakeMap2();
+  };
+
 };
