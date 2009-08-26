@@ -368,15 +368,15 @@ public:
 //     Strategy * strategy1 = new RingMulticastStrategy();
 //     cinst1 = ComlibRegister(strategy1);
     
-//    Strategy * strategy2 = new OneTimeNodeTreeMulticastStrategy();     
-//    cinst2 = ComlibRegister(strategy2); 
+    Strategy * strategy2 = new OneTimeNodeTreeMulticastStrategy();     
+    cinst2 = ComlibRegister(strategy2); 
 
-    Strategy * strategy2 = new OneTimeMulticastStrategy(); // just delivers remotely with CmiSyncListSendAndFree, might be good for optimized BG/P machine layer.
-    cinst2 = ComlibRegister(strategy2);
+//    Strategy * strategy2 = new OneTimeMulticastStrategy(); // just delivers remotely with CmiSyncListSendAndFree, might be good for optimized BG/P machine layer.
+//    cinst2 = ComlibRegister(strategy2);
 
     
-    //Strategy * strategy2 = new OneTimeNodeTreeRingMulticastStrategy();     
-    // cinst2 = ComlibRegister(strategy2); 
+//    Strategy * strategy2 = new OneTimeNodeTreeRingMulticastStrategy();     
+//    cinst2 = ComlibRegister(strategy2); 
 
     if(true){
       // CProxy_BlockCyclicMap myMap = CProxy_BlockCyclicMap::ckNew();
@@ -1108,6 +1108,17 @@ public:
 
 
 #if 1
+    // Low priority trailing updates
+    // High priorities for critical path (solve local LUs)
+    if(thisIndex.x == thisIndex.y && thisIndex.x == internalStep){
+      integerPrio = -10000; // highest priority
+    } else if(thisIndex.x == internalStep || thisIndex.y == internalStep){
+      integerPrio = c1*(-1*(BLKSIZE-internalStep) -5) + c2;
+    } else {
+      // Trailing updates have lower priorities that increase from top left to bottom right
+      integerPrio = (internalStep+1)*c3 + (thisIndex.x+thisIndex.y)*c4;
+    }
+#elif 0
     // Low priority trailing updates
     // High priorities for critical path (solve local LUs)
     if(thisIndex.x == thisIndex.y && thisIndex.x == internalStep){
