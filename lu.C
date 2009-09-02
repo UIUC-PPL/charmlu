@@ -979,8 +979,8 @@ public:
 //       ComlibAssociateProxy(cinst1, oneCol);        
 //       break;
 //     case 3:
-      CkAssert(cinst2);
-      ComlibAssociateProxy(cinst2, oneCol);
+//      CkAssert(cinst2);
+//      ComlibAssociateProxy(cinst2, oneCol);
     //   break;
 //     }
     
@@ -1020,8 +1020,8 @@ public:
 //       ComlibAssociateProxy(cinst1, oneRow);         
 //       break;
 //     case 3:  
-      CkAssert(cinst2);  
-      ComlibAssociateProxy(cinst2, oneRow);         
+//      CkAssert(cinst2);  
+//      ComlibAssociateProxy(cinst2, oneRow);         
 //       break;
 //     }
     
@@ -1152,6 +1152,9 @@ public:
     double *incomingU = getBufferedU(internalStep);
 
     CkAssert(internalStep==thisIndex.x && internalStep==thisIndex.y);
+
+    double mem = CmiMemoryUsage();
+    CkPrintf("CmiMemoryUsage() = %lf\n", mem);
     
     // We are the top-left-most active block
     

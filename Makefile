@@ -1,5 +1,5 @@
-OPTS=-O3 -Q -qhot -qarch=450d -qtune=450
-#OPTS=-g
+#OPTS=-O3 -Q -qhot -qarch=450d -qtune=450
+OPTS=-g
 
 #------------------------------------------------
 # To compile on order or faith(Ubuntu):
@@ -76,8 +76,10 @@ MODULES=  -module ControlPoints  -tracemode controlPoints -module comlib
 
 all: lu lu-proj
 
-lu: lu.o 
-	$(CHARMC) -language charm++ -o lu lu.o $(BLAS_LD) $(MULTICAST)  $(MODULES)
+
+
+lu: lu.o
+	$(CHARMC) -language charm++ -o lu lu.o  $(BLAS_LD) $(MULTICAST)  $(MODULES)
 
 lu-proj: lu.o 
 	$(CHARMC) -language charm++ -o lu-proj lu.o $(BLAS_LD) $(PROJ) $(MULTICAST)  $(MODULES)
@@ -86,7 +88,7 @@ lu.decl.h: lu.ci
 	$(CHARMC)  lu.ci
 
 clean:
-	rm -f *.decl.h *.def.h conv-host *.o charmrun *~ lu lu-blas lu-mem lu-blas-proj.*.log lu-blas-proj.*.sum lu-blas-proj.*.sts lu-blas-proj.sts lu-blas-proj.projrc lu-blas-proj lu-proj controlPointData.txt lu*.log lu*.sum lu*.sts lu*.projrc SummaryDump.out *.output *.error *.cobaltlog traces/* core.*
+	rm -f *.decl.h *.def.h conv-host *.o charmrun *~ lu lu-blas lu-mem lu-blas-proj.*.log lu-blas-proj.*.sum lu-blas-proj.*.sts lu-blas-proj.sts lu-blas-proj.projrc lu-blas-proj lu-proj controlPointData.txt lu*.log lu*.sum lu*.sts lu*.projrc SummaryDump.out *.output *.error *.cobaltlog traces/* core.* perfCounterBGP.o
  
 lu.o: lu.C lu.decl.h
 	$(CHARMC) -c lu.C -o lu.o $(BLAS_INC) $(OPTS)
