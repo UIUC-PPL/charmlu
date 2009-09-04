@@ -5,6 +5,8 @@ foreach $filename (@ARGV) {
     open(FILE, $filename);
 
     my %chunkCounts = ();
+    my $strategy = "unknown";
+    my $result = "";
 
     while($line = <FILE>){
 	
@@ -12,10 +14,20 @@ foreach $filename (@ARGV) {
 #	    print "$1  $2\n";
 	    $chunkCounts{$1} += $2;
 	}
+
+	if($line =~ m/Using (.*)/){
+	    $strategy = $1;
+	}
+
+	if($line =~ m/RESULT (.*)/){
+	    $result = $1;
+	}
+
     }
 
 
-    print "=========================\n";
+    print "==============  $strategy  ===========\n";
+    print "$result\n";
     while ( my ($link, $chunks) = each(%chunkCounts) ) {
 	$mb = $chunks * 32 / 1000000;
         print "$link => $mb MB\n";
