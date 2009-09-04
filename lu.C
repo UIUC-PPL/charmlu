@@ -437,10 +437,17 @@ public:
     iteration = 0;
 
     if (m->argc<2) {
-      CkPrintf("Usage: %s <matrix size>\n", m->argv[0]);
+      CkPrintf("Usage: %s <matrix size> <strategy>\n", m->argv[0]);
       CkExit();
     }
-    
+
+    int strategy = -1;
+    if (m->argc>2) {
+      sscanf( m->argv[2], "%d", &strategy);
+      CkPrintf("strategy=%d\n", strategy);
+    }
+
+
     mainProxy = thisProxy;
     
       
@@ -474,8 +481,69 @@ public:
 //     Strategy * strategy1 = new RingMulticastStrategy();
 //     cinst1 = ComlibRegister(strategy1);
     
-    Strategy * strategy2 = new OneTimeNodeTreeMulticastStrategy();     
-    cinst2 = ComlibRegister(strategy2); 
+    switch(strategy){
+    case -1:
+      cinst2 = -1;
+      CkPrintf("Using NoMulticastStrategy\n");
+      break;
+      
+    case 0:
+      cinst2 = ComlibRegister(new OneTimeMulticastStrategy() ); 
+      CkPrintf("Using OneTimeMulticastStrategy\n");
+      break;
+    case 1:
+      cinst2 = ComlibRegister(new OneTimeRingMulticastStrategy() ); 
+      CkPrintf("Using OneTimeRingMulticastStrategy\n");
+      break;
+    case 2:
+      cinst2 = ComlibRegister(new OneTimeTopoTreeMulticastStrategy() ); 
+      CkPrintf("Using OneTimeTopoTreeMulticastStrategy\n");
+      break;
+    case 3:
+      cinst2 = ComlibRegister(new OneTimeDimensionOrderedMulticastStrategy() ); 
+      CkPrintf("Using OneTimeDimensionOrderedMulticastStrategy\n");
+      break;
+
+    case 4:
+      cinst2 = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(2) ); 
+      CkPrintf("Using OneTimeNodeTreeMulticastStrategy degree=2\n");
+      break;
+    case 5:
+      cinst2 = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(3) ); 
+      CkPrintf("Using OneTimeNodeTreeMulticastStrategy degree=3\n");
+      break;
+    case 6:
+      cinst2 = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(4) ); 
+      CkPrintf("Using OneTimeNodeTreeMulticastStrategy degree=4\n");
+      break;
+    case 7:
+      cinst2 = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(5) ); 
+      CkPrintf("Using OneTimeNodeTreeMulticastStrategy degree=5\n");
+      break;
+    case 8:
+      cinst2 = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(6) ); 
+      CkPrintf("Using OneTimeNodeTreeMulticastStrategy degree=6\n");
+      break;
+
+    case 9:
+      cinst2 = ComlibRegister(new DirectMulticastStrategy() ); 
+      CkPrintf("Using DirectMulticastStrategy\n");
+      break;
+    case 10:
+      cinst2 = ComlibRegister(new MultiRingMulticastStrategy() ); 
+      CkPrintf("Using MultiRingMulticastStrategy\n");
+      break;
+    case 11:
+      cinst2 = ComlibRegister(new RingMulticastStrategy() ); 
+      CkPrintf("Using RingMulticastStrategy\n");
+      break;
+  
+    default:
+      CkAbort("Chose a valid strategy\n");
+
+    }
+
+
 
 //    Strategy * strategy2 = new OneTimeMulticastStrategy(); // just delivers remotely with CmiSyncListSendAndFree, might be good for optimized BG/P machine layer.
 //    cinst2 = ComlibRegister(strategy2);
@@ -979,9 +1047,11 @@ public:
 //       ComlibAssociateProxy(cinst1, oneCol);        
 //       break;
 //     case 3:
-//      CkAssert(cinst2);
-//      ComlibAssociateProxy(cinst2, oneCol);
-    //   break;
+    if(cinst2 != -1){
+      CkAssert(cinst2);
+      ComlibAssociateProxy(cinst2, oneCol);
+    }
+//   break;
 //     }
     
     blkMsg *givenU = createABlkMsg();
@@ -1020,8 +1090,10 @@ public:
 //       ComlibAssociateProxy(cinst1, oneRow);         
 //       break;
 //     case 3:  
-//      CkAssert(cinst2);  
-//      ComlibAssociateProxy(cinst2, oneRow);         
+    if(cinst2 != -1){
+      CkAssert(cinst2);  
+      ComlibAssociateProxy(cinst2, oneRow);         
+    }
 //       break;
 //     }
     
