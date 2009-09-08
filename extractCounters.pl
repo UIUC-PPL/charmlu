@@ -26,11 +26,16 @@ foreach $filename (@ARGV) {
     }
 
 
-    print "==============  $strategy  ===========\n";
-    print "$result\n";
+ #   print "==============  $strategy  ===========\n";
+  #  print "$result\n";
+    $totalmb = 0;
     while ( my ($link, $chunks) = each(%chunkCounts) ) {
 	$mb = $chunks * 32 / 1000000;
-        print "$link => $mb MB\n";
+#        print "$link => $mb MB\n";
+	$totalmb += $mb;
     }
+
+    print "$strategy\t$filename\t$totalmb\t$result\n";
+
 
 }

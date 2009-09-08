@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 
-foreach $s (-1..1) {
+foreach $s (9..11) {
     $tracedir = "traces-strat-$s";
     print `rm -fr $tracedir`;
     print `mkdir $tracedir`;
