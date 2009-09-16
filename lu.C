@@ -133,8 +133,10 @@ public:
 
 class blkMsg: public CMessage_blkMsg {
 public:
-  double *data;
-  int step;
+    int step;
+    char pad[16-((sizeof(envelope)+sizeof(int))%16)];
+    double *data;
+
 
   void setMsgData(double *d, int s) {
     memcpy(data, d, sizeof(double)*BLKSIZE*BLKSIZE);
@@ -923,6 +925,7 @@ public:
     traceUserSuppliedData(internalStep);
     traceMemoryUsage();
     double *givenL = givenLMsg->data;
+    CkAssert( ((unsigned long)givenL) % 16 == 0);
 
     double uStart = CmiWallTimer();
 
@@ -947,6 +950,7 @@ public:
     traceUserSuppliedData(internalStep);
     traceMemoryUsage();
     double *givenU = givenUMsg->data;
+    CkAssert( ((unsigned long)givenU) % 16 == 0);
 
 
     //traceUserEvent(traceComputeL);
@@ -1292,7 +1296,7 @@ public:
     // Low priority trailing updates
     // High priorities for critical path (solve local LUs)
     if(thisIndex.x == thisIndex.y && thisIndex.x == internalStep){
-      integerPrio = -10000; // highest priority
+      integerPrio = -1000; // highest priority
     } else if(thisIndex.x == internalStep || thisIndex.y == internalStep){
       integerPrio = c1*(-1*(BLKSIZE-internalStep) -5) + c2;
     } else {
@@ -1312,7 +1316,7 @@ public:
       // Trailing updates have lower priorities that increase from top left to bottom right
       integerPrio = (internalStep+1)*c3 + (thisIndex.x+thisIndex.y)*c4;
     }
-#else
+#elif 0
     // High priorities for trailing updates
     if(thisIndex.x == thisIndex.y && thisIndex.x == internalStep){
       integerPrio = 10; // corners
@@ -1322,6 +1326,21 @@ public:
       // Trailing updates
       integerPrio = -100;
     }
+#else
+    // High priorities for early trailing updates
+    if(thisIndex.x == thisIndex.y && thisIndex.x == internalStep){
+      integerPrio = -10000; // highest priority
+    } else if(thisIndex.x == internalStep || thisIndex.y == internalStep){
+      integerPrio = c1*(internalStep-BLKSIZE -5) + c2;
+    } else {
+      // Trailing updates have lower priorities that increase from top left to bottom right
+      integerPrio = (internalStep+1)*c3 + (thisIndex.x+thisIndex.y)*c4;
+      if(internalStep < 5){
+	  integerPrio -= (5-internalStep)*(BLKSIZE*3);
+      }
+
+    }
+
 #endif    
 
 
@@ -1467,11 +1486,6 @@ private:
     return msg;
   }
 
-
-
-
-
-  
   
 };
 
