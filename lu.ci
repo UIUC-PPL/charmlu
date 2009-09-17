@@ -14,6 +14,7 @@ mainmodule lu {
   readonly ComlibInstanceHandle cinst0; 
   readonly ComlibInstanceHandle cinst1; 
   readonly ComlibInstanceHandle cinst2;
+  readonly int memThreshold;
 
   message blkMsg {
     double data[];

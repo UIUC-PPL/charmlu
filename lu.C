@@ -54,6 +54,7 @@ extern "C" {
 #include <controlPoints.h> // must come before user decl.h if they are using the pathInformationMsg
 #include "lu.decl.h"
 
+#include <queueing.h> // for access to memory threshold setting
 
 
 
@@ -75,7 +76,7 @@ int traceComputeU;
 int traceComputeL;
 int traceSolveLocalLU;
 int doPrioritize;
-
+int memThreshold;
  
 //#define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
 #define DEBUG_PRINT(...) 
@@ -438,15 +439,17 @@ public:
   Main(CkArgMsg* m) {
     iteration = 0;
 
-    if (m->argc<2) {
-      CkPrintf("Usage: %s <matrix size> <strategy>\n", m->argv[0]);
+    if (m->argc<3) {
+      CkPrintf("Usage: %s <matrix size> <strategy> <mem threshold>\n", m->argv[0]);
       CkExit();
     }
 
     int strategy = -1;
-    if (m->argc>2) {
+    if (m->argc>3) {
       sscanf( m->argv[2], "%d", &strategy);
-      CkPrintf("strategy=%d\n", strategy);
+      CkPrintf("CLI: strategy=%d\n", strategy);
+      sscanf( m->argv[3], "%d", &memThreshold);
+      CkPrintf("CLI: memThreshold=%dMB\n", memThreshold);
     }
 
 
@@ -666,7 +669,6 @@ public:
 
 };
 
-
 class LUBlk: public CBase_LUBlk {
 
 public:
@@ -689,6 +691,10 @@ private:
 
 public:
   LUBlk() {
+      // Set the schedulers memory usage threshold to the one this program specifies in a command line argument:
+      schedAdaptMemThresholdMB = memThreshold;
+      
+
     whichMulticastStrategy = 0;
     done = false;
     alreadyReEnqueuedDuringPhase = -1;
@@ -1229,8 +1235,8 @@ public:
 
     CkAssert(internalStep==thisIndex.x && internalStep==thisIndex.y);
 
-    double mem = CmiMemoryUsage();
-    CkPrintf("CmiMemoryUsage() = %lf\n", mem);
+//    double mem = CmiMemoryUsage();
+//    CkPrintf("CmiMemoryUsage() = %lf\n", mem);
     
     // We are the top-left-most active block
     

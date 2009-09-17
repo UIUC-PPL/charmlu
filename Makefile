@@ -1,5 +1,5 @@
-#OPTS=-O3 -Q -qhot -qarch=450d -qtune=450
-OPTS=-g
+OPTS=-O3 -Q -qhot -qarch=450d -qtune=450
+#OPTS=-g
 
 #------------------------------------------------
 # To compile on order or faith(Ubuntu):
