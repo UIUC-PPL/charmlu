@@ -1,5 +1,5 @@
-OPTS=-O3 -Q -qhot -qarch=450d -qtune=450
-#OPTS=-g
+#OPTS=-O3 -Q -qhot -qarch=450d -qtune=450
+OPTS=-g
 
 #------------------------------------------------
 # To compile on order or faith(Ubuntu):
@@ -11,8 +11,8 @@ OPTS=-O3 -Q -qhot -qarch=450d -qtune=450
 #BLAS_LD = -framework Accelerate
 
 # To compile against a custom atlas install on linux:
-#BLAS_INC = -I/scratch/idooley2/atlas-install/include  -DUSE_CBLAS_H=1
-#BLAS_LD = -L/scratch/idooley2/atlas-install/lib -llapack -lf77blas -lcblas -latlas
+BLAS_INC = -I/scratch/idooley2/atlas-install/include  -DUSE_CBLAS_H=1
+BLAS_LD = -L/scratch/idooley2/atlas-install/lib -llapack -lf77blas -lcblas -latlas
 
 
 # To compile with mkl on abe
@@ -34,15 +34,15 @@ OPTS=-O3 -Q -qhot -qarch=450d -qtune=450
 
 
 # To compile on BG/P with ESSL:
-BGP_ESSL = /soft/apps/ESSL-4.4.1-0
-BLAS_INC = -DUSE_ESSL=1 -I$(BGP_ESSL)/include -DUSE_MEMALIGN=1
-BGP_LIBS = -L/opt/ibmcmp/xlf/bg/11.1/bglib \
-	-L/opt/ibmcmp/xlsmp/bg/1.7/bglib \
-	 -L$(BGP_ESSL)/lib \
-	-L/bgsys/drivers/ppcfloor/gnu-linux/powerpc-bgp-linux/lib \
-	-lesslbg -lesslsmpbg -lxlf90_r  \
-        -lmass -lmassv -lxlfmath -lxlomp_ser -lxlsmp -lpthread
-BLAS_LD =  $(BGP_LIBS)
+#BGP_ESSL = /soft/apps/ESSL-4.4.1-0
+#BLAS_INC = -DUSE_ESSL=1 -I$(BGP_ESSL)/include -DUSE_MEMALIGN=1
+#BGP_LIBS = -L/opt/ibmcmp/xlf/bg/11.1/bglib \
+#	-L/opt/ibmcmp/xlsmp/bg/1.7/bglib \
+#	 -L$(BGP_ESSL)/lib \
+#	-L/bgsys/drivers/ppcfloor/gnu-linux/powerpc-bgp-linux/lib \
+#	-lesslbg -lesslsmpbg -lxlf90_r  \
+#        -lmass -lmassv -lxlfmath -lxlomp_ser -lxlsmp -lpthread
+#BLAS_LD =  $(BGP_LIBS)
 
 
 # ----------------------------------------------
