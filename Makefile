@@ -7,12 +7,12 @@ OPTS=-g
 #BLAS_LD = -lcblas
 
 # To compile on hope (OSX):
-#BLAS_INC = -DUSE_ACCELERATE_BLAS=1
-#BLAS_LD = -framework Accelerate
+BLAS_INC = -DUSE_ACCELERATE_BLAS=1
+BLAS_LD = -framework Accelerate
 
 # To compile against a custom atlas install on linux:
-BLAS_INC = -I/scratch/idooley2/atlas-install/include  -DUSE_CBLAS_H=1
-BLAS_LD = -L/scratch/idooley2/atlas-install/lib -llapack -lf77blas -lcblas -latlas
+#BLAS_INC = -I/scratch/idooley2/atlas-install/include  -DUSE_CBLAS_H=1
+#BLAS_LD = -L/scratch/idooley2/atlas-install/lib -llapack -lf77blas -lcblas -latlas
 
 
 # To compile with mkl on abe
@@ -60,7 +60,7 @@ BLAS_LD = -L/scratch/idooley2/atlas-install/lib -llapack -lf77blas -lcblas -latl
 PROJ = -tracemode projections
 #MULTICAST = -module CkMulticast
 
-CHARMC=../charm/bin/charmc $(OPTS) 
+CHARMC=charmc $(OPTS) 
 #CHARMC=${HOME}/current/charm/net-linux/bin/charmc $(OPTS) -g
 #CHARMC=${HOME}/current/lastestfromcvs/charm/net-linux-amd64/bin/charmc $(OPTS)
 #CHARMC=${HOME}/charm/bin/charmc $(FLAGS)
@@ -89,7 +89,7 @@ lu.decl.h: lu.ci
 
 clean:
 	rm -f *.decl.h *.def.h conv-host *.o charmrun *~ lu lu-blas lu-mem lu-blas-proj.*.log lu-blas-proj.*.sum lu-blas-proj.*.sts lu-blas-proj.sts lu-blas-proj.projrc lu-blas-proj lu-proj controlPointData.txt lu*.log lu*.sum lu*.sts lu*.projrc SummaryDump.out *.output *.error *.cobaltlog traces/* core.* perfCounterBGP.o
- 
+
 lu.o: lu.C lu.decl.h
 	$(CHARMC) -c lu.C -o lu.o $(BLAS_INC) $(OPTS)
 
@@ -100,3 +100,5 @@ run-BGP:
 	mkdir traces
 	qsub -n 16 --mode vn -t 15 ./lu-proj 16384 +traceroot traces
 
+run: lu
+	charmrun +p2  ./lu 1024 1000 10 +CPSaveData

@@ -10,8 +10,6 @@
 
  */
 
-
-
 //#include <assert.h>
 //#include <stdlib.h>
 //#include <string.h>
@@ -56,27 +54,17 @@ extern "C" {
 
 #include <queueing.h> // for access to memory threshold setting
 
-
-
-#define numIterations 1
-
-
 /* readonly: */
 CProxy_Main mainProxy;
 CProxy_LUBlk luArrProxy;
-ComlibInstanceHandle cinst0; 
-ComlibInstanceHandle cinst1; 
-ComlibInstanceHandle cinst2;  
 int gMatSize;
-int numBlks;
-int BLKSIZE;
-int whichMapping;
 int traceTrailingUpdate;
 int traceComputeU;
 int traceComputeL;
 int traceSolveLocalLU;
 int doPrioritize;
 int memThreshold;
+ComlibInstanceHandle multicastStats[11];
  
 //#define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
 #define DEBUG_PRINT(...) 
@@ -131,13 +119,14 @@ public:
   }
 };
 
-
 class blkMsg: public CMessage_blkMsg {
 public:
-    int step;
-    char pad[16-((sizeof(envelope)+sizeof(int))%16)];
-    double *data;
+  int step;
+  char pad[16-((sizeof(envelope)+sizeof(int))%16)];
+  double *data;
+  int BLKSIZE;
 
+  blkMsg(int _BLKSIZE) : BLKSIZE(_BLKSIZE) { }
 
   void setMsgData(double *d, int s) {
     memcpy(data, d, sizeof(double)*BLKSIZE*BLKSIZE);
@@ -146,11 +135,11 @@ public:
 
 };
 
-
 /** do a space filling curve style allocation from the bottom right to the upper left. */
 class LUSnakeMap: public CkArrayMap {
 public:
-  LUSnakeMap() {}
+  int numBlks, BLKSIZE;
+  LUSnakeMap(int _numBlks, int _BLKSIZE) : numBlks(_numBlks), BLKSIZE(_BLKSIZE) {}
   int procNum(int arrayHdl, const CkArrayIndex &idx) {
     int *coor = (int *)idx.data();
     int x = coor[0];
@@ -159,7 +148,6 @@ public:
     int numProcs = CkNumPes();
 
     const int numsteps=numBlks;
-
    
     int p=0;
     for(int step=numsteps-1;step>=0;step--){
@@ -186,15 +174,12 @@ public:
 	  return p % numProcs;
 	p++;
       }
-      
     }
     
     CkAbort("Mapping code has a bug in it\n");
     return -1;
   }
 };
-
-
 
 /** do an allocation that results in almost identical numbers of trailing updates per PE */
 class LUBalancedSnakeMap: public CkArrayMap {
@@ -203,6 +188,7 @@ public:
   int mappingSize;
   int *mapping;
   int *peLoads;
+  int numBlks, BLKSIZE;
   
 
   void setMapping(int x, int y, int pe){
@@ -217,7 +203,7 @@ public:
   }
 
   /** build and store the mapping once */
-  LUBalancedSnakeMap() {
+  LUBalancedSnakeMap(int _numBlks, int _BLKSIZE) : numBlks(_numBlks), BLKSIZE(_BLKSIZE) {
     int numProcs = CkNumPes();
 
     mappingSize = numBlks*numBlks;
@@ -245,8 +231,6 @@ public:
       setMapping(x, y, minLoadedPE() );
     }
     
-
-
     for(int step=numsteps-1;step>=1;step--){
       
       // go along row
@@ -267,8 +251,6 @@ public:
     
   }
   
-
-
   int minLoadedPE(){
     int minLoadFound = 1000000000;
     int minPEFound = CkNumPes()-1;
@@ -288,7 +270,6 @@ public:
       return y+1;
   }
   
-  
   int procNum(int arrayHdl, const CkArrayIndex &idx) {
     int *coor = (int *)idx.data();
     int x = coor[0];
@@ -298,16 +279,15 @@ public:
 
 };
 
-
 /** do an allocation that results in almost identical numbers of trailing updates per PE */
 class LUBalancedSnakeMap2: public CkArrayMap {
 public:
-  
   int mappingSize;
   int *mapping;
   int *peLoads;
   int stateN;
-  
+  int numBlks, BLKSIZE;
+
   void setMapping(int x, int y, int pe){
     CkAssert(y*numBlks+x < mappingSize);
     mapping[y*numBlks+x] = pe;
@@ -320,7 +300,7 @@ public:
   }
 
   /** build and store the mapping once */
-  LUBalancedSnakeMap2() {
+  LUBalancedSnakeMap2(int _numBlks, int _BLKSIZE) : numBlks(_numBlks), BLKSIZE(_BLKSIZE) {
     stateN = 0;
     int numProcs = CkNumPes();
 
@@ -404,7 +384,6 @@ public:
 
 };
 
-
 class BlockCyclicMap: public CkArrayMap {
 public:
   BlockCyclicMap() {}
@@ -428,33 +407,35 @@ public:
   }
 };
 
-
-
 class Main : public CBase_Main {
 public:
-
   double startTime;
   int iteration;
+  int numIterations;
+  int numBlks;
+  int BLKSIZE;
+  int whichMapping;
 
-  Main(CkArgMsg* m) {
+  Main(CkArgMsg* m) : numIterations(1) {
     iteration = 0;
 
     if (m->argc<3) {
-      CkPrintf("Usage: %s <matrix size> <strategy> <mem threshold>\n", m->argv[0]);
+      CkPrintf("Usage: %s <matrix size> <mem threshold> <iterations>\n", m->argv[0]);
       CkExit();
     }
 
-    int strategy = -1;
-    if (m->argc>3) {
-      sscanf( m->argv[2], "%d", &strategy);
-      CkPrintf("CLI: strategy=%d\n", strategy);
-      sscanf( m->argv[3], "%d", &memThreshold);
+    if (m->argc > 3) {
+      /*sscanf( m->argv[2], "%d", &strategy);
+	CkPrintf("CLI: strategy=%d\n", strategy);*/
+      sscanf( m->argv[2], "%d", &memThreshold);
       CkPrintf("CLI: memThreshold=%dMB\n", memThreshold);
+      
+      if (m->argc >= 4)
+	numIterations = atoi(m->argv[3]);
+      CkPrintf("CLI: numIterations=%d\n", numIterations);
     }
 
-
     mainProxy = thisProxy;
-    
       
     DEBUG_PRINT("Registering user events\n");
     traceTrailingUpdate = traceRegisterUserEvent("Trailing Update");
@@ -466,7 +447,7 @@ public:
     traceRegisterUserEvent("Remote Multicast Forwarding - preparing", 10001);
     traceRegisterUserEvent("Remote Multicast Forwarding - sends", 10002);
     
-    BLKSIZE = 1 << staticPoint("Block Size", 9,9);
+    BLKSIZE = 256; //1 << controlPoint("Block Size", 9,9);
     whichMapping = 0;
     doPrioritize = 0;
     
@@ -479,138 +460,90 @@ public:
   
     CkPrintf("Running LU on %d processors (%d nodes) on matrix %dX%d with block size %d\n",
 	     CkNumPes(), CmiNumNodes(), gMatSize, gMatSize, BLKSIZE);
-    
- //    Strategy * strategy0 = new DirectMulticastStrategy();
-//     cinst0 = ComlibRegister(strategy0);
-    
-//     Strategy * strategy1 = new RingMulticastStrategy();
-//     cinst1 = ComlibRegister(strategy1);
-    
-    switch(strategy){
-    case -1:
-      cinst2 = -1;
-      CkPrintf("Using NoMulticastStrategy\n");
-      break;
-      
-    case 0:
-      cinst2 = ComlibRegister(new OneTimeMulticastStrategy() ); 
-      CkPrintf("Using OneTimeMulticastStrategy\n");
-      break;
-    case 1:
-      cinst2 = ComlibRegister(new OneTimeRingMulticastStrategy() ); 
-      CkPrintf("Using OneTimeRingMulticastStrategy\n");
-      break;
-    case 2:
-      cinst2 = ComlibRegister(new OneTimeTopoTreeMulticastStrategy() ); 
-      CkPrintf("Using OneTimeTopoTreeMulticastStrategy\n");
-      break;
-    case 3:
-      cinst2 = ComlibRegister(new OneTimeDimensionOrderedMulticastStrategy() ); 
-      CkPrintf("Using OneTimeDimensionOrderedMulticastStrategy\n");
-      break;
 
-    case 4:
-      cinst2 = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(2) ); 
-      CkPrintf("Using OneTimeNodeTreeMulticastStrategy degree=2\n");
-      break;
-    case 5:
-      cinst2 = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(3) ); 
-      CkPrintf("Using OneTimeNodeTreeMulticastStrategy degree=3\n");
-      break;
-    case 6:
-      cinst2 = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(4) ); 
-      CkPrintf("Using OneTimeNodeTreeMulticastStrategy degree=4\n");
-      break;
-    case 7:
-      cinst2 = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(5) ); 
-      CkPrintf("Using OneTimeNodeTreeMulticastStrategy degree=5\n");
-      break;
-    case 8:
-      cinst2 = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(6) ); 
-      CkPrintf("Using OneTimeNodeTreeMulticastStrategy degree=6\n");
-      break;
+    multicastStats[0] = ComlibRegister(new OneTimeMulticastStrategy());
+    multicastStats[1] = ComlibRegister(new OneTimeRingMulticastStrategy() ); 
+    multicastStats[2] = ComlibRegister(new OneTimeDimensionOrderedMulticastStrategy() ); 
+    multicastStats[3] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(2) ); 
+    multicastStats[4] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(3) ); 
+    multicastStats[5] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(4) ); 
+    multicastStats[6] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(5) ); 
+    multicastStats[7] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(6) ); 
+    multicastStats[8] = ComlibRegister(new DirectMulticastStrategy() ); 
+    multicastStats[9] = ComlibRegister(new MultiRingMulticastStrategy() ); 
+    multicastStats[10] = ComlibRegister(new RingMulticastStrategy() ); 
 
-    case 9:
-      cinst2 = ComlibRegister(new DirectMulticastStrategy() ); 
-      CkPrintf("Using DirectMulticastStrategy\n");
-      break;
-    case 10:
-      cinst2 = ComlibRegister(new MultiRingMulticastStrategy() ); 
-      CkPrintf("Using MultiRingMulticastStrategy\n");
-      break;
-    case 11:
-      cinst2 = ComlibRegister(new RingMulticastStrategy() ); 
-      CkPrintf("Using RingMulticastStrategy\n");
-      break;
-  
-    default:
-      CkAbort("Chose a valid strategy\n");
+    // CProxy_BlockCyclicMap myMap = CProxy_BlockCyclicMap::ckNew();
+    CProxy_LUBalancedSnakeMap2 myMap = CProxy_LUBalancedSnakeMap2::ckNew(numBlks, BLKSIZE);
 
-    }
+    CkArrayOptions opts(numBlks, numBlks);
+    opts.setMap(myMap);
+    luArrProxy = CProxy_LUBlk::ckNew(opts);
 
-
-
-//    Strategy * strategy2 = new OneTimeMulticastStrategy(); // just delivers remotely with CmiSyncListSendAndFree, might be good for optimized BG/P machine layer.
-//    cinst2 = ComlibRegister(strategy2);
-
-    
-//    Strategy * strategy2 = new OneTimeNodeTreeRingMulticastStrategy();     
-//    cinst2 = ComlibRegister(strategy2); 
-
-    if(true){
-      // CProxy_BlockCyclicMap myMap = CProxy_BlockCyclicMap::ckNew();
-      CProxy_LUBalancedSnakeMap2 myMap = CProxy_LUBalancedSnakeMap2::ckNew();
-
-      CkArrayOptions opts(numBlks, numBlks);
-      opts.setMap(myMap);
-      luArrProxy = CProxy_LUBlk::ckNew(opts);
-    } else {
-      luArrProxy = CProxy_LUBlk::ckNew(numBlks, numBlks);
-    }
-    
-    CkCallback *cb = new CkCallback(CkIndex_Main::arrayIsCreated(NULL), thisProxy);
-    CkStartQD(*cb); // required currently for use with new Comlib
-    
-    //    CcdCallFnAfterOnPE((CcdVoidFn)periodicDebug, (void*)NULL, 10000, CkMyPe());
-    
+    int multi = -1;//controlPoint("which multicast strategy", -1, -1);
+    luArrProxy.init(multi, BLKSIZE, numBlks);
   }
 
-  
+  void finishInit() {
+    CkPrintf("finishInit called\n");
+    CkCallback *cb = new CkCallback(CkIndex_Main::arrayIsCreated(NULL), thisProxy);
+    CkStartQD(*cb); // required currently for use with new Comlib
+  }
+
   void arrayIsCreated(CkReductionMsg * m) {
     startTime = CmiWallTimer();
     luArrProxy(0,0).processLocalLU(0);
   }
   
-
-  
   void iterationCompleted() {
     double endTime = CmiWallTimer();
-    double duration = endTime-startTime;
+    double duration = endTime - startTime;
     registerControlPointTiming(duration); 
     
-    
     CkPrintf("Iteration %d time: %fs\n", iteration, duration);
-    if(iteration == numIterations-1){ 
+
+    if(iteration == numIterations - 1){ 
+      // Just print this out for the last iteration for now
+      outputStats();
       terminateProg();
       return;
     }
     
+    luArrProxy.ckDestroy();
+
     iteration++;
     
-    //    gotoNextPhase();
+    // This creates a warning!
     traceUserSuppliedNote("*** New Iteration");
     
-    staticPoint("Block Size", 8,8); // call this so it gets recorded for this phase
-    int whichMulticastStrategy = controlPoint("which multicast strategy", 3,3);
-    
-    CkCallback *cb = new CkCallback(CkIndex_Main::arrayIsCreated(NULL), thisProxy); 
-    luArrProxy.ckSetReductionClient(cb);
-    luArrProxy.init(whichMulticastStrategy);
-    
+    gotoNextPhase();
+    int whichMulticastStrategy = controlPoint("which multicast strategy", -1, -1);
+
+    BLKSIZE = 1 << controlPoint("Block Size", 7, 9);
+    CkPrintf("block size = %d\n", BLKSIZE);
+    numBlks = gMatSize/BLKSIZE;
+
+    int mapping = controlPoint("mappings", 0, 1);
+
+    switch (mapping) {
+    case 0: {
+      CProxy_LUBalancedSnakeMap2 map = CProxy_LUBalancedSnakeMap2::ckNew(numBlks, BLKSIZE);
+      CkArrayOptions opts(numBlks, numBlks);
+      opts.setMap(map);
+      luArrProxy = CProxy_LUBlk::ckNew(opts);
+    } break;
+    case 1: {
+      CProxy_BlockCyclicMap map = CProxy_BlockCyclicMap::ckNew();
+      CkArrayOptions opts(numBlks, numBlks);
+      opts.setMap(map);
+      luArrProxy = CProxy_LUBlk::ckNew(opts);
+    } break;
+    }
+
+    luArrProxy.init(0, BLKSIZE, numBlks);
   }
   
-  
-  void terminateProg() {
+  void outputStats() {
     double endTime = CmiWallTimer();
     double duration = endTime-startTime;
 
@@ -645,8 +578,6 @@ public:
     
     double fractionOfPeakOnBGP =  gflops_per_core / 3.4;
     double fractionOfPeakOnBGPPercent = fractionOfPeakOnBGP * 100.0;
-    
-
 
     std::cout << "If ran on order.cs.uiuc.edu, I think you got  \t" << fractionOfPeakOnOrderPercent << "% of peak" << std::endl;
     std::cout << "If ran on abe.ncsa.uiuc.edu, I think you got  \t" << fractionOfPeakOnAbePercent << "% of peak" << std::endl;
@@ -654,12 +585,12 @@ public:
     std::cout << "If ran on BG/P, I think you got  \t" << fractionOfPeakOnBGPPercent << "% of peak" << std::endl;
 
     registerControlPointTiming(duration);
-
-    CkCallback cb(CkIndex_Main::done(NULL),thisProxy); 
-    traceCriticalPathBack(cb);
-
   }
 
+  void terminateProg() {
+    CkCallback cb(CkIndex_Main::done(NULL),thisProxy); 
+    traceCriticalPathBack(cb);
+  }
 
   void done(pathInformationMsg *m){
     // CkPrintf("Main::done() After critical path has been determined\n");
@@ -670,14 +601,12 @@ public:
 };
 
 class LUBlk: public CBase_LUBlk {
-
 public:
-  
   double *LU;
   int whichMulticastStrategy;
   bool done;
-
   int alreadyReEnqueuedDuringPhase;
+  int BLKSIZE, numBlks;
   
 private:
   CkVec<blkMsg *> UBuffers;
@@ -699,20 +628,14 @@ public:
     done = false;
     alreadyReEnqueuedDuringPhase = -1;
 
-    CkAssert(BLKSIZE>0); // If this fails, readonly variables aren't
+    //CkAssert(BLKSIZE>0); // If this fails, readonly variables aren't
 			 // propagated soon enough. I'm assuming they
 			 // are safe to use here.
 
 
-#if USE_MEMALIGN
-    LU = (double*)memalign(128, BLKSIZE*BLKSIZE*sizeof(double) );
-    //   CkPrintf("LU mod 128 = %lu\n", ((unsigned long)LU) % 128);
-    CkAssert(LU != NULL);
-#else
-    LU = new double[BLKSIZE*BLKSIZE];
-#endif
 
-    internalStep = 0;  
+
+    /*internalStep = 0;  
      
     traceUserSuppliedData(-1);  
     traceMemoryUsage();  
@@ -723,17 +646,15 @@ public:
     } 
 
 
-    testdgemm();
+    testdgemm();*/
 
   }
-
-
 
   void testdgemm(){
 #if 0
     unsigned long blocksize = 32 << thisIndex.x;
     
-    if(thisIndex.y == 0 && thisIndex.x < 10){     
+    if(thisIndex.y == 0 && thisIndex.x == 1){     
       
 #if USE_MEMALIGN
       double *m1 = (double*)memalign(128, blocksize*blocksize*sizeof(double) );
@@ -779,8 +700,6 @@ public:
       double gflopcount = flopcount / 1000000000.0; 
       double gflopPerSec = gflopcount / duration; 
       CkPrintf("The dgemm\t%d\tx %d achieves\t%g\tGFlop/sec\n", blocksize, blocksize, gflopPerSec); 
-      
-
 
       {
 
@@ -810,8 +729,6 @@ public:
       
       }
 
-
-
       delete[] m1; 
       delete[] m2; 
       delete[] m3;       
@@ -819,34 +736,46 @@ public:
 #endif
   }
 
-
-  void init(int _whichMulticastStrategy){
+  void init(int _whichMulticastStrategy, int _BLKSIZE, int _numBlks){
+    whichMulticastStrategy = _whichMulticastStrategy;
+    BLKSIZE = _BLKSIZE;
+    numBlks = _numBlks;
+    
+    schedAdaptMemThresholdMB = memThreshold;
     
     done = false;
     alreadyReEnqueuedDuringPhase = -1;
 
-    whichMulticastStrategy = _whichMulticastStrategy;
-    
-    internalStep = 0; 
-    
-    traceUserSuppliedData(-1); 
-    traceMemoryUsage(); 
-    
-    MatGen rnd(thisIndex.x * numBlks + thisIndex.y);     
-    for (int i=0; i<BLKSIZE*BLKSIZE; i++) { 
-      LU[i] = rnd.toRndDouble(rnd.nextRndInt()); 
+    CkAssert(BLKSIZE>0); // If this fails, readonly variables aren't
+			 // propagated soon enough. I'm assuming they
+			 // are safe to use here.
+
+#if USE_MEMALIGN
+    LU = (double*)memalign(128, BLKSIZE*BLKSIZE*sizeof(double) );
+    //   CkPrintf("LU mod 128 = %lu\n", ((unsigned long)LU) % 128);
+    CkAssert(LU != NULL);
+#else
+    LU = new double[BLKSIZE*BLKSIZE];
+#endif
+
+    internalStep = 0;  
+     
+    traceUserSuppliedData(-1);  
+    traceMemoryUsage();  
+     
+    MatGen rnd(thisIndex.x * numBlks + thisIndex.y);      
+    for (int i=0; i<BLKSIZE*BLKSIZE; i++) {  
+      LU[i] = rnd.toRndDouble(rnd.nextRndInt());  
     } 
-    
-    contribute();
+
+
+    testdgemm();
+
+    contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
   }
 
-
-
-
-
-  
-
   ~LUBlk() {
+    //CkPrintf("freeing LuBlk\n");
 #if USE_MEMALIGN
     free(LU);
 #else
@@ -855,13 +784,10 @@ public:
     LU = NULL;
   }
 
-
   LUBlk(CkMigrateMessage* m) {}
 
   //added for migration
   void pup(PUP::er &p) {  }
-
-
  
 //   // Called on element 0,0
 //   void begin() {
@@ -970,8 +896,6 @@ public:
     cblas_dtrsm(CblasRowMajor, CblasRight, CblasUpper, CblasNoTrans, CblasNonUnit, BLKSIZE, BLKSIZE, 1.0, givenU, BLKSIZE, LU, BLKSIZE);
 #endif
 
-    
-
     traceUserBracketEvent(traceComputeL, lStart, CmiWallTimer());
   }
 
@@ -1042,27 +966,9 @@ public:
     DEBUG_PRINT("[PE %d] elem %d,%d Multicast to part of column %d from step %d\n", CkMyPe(), thisIndex.x, thisIndex.y, thisIndex.y, internalStep);
     
     CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
-    
 
-  //   switch(whichMulticastStrategy){
-//     case 0:
-//       // no delegation
-//       break;
-//     case 1:
-//       CkAssert(cinst0);
-//       ComlibAssociateProxy(cinst0, oneCol);
-//       break;
-//     case 2: 
-//       CkAssert(cinst1); 
-//       ComlibAssociateProxy(cinst1, oneCol);        
-//       break;
-//     case 3:
-    if(cinst2 != -1){
-      CkAssert(cinst2);
-      ComlibAssociateProxy(cinst2, oneCol);
-    }
-//   break;
-//     }
+    if (whichMulticastStrategy > -1)
+      ComlibAssociateProxy(multicastStats[whichMulticastStrategy], oneCol);
     
     blkMsg *givenU = createABlkMsg();
     givenU->setMsgData(LU, internalStep);
@@ -1077,7 +983,6 @@ public:
     
   }
   
-  
   //broadcast the L rightwards to the blocks in the same row
   inline void multicastRecvL() {
     traceUserSuppliedData(internalStep);
@@ -1087,31 +992,13 @@ public:
     
     CProxySection_LUBlk oneRow = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, thisIndex.x, 1, thisIndex.y+1, numBlks-1, 1);
     
-//     switch(whichMulticastStrategy){ 
-//     case 0: 
-//       // no delegation 
-//       break;
-//     case 1:
-//       CkAssert(cinst0);
-//       ComlibAssociateProxy(cinst0, oneRow); 
-//       break; 
-//     case 2:  
-//       CkAssert(cinst1);  
-//       ComlibAssociateProxy(cinst1, oneRow);         
-//       break;
-//     case 3:  
-    if(cinst2 != -1){
-      CkAssert(cinst2);  
-      ComlibAssociateProxy(cinst2, oneRow);         
-    }
-//       break;
-//     }
+    if (whichMulticastStrategy > -1)
+      ComlibAssociateProxy(multicastStats[whichMulticastStrategy], oneRow);
     
     blkMsg *givenL = createABlkMsg();
     givenL->setMsgData(LU, internalStep);
     //CkAssert(givenL->step == 0);
     oneRow.updateRecvL(givenL);
-    
     
 //     for(int i=thisIndex.y+1; i<numBlks; i++){
 //       blkMsg *givenL = createABlkMsg();
@@ -1122,8 +1009,6 @@ public:
     
   }
 
-  
- 
   void processComputeU(int ignoredParam) {
     DEBUG_PRINT("processComputeU() called on block %d,%d\n", thisIndex.x, thisIndex.y);
     CkAssert(!done);
@@ -1150,7 +1035,6 @@ public:
     
   }
   
-
   void processComputeL(int ignoredParam) {
     DEBUG_PRINT("processComputeL() called on block %d,%d\n", thisIndex.x, thisIndex.y);
     CkAssert(!done);
@@ -1178,12 +1062,6 @@ public:
     
   }
   
-
-
-
-
-
-
   void processTrailingUpdate(int ignoredParam) {
     DEBUG_PRINT("processTrailingUpdate() called on block %d,%d\n", thisIndex.x, thisIndex.y);
     CkAssert(!done);
@@ -1219,13 +1097,6 @@ public:
     
   }
   
-
-
-
-
-
-
-
   void processLocalLU(int ignoredParam) {
     DEBUG_PRINT("processLocalLU() called on block %d,%d\n", thisIndex.x, thisIndex.y);
     CkAssert(!done);
@@ -1264,8 +1135,6 @@ public:
     
   }
 
-
-
   /// Store a pointer to the buffered L messages
   void bufferL(blkMsg *msg) {
     CmiReference(UsrToEnv(msg));
@@ -1284,7 +1153,6 @@ public:
     UBuffers.insert(msg->step, msg);
   }
   
-
   /// Call progress on myself, possibly using priorities 
   inline void selfContinue(){
     int integerPrio;
@@ -1296,7 +1164,6 @@ public:
     double c2 = 1.0;
     double c3 = 1.0;
     double c4 = 1.0;
-
 
 #if 1
     // Low priority trailing updates
@@ -1349,7 +1216,6 @@ public:
 
 #endif    
 
-
     CkEntryOptions eOpts; 
     eOpts.setPriority (integerPrio); // setPriority sets the queuing type internally
     
@@ -1373,7 +1239,6 @@ public:
 
   }
 
-  
   /// Are there enough buffered messages for this step to perform the required work?
   continueWithTask canContinue(){
     double *incomingL = getBufferedL(internalStep);
@@ -1393,7 +1258,6 @@ public:
     
     return NO_CONTINUE;    
   }
-  
   
  bool buffersEmpty(){
     int validMsgInUBuffer = 0;
@@ -1425,8 +1289,6 @@ public:
     //  CkPrintf("[%d] elem %d,%d has %d buffered U messages and %d buffered L messages\n", CkMyPe(), thisIndex.x, thisIndex.y, validMsgInUBuffer, validMsgInLBuffer);
     
   }
-
-
 
   double *getBufferedL(int idx) {
     //    DEBUG_PRINT("getBufferedL: size=%d, idx=%d\n", LBuffers.size(), idx );
@@ -1481,12 +1343,12 @@ private:
     blkMsg *msg;
     
     if(doPrioritize) {
-      msg = new(BLKSIZE*BLKSIZE, 8*sizeof(int)) blkMsg;
+      msg = new(BLKSIZE*BLKSIZE, 8*sizeof(int)) blkMsg(BLKSIZE);
       DEBUG_PRINT("setting priority to internalStep=%d\n", internalStep);
       *((int*)CkPriorityPtr(msg)) = (int)internalStep;
       CkSetQueueing(msg, CK_QUEUEING_IFIFO);
     } else {
-      msg = new(BLKSIZE*BLKSIZE)blkMsg;
+      msg = new(BLKSIZE*BLKSIZE)blkMsg(BLKSIZE);
     }
     
     return msg;
@@ -1494,6 +1356,5 @@ private:
 
   
 };
-
 
 #include "lu.def.h"
