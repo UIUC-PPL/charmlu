@@ -51,6 +51,7 @@ extern "C" {
 #include <comlib.h>
 #include <controlPoints.h> // must come before user decl.h if they are using the pathInformationMsg
 #include "lu.decl.h"
+#include "trace-projections.h"
 
 #include <queueing.h> // for access to memory threshold setting
 
@@ -64,7 +65,7 @@ int traceComputeL;
 int traceSolveLocalLU;
 int doPrioritize;
 int memThreshold;
-ComlibInstanceHandle multicastStats[11];
+ComlibInstanceHandle multicastStats[4];
  
 //#define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
 #define DEBUG_PRINT(...) 
@@ -447,7 +448,7 @@ public:
     traceRegisterUserEvent("Remote Multicast Forwarding - preparing", 10001);
     traceRegisterUserEvent("Remote Multicast Forwarding - sends", 10002);
     
-    BLKSIZE = 256; //1 << controlPoint("Block Size", 9,9);
+    BLKSIZE = 256; //1 << controlPoint("block_size", 9,9);
     whichMapping = 0;
     doPrioritize = 0;
     
@@ -461,17 +462,12 @@ public:
     CkPrintf("Running LU on %d processors (%d nodes) on matrix %dX%d with block size %d\n",
 	     CkNumPes(), CmiNumNodes(), gMatSize, gMatSize, BLKSIZE);
 
-    multicastStats[0] = ComlibRegister(new OneTimeMulticastStrategy());
-    multicastStats[1] = ComlibRegister(new OneTimeRingMulticastStrategy() ); 
-    multicastStats[2] = ComlibRegister(new OneTimeDimensionOrderedMulticastStrategy() ); 
-    multicastStats[3] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(2) ); 
-    multicastStats[4] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(3) ); 
-    multicastStats[5] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(4) ); 
-    multicastStats[6] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(5) ); 
-    multicastStats[7] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(6) ); 
-    multicastStats[8] = ComlibRegister(new DirectMulticastStrategy() ); 
-    multicastStats[9] = ComlibRegister(new MultiRingMulticastStrategy() ); 
-    multicastStats[10] = ComlibRegister(new RingMulticastStrategy() ); 
+    multicastStats[0] = ComlibRegister(new OneTimeRingMulticastStrategy() ); 
+    multicastStats[1] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(2) ); 
+    multicastStats[2] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(3) ); 
+    multicastStats[3] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(4) ); 
+
+    ControlPoint::EffectDecrease::Granularity("block_size");
 
     // CProxy_BlockCyclicMap myMap = CProxy_BlockCyclicMap::ckNew();
     CProxy_LUBalancedSnakeMap2 myMap = CProxy_LUBalancedSnakeMap2::ckNew(numBlks, BLKSIZE);
@@ -480,12 +476,17 @@ public:
     opts.setMap(myMap);
     luArrProxy = CProxy_LUBlk::ckNew(opts);
 
-    int multi = -1;//controlPoint("which multicast strategy", -1, -1);
+    int multi = -1;//controlPoint("multicast_strategy", -1, -1);
     luArrProxy.init(multi, BLKSIZE, numBlks);
   }
 
   void finishInit() {
     CkPrintf("finishInit called\n");
+
+    luArrProxy.flushLogs();
+  }
+
+  void continueIter() {
     CkCallback *cb = new CkCallback(CkIndex_Main::arrayIsCreated(NULL), thisProxy);
     CkStartQD(*cb); // required currently for use with new Comlib
   }
@@ -498,7 +499,7 @@ public:
   void iterationCompleted() {
     double endTime = CmiWallTimer();
     double duration = endTime - startTime;
-    registerControlPointTiming(duration); 
+    registerControlPointTiming(duration);
     
     CkPrintf("Iteration %d time: %fs\n", iteration, duration);
 
@@ -513,17 +514,21 @@ public:
 
     iteration++;
     
-    // This creates a warning!
-    traceUserSuppliedNote("*** New Iteration");
-    
     gotoNextPhase();
-    int whichMulticastStrategy = controlPoint("which multicast strategy", -1, -1);
+    int whichMulticastStrategy = controlPoint("multicast_strategy", 0, 3);
 
-    BLKSIZE = 1 << controlPoint("Block Size", 7, 9);
+    BLKSIZE = 1 << controlPoint("block_size", 8, 10);
     CkPrintf("block size = %d\n", BLKSIZE);
     numBlks = gMatSize/BLKSIZE;
 
-    int mapping = controlPoint("mappings", 0, 1);
+    int mapping = controlPoint("mapping", 0, 1);
+
+    char note[200];
+
+    sprintf(note, "*** New iteration: block size = %d, mapping = %s, multicast = %d", 
+	    BLKSIZE, mapping == 0 ? "Balanced Snake" : "Block Cylic", whichMulticastStrategy);
+
+    traceUserSuppliedNote(note);
 
     switch (mapping) {
     case 0: {
@@ -648,6 +653,11 @@ public:
 
     testdgemm();*/
 
+  }
+
+  void flushLogs() {
+    //flushTraceLog();
+    contribute(CkCallback(CkIndex_Main::continueIter(), mainProxy));    
   }
 
   void testdgemm(){

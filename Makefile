@@ -71,7 +71,8 @@ CHARMC=charmc $(OPTS)
 #CHARMC=charm/bin/charmc $(OPTS)
 
 
-MODULES=  -module ControlPoints  -tracemode controlPoints -module comlib
+MODULES=  -module ControlPoints   -module comlib -tracemode controlPoints
+
 
 
 all: lu lu-proj
@@ -100,5 +101,7 @@ run-BGP:
 	mkdir traces
 	qsub -n 16 --mode vn -t 15 ./lu-proj 16384 +traceroot traces
 
-run: lu
-	charmrun +p2  ./lu 1024 1000 10 +CPSaveData
+run: lu-proj
+	-rm -rf traces
+	mkdir traces
+	charmrun +p4 ./lu-proj 1024 1000 10 +CPSaveData +traceroot traces
