@@ -35,7 +35,7 @@ mainmodule lu {
     entry void processLocalLU(int ignoredParam);
     entry void processComputeL(int ignoredParam);
     entry void processComputeU(int ignoredParam);
-    entry void processTrailingUpdate(int ignoredParam);
+    entry [memcritical] void processTrailingUpdate(int ignoredParam);
 
     entry void printInfo();
     entry void flushLogs();

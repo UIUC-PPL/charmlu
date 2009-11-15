@@ -51,7 +51,7 @@ extern "C" {
 #include <comlib.h>
 #include <controlPoints.h> // must come before user decl.h if they are using the pathInformationMsg
 #include "lu.decl.h"
-#include "trace-projections.h"
+#include <trace-projections.h>
 
 #include <queueing.h> // for access to memory threshold setting
 
@@ -448,7 +448,7 @@ public:
     traceRegisterUserEvent("Remote Multicast Forwarding - preparing", 10001);
     traceRegisterUserEvent("Remote Multicast Forwarding - sends", 10002);
     
-    BLKSIZE = 256; //1 << controlPoint("block_size", 9,9);
+    BLKSIZE = 512; //1 << controlPoint("block_size", 9,9);
     whichMapping = 0;
     doPrioritize = 0;
     
@@ -466,6 +466,13 @@ public:
     multicastStats[1] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(2) ); 
     multicastStats[2] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(3) ); 
     multicastStats[3] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(4) ); 
+
+    char note[200];
+
+    sprintf(note, "*** New iteration: block size = %d, mapping = %s, multicast = %d", 
+	    BLKSIZE, "Balanced Snake", -1);
+
+    traceUserSuppliedNote(note);
 
     ControlPoint::EffectDecrease::Granularity("block_size");
 
@@ -503,7 +510,7 @@ public:
     
     CkPrintf("Iteration %d time: %fs\n", iteration, duration);
 
-    if(iteration == numIterations - 1){ 
+    if (iteration == numIterations - 1){ 
       // Just print this out for the last iteration for now
       outputStats();
       terminateProg();
@@ -515,13 +522,13 @@ public:
     iteration++;
     
     gotoNextPhase();
-    int whichMulticastStrategy = controlPoint("multicast_strategy", 0, 3);
+    int whichMulticastStrategy = -1;//controlPoint("multicast_strategy", 0, 3);
 
-    BLKSIZE = 1 << controlPoint("block_size", 8, 10);
+    BLKSIZE = 512;//1 << controlPoint("block_size", 9, 10);
     CkPrintf("block size = %d\n", BLKSIZE);
     numBlks = gMatSize/BLKSIZE;
 
-    int mapping = controlPoint("mapping", 0, 1);
+    int mapping = 0;//controlPoint("mapping", 0, 1);
 
     char note[200];
 
@@ -529,6 +536,8 @@ public:
 	    BLKSIZE, mapping == 0 ? "Balanced Snake" : "Block Cylic", whichMulticastStrategy);
 
     traceUserSuppliedNote(note);
+    
+    CkPrintf("%s\n", note);
 
     switch (mapping) {
     case 0: {
@@ -656,7 +665,7 @@ public:
   }
 
   void flushLogs() {
-    //flushTraceLog();
+      //flushTraceLog();
     contribute(CkCallback(CkIndex_Main::continueIter(), mainProxy));    
   }
 
@@ -851,6 +860,7 @@ public:
     int info;
     // This one doesn't quite do what we want... it does pivoting
     dgetrf(size, size, LU, size, ipiv, &info);
+    delete [] ipiv;
 #else
     int *ipiv = new int[BLKSIZE];
     clapack_dgetrf(CblasRowMajor, BLKSIZE, BLKSIZE, LU, BLKSIZE, ipiv);

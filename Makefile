@@ -7,8 +7,8 @@ OPTS=-g
 #BLAS_LD = -lcblas
 
 # To compile on hope (OSX):
-BLAS_INC = -DUSE_ACCELERATE_BLAS=1
-BLAS_LD = -framework Accelerate
+#BLAS_INC = -DUSE_ACCELERATE_BLAS=1
+#BLAS_LD = -framework Accelerate
 
 # To compile against a custom atlas install on linux:
 #BLAS_INC = -I/scratch/idooley2/atlas-install/include  -DUSE_CBLAS_H=1
@@ -34,15 +34,15 @@ BLAS_LD = -framework Accelerate
 
 
 # To compile on BG/P with ESSL:
-#BGP_ESSL = /soft/apps/ESSL-4.4.1-0
-#BLAS_INC = -DUSE_ESSL=1 -I$(BGP_ESSL)/include -DUSE_MEMALIGN=1
-#BGP_LIBS = -L/opt/ibmcmp/xlf/bg/11.1/bglib \
-#	-L/opt/ibmcmp/xlsmp/bg/1.7/bglib \
-#	 -L$(BGP_ESSL)/lib \
-#	-L/bgsys/drivers/ppcfloor/gnu-linux/powerpc-bgp-linux/lib \
-#	-lesslbg -lesslsmpbg -lxlf90_r  \
-#        -lmass -lmassv -lxlfmath -lxlomp_ser -lxlsmp -lpthread
-#BLAS_LD =  $(BGP_LIBS)
+BGP_ESSL = /soft/apps/ESSL-4.4.1-0
+BLAS_INC = -DUSE_ESSL=1 -I$(BGP_ESSL)/include -DUSE_MEMALIGN=1
+BGP_LIBS = -L/opt/ibmcmp/xlf/bg/11.1/bglib \
+	-L/opt/ibmcmp/xlsmp/bg/1.7/bglib \
+	 -L$(BGP_ESSL)/lib \
+	-L/bgsys/drivers/ppcfloor/gnu-linux/powerpc-bgp-linux/lib \
+	-lesslbg -lesslsmpbg -lxlf90_r  \
+        -lmass -lmassv -lxlfmath -lxlomp_ser -lxlsmp -lpthread
+BLAS_LD =  $(BGP_LIBS)
 
 
 # ----------------------------------------------
@@ -60,7 +60,7 @@ BLAS_LD = -framework Accelerate
 PROJ = -tracemode projections
 #MULTICAST = -module CkMulticast
 
-CHARMC=charmc $(OPTS) 
+CHARMC=../charm/bin/charmc $(OPTS) 
 #CHARMC=${HOME}/current/charm/net-linux/bin/charmc $(OPTS) -g
 #CHARMC=${HOME}/current/lastestfromcvs/charm/net-linux-amd64/bin/charmc $(OPTS)
 #CHARMC=${HOME}/charm/bin/charmc $(FLAGS)
@@ -71,11 +71,11 @@ CHARMC=charmc $(OPTS)
 #CHARMC=charm/bin/charmc $(OPTS)
 
 
-MODULES=  -module ControlPoints   -module comlib -tracemode controlPoints
+MODULES=  -module ControlPoints   -module comlib -tracemode controlPoints 
 
 
 
-all: lu lu-proj
+all: lu-proj
 
 
 
@@ -83,25 +83,26 @@ lu: lu.o
 	$(CHARMC) -language charm++ -o lu lu.o  $(BLAS_LD) $(MULTICAST)  $(MODULES)
 
 lu-proj: lu.o 
-	$(CHARMC) -language charm++ -o lu-proj lu.o $(BLAS_LD) $(PROJ) $(MULTICAST)  $(MODULES)
+	$(CHARMC) -language charm++ -o lu-proj lu.o $(BLAS_LD) $(PROJ) $(MULTICAST)  $(MODULES) -DADAPT_SCHED_MEM
 
 lu.decl.h: lu.ci
-	$(CHARMC)  lu.ci
+	$(CHARMC)  lu.ci -DADAPT_SCHED_MEM
 
 clean:
 	rm -f *.decl.h *.def.h conv-host *.o charmrun *~ lu lu-blas lu-mem lu-blas-proj.*.log lu-blas-proj.*.sum lu-blas-proj.*.sts lu-blas-proj.sts lu-blas-proj.projrc lu-blas-proj lu-proj controlPointData.txt lu*.log lu*.sum lu*.sts lu*.projrc SummaryDump.out *.output *.error *.cobaltlog traces/* core.* perfCounterBGP.o
 
 lu.o: lu.C lu.decl.h
-	$(CHARMC) -c lu.C -o lu.o $(BLAS_INC) $(OPTS)
+	$(CHARMC) -c lu.C -o lu.o $(BLAS_INC) $(OPTS) -DADAPT_SCHED_MEM
 
 
  # run for up to 15 minutes on 16 nodes * 4 pe/node. Matrix size 8192*8192
-run-BGP: 
+run-BGP: lu-proj
 	rm -fr traces
 	mkdir traces
-	qsub -n 16 --mode vn -t 15 ./lu-proj 16384 +traceroot traces
+	qsub -n 64 --mode smp -t 30 ./lu-proj 32768 1000 2 +CPSaveData +CPExhaustiveSearch +CPLoadData +traceroot traces 
+#+logsize 10000000b
 
 run: lu-proj
 	-rm -rf traces
 	mkdir traces
-	charmrun +p4 ./lu-proj 1024 1000 10 +CPSaveData +traceroot traces
+	charmrun +p4 ./lu-proj 1024 1000 1 +CPSaveData +traceroot traces +logsize 10000000
