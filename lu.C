@@ -469,8 +469,10 @@ public:
 
     char note[200];
 
+    int multi = 1;//controlPoint("multicast_strategy", -1, -1);
+
     sprintf(note, "*** New iteration: block size = %d, mapping = %s, multicast = %d", 
-	    BLKSIZE, "Balanced Snake", -1);
+	    BLKSIZE, "Balanced Snake", multi);
 
     traceUserSuppliedNote(note);
 
@@ -482,8 +484,6 @@ public:
     CkArrayOptions opts(numBlks, numBlks);
     opts.setMap(myMap);
     luArrProxy = CProxy_LUBlk::ckNew(opts);
-
-    int multi = -1;//controlPoint("multicast_strategy", -1, -1);
     luArrProxy.init(multi, BLKSIZE, numBlks);
   }
 
