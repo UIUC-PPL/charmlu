@@ -448,43 +448,23 @@ public:
     traceRegisterUserEvent("Remote Multicast Forwarding - preparing", 10001);
     traceRegisterUserEvent("Remote Multicast Forwarding - sends", 10002);
     
-    BLKSIZE = 512; //1 << controlPoint("block_size", 9,9);
-    whichMapping = 0;
-    doPrioritize = 0;
-    
     gMatSize = atoi(m->argv[1]);
  
-    if (gMatSize%BLKSIZE!=0) 
-      CkAbort("The matrix size should be a multiple of block size!\n");
+    if (gMatSize%1024!=0) 
+      CkAbort("The matrix size should be a multiple of 1024!\n");
   
-    numBlks = gMatSize/BLKSIZE;
-  
-    CkPrintf("Running LU on %d processors (%d nodes) on matrix %dX%d with block size %d\n",
-	     CkNumPes(), CmiNumNodes(), gMatSize, gMatSize, BLKSIZE);
+    CkPrintf("Running LU on %d processors (%d nodes) on matrix %dX%d with control points\n",
+	     CkNumPes(), CmiNumNodes(), gMatSize, gMatSize);
 
     multicastStats[0] = ComlibRegister(new OneTimeRingMulticastStrategy() ); 
     multicastStats[1] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(2) ); 
     multicastStats[2] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(3) ); 
     multicastStats[3] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(4) ); 
 
-    char note[200];
-
-    int multi = 1;//controlPoint("multicast_strategy", -1, -1);
-
-    sprintf(note, "*** New iteration: block size = %d, mapping = %s, multicast = %d", 
-	    BLKSIZE, "Balanced Snake", multi);
-
-    traceUserSuppliedNote(note);
-
     ControlPoint::EffectDecrease::Granularity("block_size");
 
-    // CProxy_BlockCyclicMap myMap = CProxy_BlockCyclicMap::ckNew();
-    CProxy_LUBalancedSnakeMap2 myMap = CProxy_LUBalancedSnakeMap2::ckNew(numBlks, BLKSIZE);
+    thisProxy.iterationCompleted();
 
-    CkArrayOptions opts(numBlks, numBlks);
-    opts.setMap(myMap);
-    luArrProxy = CProxy_LUBlk::ckNew(opts);
-    luArrProxy.init(multi, BLKSIZE, numBlks);
   }
 
   void finishInit() {
@@ -504,31 +484,34 @@ public:
   }
   
   void iterationCompleted() {
-    double endTime = CmiWallTimer();
-    double duration = endTime - startTime;
-    registerControlPointTiming(duration);
-    
-    CkPrintf("Iteration %d time: %fs\n", iteration, duration);
-
-    if (iteration == numIterations - 1){ 
-      // Just print this out for the last iteration for now
-      outputStats();
-      terminateProg();
+    if(iteration > 0){
+      double endTime = CmiWallTimer();
+      double duration = endTime - startTime;
+      registerControlPointTiming(duration);
+      
+      CkPrintf("Iteration %d time: %fs\n", iteration, duration);
+      
+      if (iteration == numIterations){ 
+	// Just print this out for the last iteration for now
+	outputStats();
+	terminateProg();
       return;
+      }
+      
+      luArrProxy.ckDestroy();
     }
-    
-    luArrProxy.ckDestroy();
+
 
     iteration++;
     
     gotoNextPhase();
-    int whichMulticastStrategy = -1;//controlPoint("multicast_strategy", 0, 3);
+    int whichMulticastStrategy = controlPoint("multicast_strategy", 0, 3);
 
-    BLKSIZE = 512;//1 << controlPoint("block_size", 9, 10);
+    BLKSIZE = 1 << controlPoint("block_size", 9, 9);
     CkPrintf("block size = %d\n", BLKSIZE);
     numBlks = gMatSize/BLKSIZE;
 
-    int mapping = 0;//controlPoint("mapping", 0, 1);
+    int mapping = controlPoint("mapping", 0, 1);
 
     char note[200];
 
@@ -598,7 +581,6 @@ public:
     std::cout << "If ran on kraken, I think you got  \t" << fractionOfPeakOnKrakenPercent << "% of peak" << std::endl;
     std::cout << "If ran on BG/P, I think you got  \t" << fractionOfPeakOnBGPPercent << "% of peak" << std::endl;
 
-    registerControlPointTiming(duration);
   }
 
   void terminateProg() {
@@ -665,7 +647,7 @@ public:
   }
 
   void flushLogs() {
-      //flushTraceLog();
+      flushTraceLog();
     contribute(CkCallback(CkIndex_Main::continueIter(), mainProxy));    
   }
 
