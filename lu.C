@@ -505,7 +505,7 @@ public:
     iteration++;
     
     gotoNextPhase();
-    int whichMulticastStrategy = controlPoint("multicast_strategy", 0, 3);
+    int whichMulticastStrategy = controlPoint("multicast_strategy", 2, 3);
 
     BLKSIZE = 1 << controlPoint("block_size", 9, 9);
     CkPrintf("block size = %d\n", BLKSIZE);
@@ -521,6 +521,7 @@ public:
     traceUserSuppliedNote(note);
     
     CkPrintf("%s\n", note);
+    fflush(stdout);
 
     switch (mapping) {
     case 0: {
@@ -859,7 +860,17 @@ public:
     traceUserSuppliedData(internalStep);
     traceMemoryUsage();
     double *givenL = givenLMsg->data;
+
+#if 0
+    if( ((unsigned long)givenL) % 16 != 0){
+      CkPrintf("givenL mod 16=%d\n", (int)(((unsigned long)givenL) % 16 ));
+      CkPrintf("sizeof(envelope)=%d\n", sizeof(envelope));
+      CkPrintf("sizeof(int) = %d\n", sizeof(int));
+      //      "16-((sizeof(envelope)+sizeof(int))%16";
+    }
+
     CkAssert( ((unsigned long)givenL) % 16 == 0);
+#endif
 
     double uStart = CmiWallTimer();
 
@@ -884,7 +895,7 @@ public:
     traceUserSuppliedData(internalStep);
     traceMemoryUsage();
     double *givenU = givenUMsg->data;
-    CkAssert( ((unsigned long)givenU) % 16 == 0);
+    //    CkAssert( ((unsigned long)givenU) % 16 == 0);
 
 
     //traceUserEvent(traceComputeL);
