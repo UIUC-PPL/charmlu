@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -N run-lu-33
+#PBS -N job-lu-36
 #PBS -j oe
 #PBS -l walltime=00:25:00,size=36
 
@@ -16,6 +16,5 @@ rm -f controlPointData.txt
 rm -fr traces
 mkdir traces
 
-
-aprun -n 33 -N 11 ./lu-proj 32768 1000 5  +traceroot traces +setcpuaffinity +CPExhaustiveSearch
+aprun -n 36 -N 11 ./lu-proj 51200 900 6  +traceroot traces +setcpuaffinity +CPExhaustiveSearch +CPSaveData
 

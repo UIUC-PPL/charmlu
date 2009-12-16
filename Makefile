@@ -1,5 +1,5 @@
-#OPTS=-O3 -Q -qhot -qarch=450d -qtune=450
-OPTS=-g
+##OPTS=-O3 -Q -qhot -qarch=450d -qtune=450
+#OPTS=-g
 
 #------------------------------------------------
 # To compile on order or faith(Ubuntu):
@@ -25,8 +25,8 @@ OPTS=-g
 
 
 # To compile on Cray XT5 with "module load atlas/3.8.3"
-#BLAS_LD = -L$(ATLAS_DIR)/lib -llapack -lf77blas -lcblas -latlas
-#BLAS_INC = -I$(ATLAS_DIR)/include -DUSE_BLAS  -DUSE_CBLAS_H=1 -DUSE_MEMALIGN
+BLAS_LD = -L$(ATLAS_DIR)/lib -llapack -lf77blas -lcblas -latlas
+BLAS_INC = -I$(ATLAS_DIR)/include -DUSE_BLAS  -DUSE_CBLAS_H=1 -DUSE_MEMALIGN
 
 # To compile on Cray XT5 with "module load acml"
 #BLAS_LD = -L/lustre/scratch/idooley2/LU/CBLAS/lib -lcblas -L$(ACML_DIR)/gfortran64/lib/ -llibacml 
@@ -34,15 +34,15 @@ OPTS=-g
 
 
 # To compile on BG/P with ESSL:
-BGP_ESSL = /soft/apps/ESSL-4.4.1-0
-BLAS_INC = -DUSE_ESSL=1 -I$(BGP_ESSL)/include -DUSE_MEMALIGN=1
-BGP_LIBS = -L/opt/ibmcmp/xlf/bg/11.1/bglib \
-	-L/opt/ibmcmp/xlsmp/bg/1.7/bglib \
-	 -L$(BGP_ESSL)/lib \
-	-L/bgsys/drivers/ppcfloor/gnu-linux/powerpc-bgp-linux/lib \
-	-lesslbg -lesslsmpbg -lxlf90_r  \
-        -lmass -lmassv -lxlfmath -lxlomp_ser -lxlsmp -lpthread
-BLAS_LD =  $(BGP_LIBS)
+#BGP_ESSL = /soft/apps/ESSL-4.4.1-0
+#BLAS_INC = -DUSE_ESSL=1 -I$(BGP_ESSL)/include -DUSE_MEMALIGN=1
+#BGP_LIBS = -L/opt/ibmcmp/xlf/bg/11.1/bglib \
+#	-L/opt/ibmcmp/xlsmp/bg/1.7/bglib \
+#	 -L$(BGP_ESSL)/lib \
+#	-L/bgsys/drivers/ppcfloor/gnu-linux/powerpc-bgp-linux/lib \
+#	-lesslbg -lesslsmpbg -lxlf90_r  \
+#        -lmass -lmassv -lxlfmath -lxlomp_ser -lxlsmp -lpthread
+#BLAS_LD =  $(BGP_LIBS)
 
 
 # ----------------------------------------------
@@ -89,7 +89,7 @@ lu.decl.h: lu.ci
 	$(CHARMC)  lu.ci -DADAPT_SCHED_MEM
 
 clean:
-	rm -f *.decl.h *.def.h conv-host *.o charmrun *~ lu lu-blas lu-mem lu-blas-proj.*.log lu-blas-proj.*.sum lu-blas-proj.*.sts lu-blas-proj.sts lu-blas-proj.projrc lu-blas-proj lu-proj controlPointData.txt lu*.log lu*.sum lu*.sts lu*.projrc SummaryDump.out *.output *.error *.cobaltlog traces/* core.* perfCounterBGP.o
+	rm -f *.decl.h *.def.h conv-host *.o charmrun *~ lu lu-blas lu-mem lu-blas-proj.*.log lu-blas-proj.*.sum lu-blas-proj.*.sts lu-blas-proj.sts lu-blas-proj.projrc lu-blas-proj lu-proj controlPointData.txt lu*.log lu*.sum lu*.sts lu*.projrc SummaryDump.out *.output *.error *.cobaltlog traces/* core.* perfCounterBGP.o job-lu-*
 
 lu.o: lu.C lu.decl.h
 	$(CHARMC) -c lu.C -o lu.o $(BLAS_INC) $(OPTS) -DADAPT_SCHED_MEM

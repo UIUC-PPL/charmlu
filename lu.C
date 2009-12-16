@@ -505,7 +505,7 @@ public:
     iteration++;
     
     gotoNextPhase();
-    int whichMulticastStrategy = controlPoint("multicast_strategy", 2, 3);
+    int whichMulticastStrategy = controlPoint("multicast_strategy", 1, 3);
 
     BLKSIZE = 1 << controlPoint("block_size", 9, 9);
     CkPrintf("block size = %d\n", BLKSIZE);
@@ -571,7 +571,7 @@ public:
     double fractionOfPeakOnAbe = gflops_per_core / 9.332;
     double fractionOfPeakOnAbePercent = fractionOfPeakOnAbe * 100.0;
 
-    double fractionOfPeakOnKraken =  gflops_per_core / 9.2;
+    double fractionOfPeakOnKraken =  gflops_per_core / 10.4;
     double fractionOfPeakOnKrakenPercent = fractionOfPeakOnKraken * 100.0;
     
     double fractionOfPeakOnBGP =  gflops_per_core / 3.4;
