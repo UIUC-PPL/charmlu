@@ -847,6 +847,12 @@ public:
 #else
     int *ipiv = new int[BLKSIZE];
     clapack_dgetrf(CblasRowMajor, BLKSIZE, BLKSIZE, LU, BLKSIZE, ipiv);
+
+
+    //    int clapack_dgetrf(const enum CBLAS_ORDER Order, const int
+    //M, const int N,
+    //	       double *A, const int lda, int *ipiv);    
+
     delete [] ipiv;
 #endif
     

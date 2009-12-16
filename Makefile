@@ -3,8 +3,8 @@
 
 #------------------------------------------------
 # To compile on order or faith(Ubuntu):
-#BLAS_INC =  -DUSE_CBLAS_H=1
-#BLAS_LD = -lcblas
+BLAS_INC =  -DUSE_CBLAS_H=1
+BLAS_LD = -lcblas -llapack_atlas -lblas-3
 
 # To compile on hope (OSX):
 #BLAS_INC = -DUSE_ACCELERATE_BLAS=1
@@ -25,8 +25,8 @@
 
 
 # To compile on Cray XT5 with "module load atlas/3.8.3"
-BLAS_LD = -L$(ATLAS_DIR)/lib -llapack -lf77blas -lcblas -latlas
-BLAS_INC = -I$(ATLAS_DIR)/include -DUSE_BLAS  -DUSE_CBLAS_H=1 -DUSE_MEMALIGN
+#BLAS_LD = -L$(ATLAS_DIR)/lib -llapack -lf77blas -lcblas -latlas
+#BLAS_INC = -I$(ATLAS_DIR)/include -DUSE_BLAS  -DUSE_CBLAS_H=1 -DUSE_MEMALIGN
 
 # To compile on Cray XT5 with "module load acml"
 #BLAS_LD = -L/lustre/scratch/idooley2/LU/CBLAS/lib -lcblas -L$(ACML_DIR)/gfortran64/lib/ -llibacml 
