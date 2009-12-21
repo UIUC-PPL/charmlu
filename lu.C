@@ -507,7 +507,7 @@ public:
     gotoNextPhase();
     int whichMulticastStrategy = controlPoint("multicast_strategy", 1, 3);
 
-    BLKSIZE = 1 << controlPoint("block_size", 9, 9);
+    BLKSIZE = 1 << controlPoint("block_size", 9, 10);
     CkPrintf("block size = %d\n", BLKSIZE);
     numBlks = gMatSize/BLKSIZE;
 
@@ -516,7 +516,7 @@ public:
     char note[200];
 
     sprintf(note, "*** New iteration: block size = %d, mapping = %s, multicast = %d", 
-	    BLKSIZE, mapping == 0 ? "Balanced Snake" : "Block Cylic", whichMulticastStrategy);
+	    BLKSIZE, mapping == 1 ? "Balanced Snake" : "Block Cylic", whichMulticastStrategy);
 
     traceUserSuppliedNote(note);
     
@@ -524,13 +524,13 @@ public:
     fflush(stdout);
 
     switch (mapping) {
-    case 0: {
+    case 1: {
       CProxy_LUBalancedSnakeMap2 map = CProxy_LUBalancedSnakeMap2::ckNew(numBlks, BLKSIZE);
       CkArrayOptions opts(numBlks, numBlks);
       opts.setMap(map);
       luArrProxy = CProxy_LUBlk::ckNew(opts);
     } break;
-    case 1: {
+    case 0: {
       CProxy_BlockCyclicMap map = CProxy_BlockCyclicMap::ckNew();
       CkArrayOptions opts(numBlks, numBlks);
       opts.setMap(map);
