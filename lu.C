@@ -462,6 +462,10 @@ public:
     multicastStats[3] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(4) ); 
 
     ControlPoint::EffectDecrease::Granularity("block_size");
+    
+    ControlPoint::EffectIncrease::Concurrency("mapping");
+    ControlPoint::EffectIncrease::NumMessages("mapping");
+    ControlPoint::EffectIncrease::MessageOverhead("mapping");
 
     thisProxy.iterationCompleted();
 
