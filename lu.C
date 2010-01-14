@@ -414,8 +414,10 @@ public:
   int iteration;
   int numIterations;
   int numBlks;
+
   int BLKSIZE;
-  int whichMapping;
+  int whichMulticastStrategy;
+  int mapping;
 
   Main(CkArgMsg* m) : numIterations(1) {
     iteration = 0;
@@ -468,8 +470,7 @@ public:
   }
 
   void finishInit() {
-    CkPrintf("finishInit called\n");
-
+    //    CkPrintf("finishInit called\n");
     luArrProxy.flushLogs();
   }
 
@@ -483,8 +484,12 @@ public:
     luArrProxy(0,0).processLocalLU(0);
   }
   
+
+
   void iterationCompleted() {
-    if(iteration > 0){
+    if(iteration == 0){
+      CkPrintf("Initialization Complete\n");
+    } else {
       double endTime = CmiWallTimer();
       double duration = endTime - startTime;
       registerControlPointTiming(duration);
@@ -492,10 +497,11 @@ public:
       CkPrintf("Iteration %d time: %fs\n", iteration, duration);
       
       if (iteration == numIterations){ 
-	// Just print this out for the last iteration for now
+
 	outputStats();
+
 	terminateProg();
-      return;
+	return;
       }
       
       luArrProxy.ckDestroy();
@@ -504,25 +510,30 @@ public:
 
     iteration++;
     
-    gotoNextPhase();
-    int whichMulticastStrategy = controlPoint("multicast_strategy", 1, 3);
+    // Only advance phases after a few factorizations have been performed
+    // Prior to the first phase of actual work, iteration=1
+    if(iteration % 2 == 1 || iteration==1){
+      gotoNextPhase();
 
-    BLKSIZE = 1 << controlPoint("block_size", 9, 10);
-    CkPrintf("block size = %d\n", BLKSIZE);
-    numBlks = gMatSize/BLKSIZE;
+      whichMulticastStrategy = controlPoint("multicast_strategy", 1, 3);
+      BLKSIZE = 1 << controlPoint("block_size", 9, 10);
+      mapping = controlPoint("mapping", 0, 1);
+      // CkPrintf("%d %d %d\n",  (int)BLKSIZE, (int)mapping, (int)whichMulticastStrategy);
+      // fflush(stdout);
+      // fflush(stderr);
 
-    int mapping = controlPoint("mapping", 0, 1);
+      numBlks = gMatSize/BLKSIZE;
+      
+    }
 
+    
     char note[200];
-
     sprintf(note, "*** New iteration: block size = %d, mapping = %s, multicast = %d", 
 	    BLKSIZE, mapping == 1 ? "Balanced Snake" : "Block Cylic", whichMulticastStrategy);
-
     traceUserSuppliedNote(note);
-    
     CkPrintf("%s\n", note);
     fflush(stdout);
-
+    
     switch (mapping) {
     case 1: {
       CProxy_LUBalancedSnakeMap2 map = CProxy_LUBalancedSnakeMap2::ckNew(numBlks, BLKSIZE);
@@ -537,7 +548,7 @@ public:
       luArrProxy = CProxy_LUBlk::ckNew(opts);
     } break;
     }
-
+    
     luArrProxy.init(0, BLKSIZE, numBlks);
   }
   
@@ -545,7 +556,6 @@ public:
     double endTime = CmiWallTimer();
     double duration = endTime-startTime;
 
-    CkPrintf("Main execution time: %fs\n", duration);
     double n = gMatSize;
 
     long long flopCount = 0;     // floating point ops
