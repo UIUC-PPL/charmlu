@@ -64,7 +64,6 @@ int traceComputeU;
 int traceComputeL;
 int traceSolveLocalLU;
 int doPrioritize;
-int memThreshold;
 ComlibInstanceHandle multicastStats[4];
  
 //#define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
@@ -418,6 +417,7 @@ public:
   int BLKSIZE;
   int whichMulticastStrategy;
   int mapping;
+  int memThreshold;
 
   Main(CkArgMsg* m) : numIterations(1) {
     iteration = 0;
@@ -430,9 +430,13 @@ public:
     if (m->argc > 3) {
       /*sscanf( m->argv[2], "%d", &strategy);
 	CkPrintf("CLI: strategy=%d\n", strategy);*/
+      
+      /*
       sscanf( m->argv[2], "%d", &memThreshold);
       CkPrintf("CLI: memThreshold=%dMB\n", memThreshold);
-      
+      */
+
+
       if (m->argc >= 4)
 	numIterations = atoi(m->argv[3]);
       CkPrintf("CLI: numIterations=%d\n", numIterations);
@@ -464,6 +468,7 @@ public:
     multicastStats[3] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(4) ); 
 
     ControlPoint::EffectDecrease::Granularity("block_size");
+    ControlPoint::EffectIncrease::MemoryConsumption("memory_threshold");
 
     thisProxy.iterationCompleted();
 
@@ -514,22 +519,24 @@ public:
     // Prior to the first phase of actual work, iteration=1
     if(iteration % 2 == 1 || iteration==1){
       gotoNextPhase();
-
+      
       whichMulticastStrategy = controlPoint("multicast_strategy", 1, 3);
       BLKSIZE = 1 << controlPoint("block_size", 9, 10);
       mapping = controlPoint("mapping", 0, 1);
+      memThreshold = 100 + controlPoint("memory_threshold", 0, 20) * 50;
+      
       // CkPrintf("%d %d %d\n",  (int)BLKSIZE, (int)mapping, (int)whichMulticastStrategy);
       // fflush(stdout);
       // fflush(stderr);
-
+      
       numBlks = gMatSize/BLKSIZE;
       
     }
-
+    
     
     char note[200];
-    sprintf(note, "*** New iteration: block size = %d, mapping = %s, multicast = %d", 
-	    BLKSIZE, mapping == 1 ? "Balanced Snake" : "Block Cylic", whichMulticastStrategy);
+    sprintf(note, "*** New iteration: block size = %d, mapping = %s, multicast = %d, memthreshold = %d MB", 
+	    BLKSIZE, mapping == 1 ? "Balanced Snake" : "Block Cylic", whichMulticastStrategy, memThreshold);
     traceUserSuppliedNote(note);
     CkPrintf("%s\n", note);
     fflush(stdout);
@@ -549,7 +556,7 @@ public:
     } break;
     }
     
-    luArrProxy.init(0, BLKSIZE, numBlks);
+    luArrProxy.init(0, BLKSIZE, numBlks, memThreshold);
   }
   
   void outputStats() {
@@ -628,9 +635,6 @@ private:
 
 public:
   LUBlk() {
-      // Set the schedulers memory usage threshold to the one this program specifies in a command line argument:
-      schedAdaptMemThresholdMB = memThreshold;
-      
 
     whichMulticastStrategy = 0;
     done = false;
@@ -742,20 +746,21 @@ public:
       
       }
 
-      delete[] m1; 
-      delete[] m2; 
-      delete[] m3;       
+      delete[] m1;
+      delete[] m2;
+      delete[] m3;
     } 
 #endif
   }
 
-  void init(int _whichMulticastStrategy, int _BLKSIZE, int _numBlks){
+  void init(int _whichMulticastStrategy, int _BLKSIZE, int _numBlks, int memThreshold){
     whichMulticastStrategy = _whichMulticastStrategy;
     BLKSIZE = _BLKSIZE;
     numBlks = _numBlks;
     
+    // Set the schedulers memory usage threshold to the one based upon a control point
     schedAdaptMemThresholdMB = memThreshold;
-    
+
     done = false;
     alreadyReEnqueuedDuringPhase = -1;
 

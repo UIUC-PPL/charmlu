@@ -9,7 +9,7 @@ mainmodule lu {
   readonly int traceComputeL;
   readonly int traceSolveLocalLU;
   readonly int doPrioritize;
-  readonly int memThreshold;
+//  readonly int memThreshold;
 
   message blkMsg {
     double data[];
@@ -28,7 +28,7 @@ mainmodule lu {
 
   array [2D] LUBlk {
     entry LUBlk(void);
-    entry void init(int whichMulticastStrategy, int, int);
+    entry void init(int whichMulticastStrategy, int, int, int memThreshold);
     entry [nokeep] void updateRecvU(blkMsg *);
     entry [nokeep] void updateRecvL(blkMsg *);
     
