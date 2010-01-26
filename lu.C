@@ -523,13 +523,13 @@ public:
     
     // Only advance phases after a few factorizations have been performed
     // Prior to the first phase of actual work, iteration=1
-    if(iteration % 2 == 1 || iteration==1){
+    if( 1 || iteration % 2 == 1 || iteration==1){
       gotoNextPhase();
       
-      whichMulticastStrategy = controlPoint("multicast_strategy", 1, 3);
-      BLKSIZE = 1 << controlPoint("block_size", 9, 10);
+      whichMulticastStrategy = controlPoint("multicast_strategy", 1, 2);
+      BLKSIZE = 1 << controlPoint("block_size", 9, 13);
       mapping = controlPoint("mapping", 0, 1);
-      memThreshold = 100 + controlPoint("memory_threshold", 0, 20) * 50;
+      memThreshold = 200 + controlPoint("memory_threshold", 2, 2) * 100;
       
       // CkPrintf("%d %d %d\n",  (int)BLKSIZE, (int)mapping, (int)whichMulticastStrategy);
       // fflush(stdout);
@@ -541,8 +541,8 @@ public:
     
     
     char note[200];
-    sprintf(note, "*** New iteration: block size = %d, mapping = %s, multicast = %d, memthreshold = %d MB", 
-	    BLKSIZE, mapping == 1 ? "Balanced Snake" : "Block Cylic", whichMulticastStrategy, memThreshold);
+    sprintf(note, "*** New iteration: block size = %d, mapping = %d %s, multicast = %d, memthreshold = %d MB", 
+	    BLKSIZE, mapping, mapping == 1 ? "Balanced Snake" : "Block Cylic", whichMulticastStrategy, memThreshold);
     traceUserSuppliedNote(note);
     CkPrintf("%s\n", note);
     fflush(stdout);
