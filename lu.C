@@ -530,7 +530,7 @@ public:
       whichMulticastStrategy = controlPoint("multicast_strategy", 2, 2);
       BLKSIZE = 1 << controlPoint("block_size", 9, 9);
       mapping = controlPoint("mapping", 1, 1);
-      memThreshold = 200 + controlPoint("memory_threshold", 0, 12) * 100;
+      memThreshold = 200 + controlPoint("memory_threshold", 1, 12) * 100;
       
       // CkPrintf("%d %d %d\n",  (int)BLKSIZE, (int)mapping, (int)whichMulticastStrategy);
       // fflush(stdout);

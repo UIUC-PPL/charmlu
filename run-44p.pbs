@@ -8,6 +8,8 @@
 export CORE_ACTION_FIRST=FULL
 export CORE_ACTION_OTHER=FULL
 
+ulimit -c 100000000
+
 date
 
 export MPICH_UNEX_BUFFER_SIZE=125829120
@@ -21,6 +23,6 @@ rm -f controlPointData.txt
 rm -fr traces
 mkdir traces
 
-aprun -n 44 -N 11 ./lu-proj 25600 1000 20 +traceroot traces +setcpuaffinity +CPSaveData +CPGatherAll +CPMemoryAware +CPDefaultValues memory_threshold=0
+aprun -n 44 -N 11 ./lu-proj 25600 1000 20 +traceroot traces +setcpuaffinity +CPSaveData +CPGatherAll +CPMemoryAware +CPDefaultValues memory_threshold=1
 
 
