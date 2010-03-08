@@ -468,8 +468,9 @@ public:
     multicastStats[3] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(4) ); 
 
     ControlPoint::EffectIncrease::GrainSize("block_size");
+    ControlPoint::EffectDecrease::Concurrency("block_size");
     
-    ControlPoint::EffectIncrease::Concurrency("mapping");
+    //    ControlPoint::EffectIncrease::Concurrency("mapping");
     ControlPoint::EffectIncrease::NumMessages("mapping");
     ControlPoint::EffectIncrease::MessageOverhead("mapping");
 
@@ -526,10 +527,10 @@ public:
     if( 1 || iteration % 2 == 1 || iteration==1){
       gotoNextPhase();
       
-      whichMulticastStrategy = controlPoint("multicast_strategy", 1, 2);
-      BLKSIZE = 1 << controlPoint("block_size", 9, 13);
-      mapping = controlPoint("mapping", 0, 1);
-      memThreshold = 200 + controlPoint("memory_threshold", 2, 2) * 100;
+      whichMulticastStrategy = controlPoint("multicast_strategy", 2, 2);
+      BLKSIZE = 1 << controlPoint("block_size", 9, 9);
+      mapping = controlPoint("mapping", 1, 1);
+      memThreshold = 200 + controlPoint("memory_threshold", 0, 12) * 100;
       
       // CkPrintf("%d %d %d\n",  (int)BLKSIZE, (int)mapping, (int)whichMulticastStrategy);
       // fflush(stdout);

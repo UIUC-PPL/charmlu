@@ -1,0 +1,26 @@
+#!/bin/bash
+#PBS -N job-lu-44
+#PBS -j oe
+#PBS -l walltime=05:25:00,size=48
+#PBS -A TG-ASC050039N
+
+
+export CORE_ACTION_FIRST=FULL
+export CORE_ACTION_OTHER=FULL
+
+date
+
+export MPICH_UNEX_BUFFER_SIZE=125829120
+export MPICH_MAX_SHORT_MSG_SIZE=64000
+
+ulimit -c 10000000
+
+cd /lustre/scratch/idooley2/LU/charmlu
+
+rm -f controlPointData.txt
+rm -fr traces
+mkdir traces
+
+aprun -n 44 -N 11 ./lu-proj 25600 1000 20 +traceroot traces +setcpuaffinity +CPSaveData +CPGatherAll +CPMemoryAware +CPDefaultValues memory_threshold=0
+
+
