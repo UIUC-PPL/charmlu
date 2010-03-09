@@ -18,6 +18,6 @@ rm -f controlPointData.txt
 rm -fr traces
 mkdir traces
 
-aprun -n 44 -N 11 ./lu-proj 25600 1000 30 +traceroot traces +setcpuaffinity +CPSaveData +CPGatherAll +CPMemoryAware +CPDefaultValues memory_threshold=1 +CPLoadData
+aprun -n 44 -N 11 ./lu-proj 32768 1000 30 +traceroot traces +gz-trace +setcpuaffinity +CPSaveData +CPGatherAll +CPMemoryAware +CPDefaultValues memory_threshold=1 +CPLoadData
 
 
