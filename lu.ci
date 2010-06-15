@@ -33,8 +33,13 @@ mainmodule lu {
     entry [nokeep] void updateRecvL(blkMsg *);
     
     entry void processLocalLU(int ignoredParam);
+
+    // These two call removeBuffered[UL], respectively, but don't
+    // really reduce memory pressure, because they generate multicasts
+    // along the way. Hence, not marked [memcritical]
     entry void processComputeL(int ignoredParam);
     entry void processComputeU(int ignoredParam);
+
     entry [memcritical] void processTrailingUpdate(int ignoredParam);
 
     entry void printInfo();
