@@ -1013,12 +1013,10 @@ public:
       ComlibAssociateProxy(multicastStats[whichMulticastStrategy], oneCol);
     
     blkMsg *givenU = createABlkMsg();
-    givenU->setMsgData(LU, internalStep);
     oneCol.updateRecvU(givenU);
 
 //     for(int i=thisIndex.x+1; i<numBlks; i++){
 //       blkMsg *givenU = createABlkMsg();
-//       givenU->setMsgData(LU, internalStep);
 //       DEBUG_PRINT("P2P sending U from %d,%d down to %d,%d\n", thisIndex.x, thisIndex.y, i,thisIndex.y);
 //       thisProxy(i,thisIndex.y).updateRecvU(givenU);
 //     }
@@ -1038,13 +1036,11 @@ public:
       ComlibAssociateProxy(multicastStats[whichMulticastStrategy], oneRow);
     
     blkMsg *givenL = createABlkMsg();
-    givenL->setMsgData(LU, internalStep);
     //CkAssert(givenL->step == 0);
     oneRow.updateRecvL(givenL);
     
 //     for(int i=thisIndex.y+1; i<numBlks; i++){
 //       blkMsg *givenL = createABlkMsg();
-//       givenL->setMsgData(LU, internalStep);
 //       DEBUG_PRINT("P2P sending L from %d,%d right to %d,%d\n", thisIndex.x, thisIndex.y, thisIndex.x, i);
 //       thisProxy(thisIndex.x, i).updateRecvL(givenL);
 //     }
@@ -1387,7 +1383,8 @@ private:
     } else {
       msg = new(BLKSIZE*BLKSIZE)blkMsg(BLKSIZE);
     }
-    
+    msg->setMsgData(LU, internalStep);
+
     return msg;
   }
 
