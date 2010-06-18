@@ -1142,16 +1142,11 @@ public:
   void processLocalLU(int ignoredParam) {
     DEBUG_PRINT("processLocalLU() called on block %d,%d\n", thisIndex.x, thisIndex.y);
     CkAssert(!done);
-    
-    double *incomingL = getBufferedL(internalStep);
-    double *incomingU = getBufferedU(internalStep);
-
+    // We are the top-left-most active block
     CkAssert(internalStep==thisIndex.x && internalStep==thisIndex.y);
 
 //    double mem = CmiMemoryUsage();
 //    CkPrintf("CmiMemoryUsage() = %lf\n", mem);
-    
-    // We are the top-left-most active block
     
     // Verify that there are no outstanding buffered messages.
     CkAssert(buffersEmpty());
