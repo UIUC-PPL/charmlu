@@ -14,7 +14,7 @@ mainmodule lu {
   message blkMsg {
     double data[];
   };
-	
+
   mainchare Main {
     entry Main(CkArgMsg *m);
     entry void finishInit();
@@ -29,6 +29,7 @@ mainmodule lu {
   array [2D] LUBlk {
     entry LUBlk(void);
     entry void init(int whichMulticastStrategy, int, int, int memThreshold);
+    entry void initVec(int size, double bvec[size]);
     entry [nokeep] void updateRecvU(blkMsg *);
     entry [nokeep] void updateRecvL(blkMsg *);
     
@@ -41,6 +42,10 @@ mainmodule lu {
     entry void processComputeU(int ignoredParam);
 
     entry [memcritical] void processTrailingUpdate(int ignoredParam);
+
+    entry void solve(bool backward, int size, double d[size]);
+    entry void forwardSolve(int size, double d[size]);
+    entry void diagForwardSolve(int size, double d[size]);
 
     entry void printInfo();
     entry void flushLogs();

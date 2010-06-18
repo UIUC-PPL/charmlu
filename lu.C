@@ -12,7 +12,7 @@
 
 //#include <assert.h>
 //#include <stdlib.h>
-//#include <string.h>
+#include <string.h>
 #include <iostream>
 //#include <pthread.h>
 
@@ -122,6 +122,7 @@ public:
 class blkMsg: public CMessage_blkMsg {
 public:
   int step;
+  // TODO: what is happening?
   char pad[16-((sizeof(envelope)+sizeof(int))%16)];
   double *data;
   int BLKSIZE;
@@ -418,8 +419,10 @@ public:
   int whichMulticastStrategy;
   int mapping;
   int memThreshold;
+  bool solved, LUcomplete, workStarted;
+  bool sentVectorData;
 
-  Main(CkArgMsg* m) : numIterations(1) {
+  Main(CkArgMsg* m) : numIterations(1), solved(false), LUcomplete(false), workStarted(false), sentVectorData(false) {
     iteration = 0;
 
     if (m->argc<3) {
@@ -482,8 +485,19 @@ public:
   }
 
   void finishInit() {
-    //    CkPrintf("finishInit called\n");
-    luArrProxy.flushLogs();
+    if (!sentVectorData) {
+      // Generate vector data
+      double* vec = new double[BLKSIZE];
+    
+      for (int i = 0; i < BLKSIZE; i++)
+	vec[i] = 1.0;
+      
+      luArrProxy.initVec(BLKSIZE, vec);
+
+      sentVectorData = true;
+    } else {
+      luArrProxy.flushLogs();
+    }
   }
 
   void continueIter() {
@@ -495,75 +509,81 @@ public:
     startTime = CmiWallTimer();
     luArrProxy(0,0).processLocalLU(0);
   }
-  
-
 
   void iterationCompleted() {
-    if(iteration == 0){
-      CkPrintf("Initialization Complete\n");
-    } else {
+    CkPrintf("called iterationCompleted()\n");
+
+    if (workStarted) {
+      LUcomplete = true;
+    }
+
+    if (solved && LUcomplete) {
       double endTime = CmiWallTimer();
       double duration = endTime - startTime;
       registerControlPointTiming(duration);
       
       CkPrintf("Iteration %d time: %fs\n", iteration, duration);
       
-      if (iteration == numIterations){ 
+      outputStats();
 
-	outputStats();
+      terminateProg();
 
-	terminateProg();
-	return;
+      return;
+    } else if (!solved && LUcomplete) {
+      CkPrintf("called solve()\n");
+      // Perform forward solving
+      luArrProxy(0, 0).solve(false, 0, NULL);
+
+      // Perform backward solving
+      //luArrProxy(numBlks-1, numBlks-1).solve(true, 0, NULL);
+
+      solved = true;
+      iteration++;
+    } else {
+      // Only advance phases after a few factorizations have been performed
+      // Prior to the first phase of actual work, iteration=1
+      if( 1 || iteration % 2 == 1 || iteration==1){
+	gotoNextPhase();
+      
+	whichMulticastStrategy = controlPoint("multicast_strategy", 2, 2);
+	BLKSIZE = 1 << 8; //1 << controlPoint("block_size", 10,10);
+	mapping = controlPoint("mapping", 1, 1);
+	memThreshold = 200 + controlPoint("memory_threshold", 0, 20) * 100;
+      
+	// CkPrintf("%d %d %d\n",  (int)BLKSIZE, (int)mapping, (int)whichMulticastStrategy);
+	// fflush(stdout);
+	// fflush(stderr);
+      
+	numBlks = gMatSize/BLKSIZE;
       }
-      
-      luArrProxy.ckDestroy();
-    }
+    
+    
+      char note[200];
+      sprintf(note, "*** New iteration: block size = %d, mapping = %d %s, multicast = %d, memthreshold = %d MB", 
+	      BLKSIZE, mapping, mapping == 1 ? "Balanced Snake" : "Block Cylic", whichMulticastStrategy, memThreshold);
+      traceUserSuppliedNote(note);
+      CkPrintf("%s\n", note);
+      fflush(stdout);
+    
+      switch (mapping) {
+      case 1: {
+	CProxy_LUBalancedSnakeMap2 map = CProxy_LUBalancedSnakeMap2::ckNew(numBlks, BLKSIZE);
+	CkArrayOptions opts(numBlks, numBlks);
+	opts.setMap(map);
+	luArrProxy = CProxy_LUBlk::ckNew(opts);
+      } break;
+      case 0: {
+	CProxy_BlockCyclicMap map = CProxy_BlockCyclicMap::ckNew();
+	CkArrayOptions opts(numBlks, numBlks);
+	opts.setMap(map);
+	luArrProxy = CProxy_LUBlk::ckNew(opts);
+      } break;
+      }
 
-
-    iteration++;
+      workStarted = true;
     
-    // Only advance phases after a few factorizations have been performed
-    // Prior to the first phase of actual work, iteration=1
-    if( 1 || iteration % 2 == 1 || iteration==1){
-      gotoNextPhase();
-      
-      whichMulticastStrategy = controlPoint("multicast_strategy", 2, 2);
-      BLKSIZE = 1 << controlPoint("block_size", 10,10);
-      mapping = controlPoint("mapping", 1, 1);
-      memThreshold = 200 + controlPoint("memory_threshold", 0, 20) * 100;
-      
-      // CkPrintf("%d %d %d\n",  (int)BLKSIZE, (int)mapping, (int)whichMulticastStrategy);
-      // fflush(stdout);
-      // fflush(stderr);
-      
-      numBlks = gMatSize/BLKSIZE;
-      
+      luArrProxy.init(0, BLKSIZE, numBlks, memThreshold);
     }
-    
-    
-    char note[200];
-    sprintf(note, "*** New iteration: block size = %d, mapping = %d %s, multicast = %d, memthreshold = %d MB", 
-	    BLKSIZE, mapping, mapping == 1 ? "Balanced Snake" : "Block Cylic", whichMulticastStrategy, memThreshold);
-    traceUserSuppliedNote(note);
-    CkPrintf("%s\n", note);
-    fflush(stdout);
-    
-    switch (mapping) {
-    case 1: {
-      CProxy_LUBalancedSnakeMap2 map = CProxy_LUBalancedSnakeMap2::ckNew(numBlks, BLKSIZE);
-      CkArrayOptions opts(numBlks, numBlks);
-      opts.setMap(map);
-      luArrProxy = CProxy_LUBlk::ckNew(opts);
-    } break;
-    case 0: {
-      CProxy_BlockCyclicMap map = CProxy_BlockCyclicMap::ckNew();
-      CkArrayOptions opts(numBlks, numBlks);
-      opts.setMap(map);
-      luArrProxy = CProxy_LUBlk::ckNew(opts);
-    } break;
-    }
-    
-    luArrProxy.init(0, BLKSIZE, numBlks, memThreshold);
   }
   
   void outputStats() {
@@ -625,11 +645,12 @@ public:
 class LUBlk: public CBase_LUBlk {
 public:
   double *LU;
+  double *bvec;
   int whichMulticastStrategy;
   bool done;
   int alreadyReEnqueuedDuringPhase;
   int BLKSIZE, numBlks;
-  
+   
 private:
   CkVec<blkMsg *> UBuffers;
   CkVec<blkMsg *> LBuffers;
@@ -641,7 +662,7 @@ private:
 
 
 public:
-  LUBlk() {
+  LUBlk() : storedVec(NULL), diagRec(0) {
 
     whichMulticastStrategy = 0;
     done = false;
@@ -760,7 +781,14 @@ public:
 #endif
   }
 
-  void init(int _whichMulticastStrategy, int _BLKSIZE, int _numBlks, int memThreshold){
+  void initVec(int size, double* vec) {
+    bvec = new double[BLKSIZE];
+    memcpy(bvec, vec, sizeof(double) * BLKSIZE);
+
+    contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
+  }
+
+  void init(int _whichMulticastStrategy, int _BLKSIZE, int _numBlks, int memThreshold) {
     whichMulticastStrategy = _whichMulticastStrategy;
     BLKSIZE = _BLKSIZE;
     numBlks = _numBlks;
@@ -1377,6 +1405,121 @@ public:
     UBuffers.free();
     LBuffers.free();
     MERGE_PATH_DELETE_ALL_D(A);
+  }
+
+  int getIndex(int i, int j) {
+    return i * BLKSIZE + j;
+  }
+
+  void localForward(double *xvec, double *cvec, bool initial, bool diag) {
+    // Local forward solve, replace with library calls
+    for (int i = 0; i < BLKSIZE; i++) {
+      if (!initial) {
+        if (diag)
+          for (int k = 0; k < BLKSIZE; k++) {
+            xvec[i] = bvec[i] - LU[getIndex(i,k)] * cvec[k];
+          }
+        else
+          for (int k = 0; k < BLKSIZE; k++) {
+            xvec[i] = LU[getIndex(i,k)] * cvec[k];
+          }
+      }
+      for (int j = 0; j < i; j++) {
+        if (diag)
+          xvec[i] = bvec[i] - LU[getIndex(i,j)] * bvec[j];
+        else
+          xvec[i] = LU[getIndex(i,j)] * bvec[j];
+      }
+      
+      //bvec[i] /= LU[getIndex(i,i)];
+    }
+  }
+  
+  void solve(bool backward, int size, double* cvec) {
+    CkPrintf("solved called on: (%d, %d)\n", thisIndex.x, thisIndex.y);
+
+    if (thisIndex.x == numBlks-1) {
+      CkPrintf("forward-solve complete, (%d, %d) numBlks = %d\n", thisIndex.x, thisIndex.y, numBlks);
+      //CkExit();
+    }
+
+    double *xvec;
+
+    if (size == BLKSIZE)
+      xvec = cvec;
+    else {
+      CkPrintf("allocate xvec\n");
+      xvec = new double[BLKSIZE];
+    }
+
+    if (!backward) {
+      localForward(xvec, NULL, true, true);
+
+      /*CkVec<CkArrayIndex2D> xbroadcast;
+
+      for (int i = thisIndex.x + 1; i < numBlks; i++)
+        xbroadcast.push_back(CkArrayIndex2D(i, thisIndex.y));
+
+      CProxySection_L UBlk proxy = 
+        CProxySection_LUBlk::ckNew(thisProxy, xbroadcast.getVec(), 
+        xbroadcast.size());*/
+
+      CProxySection_LUBlk col = 
+        CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 
+                                   1, thisIndex.y, thisIndex.y, 1);
+
+      col.forwardSolve(BLKSIZE, xvec);
+    }
+  }
+
+  double* storedVec;
+  int diagRec;
+
+  void diagForwardSolve(int size, double* vec) {
+    if (!storedVec) {
+      storedVec = new double[BLKSIZE];
+      for (int i = 0; i < BLKSIZE; i++) {
+        storedVec[i] = 0.0;
+      }
+    }
+
+    for (int i = 0; i < BLKSIZE; i++) {
+      storedVec[i] += vec[i];
+    }
+    
+    CkPrintf("expected %d, received %d\n", thisIndex.y, diagRec+1);
+
+    if (++diagRec == thisIndex.y)
+      thisProxy(thisIndex.x, thisIndex.y).solve(false, BLKSIZE, storedVec);
+  }
+
+  void forwardSolve(int size, double* cvec) {
+    if (thisIndex.x == thisIndex.y) {
+      thisProxy(thisIndex.x, thisIndex.y).solve(false, BLKSIZE, cvec);
+    } else {
+      double *xvec = new double[BLKSIZE];
+
+      localForward(xvec, cvec, false, false);
+    
+      CkPrintf("diagForwardSolve called from: (%d, %d), on: (%d, %d)\n", thisIndex.x, thisIndex.y, thisIndex.x, thisIndex.x);
+
+      thisProxy(thisIndex.x, thisIndex.x).diagForwardSolve(size, xvec);
+
+      if (thisIndex.x == thisIndex.y-1) {
+        /*CProxySection_LUBlk row = 
+          CProxySection_LUBlk::ckNew(thisArrayID, 0, numBlks/2-1, 
+          1, thisIndex.y, thisIndex.y, 1);*/
+        //thisProxy(numBlks/2, thisIndex.y)
+        //CkCallback cb(CkIndex_LUBlk::diagForwardSolve(NULL), thisProxy(numBlks/2, thisIndex.y));
+        //contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double, row, cb);
+
+        // reduction instead
+        
+      } else {
+        // reduction to diagonal
+      }
+      
+    }
   }
 
 private:
