@@ -624,7 +624,6 @@ public:
 
 class LUBlk: public CBase_LUBlk {
   double *LU;
-  int whichMulticastStrategy;
   bool done;
   int alreadyReEnqueuedDuringPhase;
   int BLKSIZE, numBlks;
@@ -634,9 +633,10 @@ class LUBlk: public CBase_LUBlk {
 
   int internalStep;
 
-
+  // The following declarations are used for optimization and
+  // analysis. They are not essential to the algorithm.
+  int whichMulticastStrategy;
   MERGE_PATH_DECLARE_D(A);
-
 
 public:
   LUBlk() {
