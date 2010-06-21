@@ -623,14 +623,12 @@ public:
 };
 
 class LUBlk: public CBase_LUBlk {
-public:
   double *LU;
   int whichMulticastStrategy;
   bool done;
   int alreadyReEnqueuedDuringPhase;
   int BLKSIZE, numBlks;
   
-private:
   CkVec<blkMsg *> UBuffers;
   CkVec<blkMsg *> LBuffers;
 
