@@ -49,6 +49,7 @@ mainmodule lu {
 
     entry void printInfo();
     entry void flushLogs();
+    entry void print();
   };        	
 
   group BlockCyclicMap : CkArrayMap{

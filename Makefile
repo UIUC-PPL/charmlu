@@ -105,4 +105,5 @@ run-BGP: lu-proj
 run: lu-proj
 	-rm -rf traces
 	mkdir traces
-	charmrun +p4 ./lu-proj 1024 1000 1 +CPSaveData +traceroot traces +logsize 10000000
+	charmrun +p2 ./lu-proj 8 1000 1 
+#+CPSaveData +traceroot traces +logsize 10000000

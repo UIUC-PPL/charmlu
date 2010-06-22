@@ -490,7 +490,7 @@ public:
       double* vec = new double[BLKSIZE];
     
       for (int i = 0; i < BLKSIZE; i++)
-	vec[i] = 1.0;
+	vec[i] = i;
       
       luArrProxy.initVec(BLKSIZE, vec);
 
@@ -530,6 +530,8 @@ public:
 
       return;
     } else if (!solved && LUcomplete) {
+      luArrProxy(0, 0).print();
+
       CkPrintf("called solve()\n");
       // Perform forward solving
       luArrProxy(0, 0).solve(false, 0, NULL);
@@ -691,7 +693,7 @@ public:
   }
 
   void flushLogs() {
-      flushTraceLog();
+    flushTraceLog();
     contribute(CkCallback(CkIndex_Main::continueIter(), mainProxy));    
   }
 
@@ -785,6 +787,10 @@ public:
     bvec = new double[BLKSIZE];
     memcpy(bvec, vec, sizeof(double) * BLKSIZE);
 
+    for (int i = 0; i < BLKSIZE; i++) {
+      CkPrintf("memcpy bvec[%d] = %f\n", i, bvec[i]);
+    }
+
     contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
   }
 
@@ -816,11 +822,42 @@ public:
     traceUserSuppliedData(-1);  
     traceMemoryUsage();  
      
-    MatGen rnd(thisIndex.x * numBlks + thisIndex.y);      
-    for (int i=0; i<BLKSIZE*BLKSIZE; i++) {  
-      LU[i] = rnd.toRndDouble(rnd.nextRndInt());  
-    } 
+    //MatGen rnd(thisIndex.x * numBlks + thisIndex.y);
 
+    /*double b = thisIndex.y * BLKSIZE + 1, c = thisIndex.x * BLKSIZE + 1;
+    for (int i = 0; i<BLKSIZE*BLKSIZE; i++) {
+      if (i % BLKSIZE == 0 && thisIndex.y == 0) {
+        LU[i] = b;
+        b += 1.0;
+        c += 1.0;
+      } else if (i < 8 && thisIndex.x == 0) {
+        LU[i] = c;
+        c += 1.0;
+      } else 
+        LU[i] = 0.0;
+    }
+
+
+    if (thisIndex.x == thisIndex.y) {
+      b = thisIndex.x * BLKSIZE + 1;
+
+      for (int i = 0; i < BLKSIZE*BLKSIZE; i+=BLKSIZE+1) {
+        LU[i] = b;
+        b += 1.0;
+      }
+      }*/
+
+    char buf[200];
+    sprintf(buf, "output-%d-%d", thisIndex.x, thisIndex.y);
+
+    FILE *file = fopen(buf, "w+");
+
+    for (int i = 0; i < BLKSIZE; i++) {
+      for (int j = 0; j < BLKSIZE; j++) {
+        fprintf(file, "%f ", LU[getIndex(i,j)]);
+      }
+      fprintf(file, "\n");
+    }
 
     testdgemm();
 
@@ -1408,13 +1445,15 @@ public:
   }
 
   int getIndex(int i, int j) {
-    return i * BLKSIZE + j;
+    return j * BLKSIZE + i;
   }
 
   void localForward(double *xvec, double *cvec, bool initial, bool diag) {
+    memcpy(xvec, bvec, sizeof(double) * BLKSIZE);
+
     // Local forward solve, replace with library calls
     for (int i = 0; i < BLKSIZE; i++) {
-      if (!initial) {
+      /*if (!initial) {
         if (diag)
           for (int k = 0; k < BLKSIZE; k++) {
             xvec[i] = bvec[i] - LU[getIndex(i,k)] * cvec[k];
@@ -1423,12 +1462,12 @@ public:
           for (int k = 0; k < BLKSIZE; k++) {
             xvec[i] = LU[getIndex(i,k)] * cvec[k];
           }
-      }
+          }*/
       for (int j = 0; j < i; j++) {
-        if (diag)
-          xvec[i] = bvec[i] - LU[getIndex(i,j)] * bvec[j];
-        else
-          xvec[i] = LU[getIndex(i,j)] * bvec[j];
+        //if (!diag || j != i)
+        xvec[i] -= LU[getIndex(i,j)] * bvec[j];
+        //else
+        //xvec[i] = LU[getIndex(i,j)] * bvec[j];
       }
       
       //bvec[i] /= LU[getIndex(i,i)];
@@ -1438,9 +1477,8 @@ public:
   void solve(bool backward, int size, double* cvec) {
     CkPrintf("solved called on: (%d, %d)\n", thisIndex.x, thisIndex.y);
 
-    if (thisIndex.x == numBlks-1) {
-      CkPrintf("forward-solve complete, (%d, %d) numBlks = %d\n", thisIndex.x, thisIndex.y, numBlks);
-      //CkExit();
+    for (int i = 0; i < BLKSIZE; i++) {
+      CkPrintf("bvec[%d] = %f\n", i, bvec[i]);
     }
 
     double *xvec;
@@ -1454,15 +1492,16 @@ public:
 
     if (!backward) {
       localForward(xvec, NULL, true, true);
+      
+      if (thisIndex.x == numBlks-1) {
+        CkPrintf("forward-solve complete, (%d, %d) numBlks = %d\n", thisIndex.x, thisIndex.y, numBlks);
 
-      /*CkVec<CkArrayIndex2D> xbroadcast;
-
-      for (int i = thisIndex.x + 1; i < numBlks; i++)
-        xbroadcast.push_back(CkArrayIndex2D(i, thisIndex.y));
-
-      CProxySection_L UBlk proxy = 
-        CProxySection_LUBlk::ckNew(thisProxy, xbroadcast.getVec(), 
-        xbroadcast.size());*/
+        for (int i = 0; i < BLKSIZE; i++) {
+          CkPrintf("xvec[%d] = %f\n", i, xvec[i]);
+        }
+        
+       CkExit();
+      }
 
       CProxySection_LUBlk col = 
         CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 
@@ -1519,6 +1558,24 @@ public:
         // reduction to diagonal
       }
       
+    }
+  }
+
+  void print() {
+    /*FILE *file = fopen("output1", "w+");
+
+    for (int i = 0; i < BLKSIZE; i++) {
+      for (int j = 0; j < BLKSIZE; j++) {
+        fprintf(file, "%f ", LU[getIndex(i,j)]);
+      }
+      fprintf(file, "\n");
+      }*/
+
+    for (int i = 0; i < BLKSIZE; i++) {
+      for (int j = 0; j < BLKSIZE; j++) {
+        CkPrintf("%f ", LU[getIndex(i,j)]);
+      }
+      CkPrintf("\n");
     }
   }
 
