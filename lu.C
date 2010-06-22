@@ -127,6 +127,7 @@ public:
 
   void setMsgData(double *d, int s) {
     memcpy(data, d, sizeof(double)*BLKSIZE*BLKSIZE);
+    CkSetRefNum(this, s);
   }
 
 };
@@ -1036,7 +1037,6 @@ public:
       ComlibAssociateProxy(multicastStats[whichMulticastStrategy], oneCol);
     
     blkMsg *givenU = createABlkMsg();
-    CkSetRefNum(givenU, internalStep);
     oneCol.recvU(givenU);
 
 //     for(int i=thisIndex.x+1; i<numBlks; i++){
@@ -1060,7 +1060,6 @@ public:
       ComlibAssociateProxy(multicastStats[whichMulticastStrategy], oneRow);
     
     blkMsg *givenL = createABlkMsg();
-    CkSetRefNum(givenL, internalStep);
     oneRow.recvL(givenL);
     
 //     for(int i=thisIndex.y+1; i<numBlks; i++){
