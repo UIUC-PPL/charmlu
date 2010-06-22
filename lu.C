@@ -648,11 +648,11 @@ class LUBlk: public CBase_LUBlk {
 
   int internalStep;
 
+  LUBlk_SDAG_CODE
+
   // The following declarations are used for optimization and
   // analysis. They are not essential to the algorithm.
   int whichMulticastStrategy;
-
-  LUBlk_SDAG_CODE
 
 public:
   LUBlk() : storedVec(NULL), diagRec(0) {
