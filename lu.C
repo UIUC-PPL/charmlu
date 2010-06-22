@@ -640,13 +640,16 @@ public:
 };
 
 class LUBlk: public CBase_LUBlk {
+  /// Variables used during factorization
   double *LU;
-  double *bvec;
   int BLKSIZE, numBlks;
-
   blkMsg *L, *U;
-
   int internalStep;
+
+  /// Variables used only during solution
+  double *bvec;
+  double* storedVec;
+  int diagRec;
 
   LUBlk_SDAG_CODE
 
@@ -1282,9 +1285,6 @@ public:
       col.forwardSolve(BLKSIZE, xvec);
     }
   }
-
-  double* storedVec;
-  int diagRec;
 
   void diagForwardSolve(int size, double* vec) {
     if (!storedVec) {
