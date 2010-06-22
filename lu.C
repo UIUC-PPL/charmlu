@@ -642,7 +642,6 @@ public:
 class LUBlk: public CBase_LUBlk {
   double *LU;
   double *bvec;
-  bool done;
   int BLKSIZE, numBlks;
 
   blkMsg *L, *U;
@@ -659,7 +658,6 @@ public:
   LUBlk() : storedVec(NULL), diagRec(0) {
       __sdag_init();
     whichMulticastStrategy = 0;
-    done = false;
 
     //CkAssert(BLKSIZE>0); // If this fails, readonly variables aren't
 			 // propagated soon enough. I'm assuming they
@@ -793,8 +791,6 @@ public:
     // Set the schedulers memory usage threshold to the one based upon a control point
     schedAdaptMemThresholdMB = memThreshold;
 
-    done = false;
-
     CkAssert(BLKSIZE>0); // If this fails, readonly variables aren't
 			 // propagated soon enough. I'm assuming they
 			 // are safe to use here.
@@ -874,7 +870,6 @@ public:
 //     CkAssert(thisIndex.x == 0 && thisIndex.y == 0);
 //     traceUserSuppliedData(internalStep);
 //     traceMemoryUsage();
-//     CkAssert(!done);
 //     thisProxy(0,0).processLocalLU(0);
 //   }
 
@@ -1075,7 +1070,6 @@ public:
 
   void processComputeU(int ignoredParam) {
     DEBUG_PRINT("processComputeU() called on block %d,%d\n", thisIndex.x, thisIndex.y);
-    CkAssert(!done);
     CkAssert(internalStep==thisIndex.x && L);
     // We are in the top row of active blocks, and we
     // have received the incoming L
@@ -1088,15 +1082,11 @@ public:
     
     CmiFree(UsrToEnv(L));
     
-    // This block is now done
     DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
-    done = true;
-    
   }
   
   void processComputeL(int ignoredParam) {
     DEBUG_PRINT("processComputeL() called on block %d,%d\n", thisIndex.x, thisIndex.y);
-    CkAssert(!done);
     CkAssert(internalStep==thisIndex.y && U);
     
     // We are in the left row of active blocks
@@ -1110,15 +1100,11 @@ public:
       
     CmiFree(UsrToEnv(U));
 
-    // This block is now done
     DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
-    done = true;
-    
   }
   
   void processLocalLU(int ignoredParam) {
     DEBUG_PRINT("processLocalLU() called on block %d,%d\n", thisIndex.x, thisIndex.y);
-    CkAssert(!done);
     // We are the top-left-most active block
     CkAssert(internalStep==thisIndex.x && internalStep==thisIndex.y);
 
@@ -1138,10 +1124,7 @@ public:
       multicastRecvL(); 	//broadcast the L rightwards to the blocks in the same row
     }
       
-    // This block is now done
     DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
-    done = true;
-    
   }
 
 #if 0
