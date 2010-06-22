@@ -563,20 +563,16 @@ public:
       CkPrintf("%s\n", note);
       fflush(stdout);
     
+      CkArrayOptions opts(numBlks, numBlks);
       switch (mapping) {
-      case 1: {
-	CProxy_LUBalancedSnakeMap2 map = CProxy_LUBalancedSnakeMap2::ckNew(numBlks, BLKSIZE);
-	CkArrayOptions opts(numBlks, numBlks);
-	opts.setMap(map);
-	luArrProxy = CProxy_LUBlk::ckNew(opts);
-      } break;
-      case 0: {
-	CProxy_BlockCyclicMap map = CProxy_BlockCyclicMap::ckNew();
-	CkArrayOptions opts(numBlks, numBlks);
-	opts.setMap(map);
-	luArrProxy = CProxy_LUBlk::ckNew(opts);
-      } break;
+      case 1:
+        opts.setMap(CProxy_LUBalancedSnakeMap2::ckNew(numBlks, BLKSIZE));
+	break;
+      case 0:
+	opts.setMap(CProxy_BlockCyclicMap::ckNew());
+	break;
       }
+      luArrProxy = CProxy_LUBlk::ckNew(opts);
 
       workStarted = true;
     
