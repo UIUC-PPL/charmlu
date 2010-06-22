@@ -14,6 +14,8 @@
 //#include <stdlib.h>
 #include <string.h>
 #include <iostream>
+#include <algorithm>
+using std::min;
 //#include <pthread.h>
 
 
@@ -70,11 +72,6 @@ ComlibInstanceHandle multicastStats[4];
 #define DEBUG_PRINT(...) 
 
 
-/// Called periodically for debugging
-static void periodicDebug(void* ptr, double currWallTime){
-  //  CcdCallFnAfterOnPE((CcdVoidFn)periodicDebug, (void*)NULL, controlPointSamplePeriod, CkMyPe());
-  luArrProxy.printInfo();
-}
 
 enum continueWithTask {
   NO_CONTINUE = 0,
@@ -121,7 +118,6 @@ public:
 
 class blkMsg: public CMessage_blkMsg {
 public:
-  int step;
   // TODO: what is happening?
   char pad[16-((sizeof(envelope)+sizeof(int))%16)];
   double *data;
@@ -131,7 +127,6 @@ public:
 
   void setMsgData(double *d, int s) {
     memcpy(data, d, sizeof(double)*BLKSIZE*BLKSIZE);
-    step = s;
   }
 
 };
@@ -507,7 +502,7 @@ public:
 
   void arrayIsCreated(CkReductionMsg * m) {
     startTime = CmiWallTimer();
-    luArrProxy(0,0).processLocalLU(0);
+    luArrProxy.run();
   }
 
   void iterationCompleted() {
@@ -648,25 +643,23 @@ class LUBlk: public CBase_LUBlk {
   double *LU;
   double *bvec;
   bool done;
-  int alreadyReEnqueuedDuringPhase;
   int BLKSIZE, numBlks;
 
-  CkVec<blkMsg *> UBuffers;
-  CkVec<blkMsg *> LBuffers;
+  blkMsg *L, *U;
 
   int internalStep;
 
   // The following declarations are used for optimization and
   // analysis. They are not essential to the algorithm.
   int whichMulticastStrategy;
-  MERGE_PATH_DECLARE_D(A);
+
+  LUBlk_SDAG_CODE
 
 public:
   LUBlk() : storedVec(NULL), diagRec(0) {
-
+      __sdag_init();
     whichMulticastStrategy = 0;
     done = false;
-    alreadyReEnqueuedDuringPhase = -1;
 
     //CkAssert(BLKSIZE>0); // If this fails, readonly variables aren't
 			 // propagated soon enough. I'm assuming they
@@ -801,7 +794,6 @@ public:
     schedAdaptMemThresholdMB = memThreshold;
 
     done = false;
-    alreadyReEnqueuedDuringPhase = -1;
 
     CkAssert(BLKSIZE>0); // If this fails, readonly variables aren't
 			 // propagated soon enough. I'm assuming they
@@ -1033,36 +1025,6 @@ public:
     traceUserBracketEvent(traceTrailingUpdate, updateStart, CmiWallTimer());
   }
 
-
-  void updateRecvU(blkMsg *UMsg) {
-    CkAssert(!done);
-    //   CkAssert(UMsg->step == 0);
-    traceUserSuppliedData(UMsg->step);
-    traceMemoryUsage();
-    DEBUG_PRINT("elem[%d,%d]::updateRecvU entry method containing message from step %d\n", thisIndex.x, thisIndex.y, UMsg->step);
-    bufferU(UMsg);
-    MERGE_PATH_MAX_D(A,UMsg->step);
-    if(canContinue() && alreadyReEnqueuedDuringPhase < internalStep){
-      alreadyReEnqueuedDuringPhase = internalStep;
-      DEBUG_PRINT("NOTE   :                                  calling progress() from updateRecvU\n");
-      selfContinue();
-    }
-  }
-
-  void updateRecvL(blkMsg *LMsg) {
-    CkAssert(!done);
-    traceUserSuppliedData(LMsg->step);
-    traceMemoryUsage();
-    DEBUG_PRINT("elem[%d,%d]::updateRecvL entry method containing message from step %d\n", thisIndex.x, thisIndex.y, LMsg->step);
-    bufferL(LMsg);
-    MERGE_PATH_MAX_D(A,LMsg->step);
-    if(canContinue() && alreadyReEnqueuedDuringPhase < internalStep){
-      alreadyReEnqueuedDuringPhase = internalStep;
-      DEBUG_PRINT("NOTE   :                                  calling progress() from updateRecvL\n");
-      selfContinue();
-    }
-  }
-
   //broadcast the U downwards to the blocks in the same column
   inline void multicastRecvU() {
     traceUserSuppliedData(internalStep);
@@ -1076,7 +1038,8 @@ public:
       ComlibAssociateProxy(multicastStats[whichMulticastStrategy], oneCol);
     
     blkMsg *givenU = createABlkMsg();
-    oneCol.updateRecvU(givenU);
+    CkSetRefNum(givenU, internalStep);
+    oneCol.recvU(givenU);
 
 //     for(int i=thisIndex.x+1; i<numBlks; i++){
 //       blkMsg *givenU = createABlkMsg();
@@ -1099,8 +1062,8 @@ public:
       ComlibAssociateProxy(multicastStats[whichMulticastStrategy], oneRow);
     
     blkMsg *givenL = createABlkMsg();
-    //CkAssert(givenL->step == 0);
-    oneRow.updateRecvL(givenL);
+    CkSetRefNum(givenL, internalStep);
+    oneRow.recvL(givenL);
     
 //     for(int i=thisIndex.y+1; i<numBlks; i++){
 //       blkMsg *givenL = createABlkMsg();
@@ -1113,23 +1076,18 @@ public:
   void processComputeU(int ignoredParam) {
     DEBUG_PRINT("processComputeU() called on block %d,%d\n", thisIndex.x, thisIndex.y);
     CkAssert(!done);
-    CkAssert(internalStep==thisIndex.x && getBufferedL(internalStep)!=NULL);
+    CkAssert(internalStep==thisIndex.x && L);
     // We are in the top row of active blocks, and we
     // have received the incoming L
 	
     // CkPrintf("[%d] chare %d,%d internalStep=%d computeU\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep);
-    computeU(LBuffers[internalStep]);
+    computeU(L);
     
     DEBUG_PRINT("[%d] chare %d,%d is top block this step, multicast U\n", CkMyPe(), thisIndex.x, thisIndex.y);
     multicastRecvU(); //broadcast the newly computed U downwards to the blocks in the same column
     
-    removeBufferedL(internalStep);	// Cleanup
+    CmiFree(UsrToEnv(L));
     
-    // Verify that there are no outstanding buffered messages.
-    CkAssert(buffersEmpty());
-    
-    deallocateBuffers();
-    MERGE_PATH_DELETE_D(A,internalStep);
     // This block is now done
     DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
     done = true;
@@ -1139,62 +1097,22 @@ public:
   void processComputeL(int ignoredParam) {
     DEBUG_PRINT("processComputeL() called on block %d,%d\n", thisIndex.x, thisIndex.y);
     CkAssert(!done);
-    CkAssert(internalStep==thisIndex.y && getBufferedU(internalStep)!=NULL);
+    CkAssert(internalStep==thisIndex.y && U);
     
     // We are in the left row of active blocks
       
     //  CkPrintf("[%d] chare %d,%d internalStep=%d computeL\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep);
-    computeL(UBuffers[internalStep]);
+    computeL(U);
       
     //broadcast the newly computed L rightwards to the blocks in the same row
     DEBUG_PRINT("[%d] chare %d,%d is left block this step, multicast L\n", CkMyPe(), thisIndex.x, thisIndex.y);
     multicastRecvL();
       
-    removeBufferedU(internalStep);	// Cleanup
+    CmiFree(UsrToEnv(U));
 
-    // Verify that there are no outstanding buffered messages.
-    CkAssert(buffersEmpty());
-
-    deallocateBuffers();
-    MERGE_PATH_DELETE_D(A,internalStep);
     // This block is now done
     DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
     done = true;
-    
-  }
-  
-  void processTrailingUpdate(int ignoredParam) {
-    DEBUG_PRINT("processTrailingUpdate() called on block %d,%d\n", thisIndex.x, thisIndex.y);
-    CkAssert(!done);
-    
-    double *incomingL = getBufferedL(internalStep);
-    double *incomingU = getBufferedU(internalStep);
-
-    CkAssert(incomingL!=NULL && incomingU!=NULL);
-    
-    // Do trailing update
-    
-    //CkPrintf("[%d] chare %d,%d internalStep=%d updateMatrix\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep);
-    updateMatrix(LBuffers[internalStep], UBuffers[internalStep]);
-    
-    removeBufferedL(internalStep);
-    removeBufferedU(internalStep);
-    
-    DEBUG_PRINT("elem[%d,%d] advancing to step %d\n", thisIndex.x, thisIndex.y, internalStep+1);
-    internalStep++;
-    
-
-    // If we have received the L and U messages out of order, then some of the 
-    // calls into this progress method will not do anything useful.
-    // Thus we need to tell ourself to continue if possible, because
-    // we cannot rely upon a future progress call being made.
-    if(canContinue() && alreadyReEnqueuedDuringPhase < internalStep){
-      alreadyReEnqueuedDuringPhase = internalStep;
-      DEBUG_PRINT("WARNING: calling progress() after trailing update because work is available to process\n");
-      selfContinue();
-    }
-    
-    MERGE_PATH_DELETE_D(A,internalStep);
     
   }
   
@@ -1206,13 +1124,9 @@ public:
 
 //    double mem = CmiMemoryUsage();
 //    CkPrintf("CmiMemoryUsage() = %lf\n", mem);
-    
-    // Verify that there are no outstanding buffered messages.
-    CkAssert(buffersEmpty());
 
     // CkPrintf("[%d] chare %d,%d internalStep=%d solveLocalLU\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep);
     solveLocalLU(); // compute a local LU
-      
 
     // If this is the very last bottom rightmost block
     if (thisIndex.x == numBlks-1 && thisIndex.y == numBlks-1) {
@@ -1224,31 +1138,13 @@ public:
       multicastRecvL(); 	//broadcast the L rightwards to the blocks in the same row
     }
       
-    MERGE_PATH_DELETE_D(A,internalStep);
     // This block is now done
     DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
     done = true;
     
   }
 
-  /// Store a pointer to the buffered L messages
-  void bufferL(blkMsg *msg) {
-    CmiReference(UsrToEnv(msg));
-    //    DEBUG_PRINT("elem %d,%d buffering UBuffers[%d] %p\n", thisIndex.x, thisIndex.y, msg->step, msg);
-    for (int i=LBuffers.size(); i<msg->step; i++) 
-      LBuffers.insert(i, (blkMsg*)NULL);
-    LBuffers.insert(msg->step, msg);
-  }
-  
-  /// Store a pointer to the buffered U message
-  void bufferU(blkMsg *msg) {
-    CmiReference(UsrToEnv(msg));
-    //   DEBUG_PRINT("elem %d,%d buffering UBuffers[%d] %p\n", thisIndex.x, thisIndex.y, msg->step, msg);
-    for (int i=UBuffers.size(); i<msg->step; i++) 
-      UBuffers.insert(i, (blkMsg*)NULL);
-    UBuffers.insert(msg->step, msg);
-  }
-  
+#if 0
   /// Call progress on myself, possibly using priorities 
   inline void selfContinue(){
     int integerPrio;
@@ -1334,104 +1230,8 @@ public:
     }
 
   }
-
-  /// Are there enough buffered messages for this step to perform the required work?
-  continueWithTask canContinue(){
-    double *incomingL = getBufferedL(internalStep);
-    double *incomingU = getBufferedU(internalStep);
-    
-    if(incomingL!=NULL && incomingU!=NULL) 
-      return CONTINUE_TRAIL;
-    
-    if (internalStep==thisIndex.x && incomingL!=NULL)
-      return CONTINUE_U;
-    
-    if (internalStep==thisIndex.y && incomingU!=NULL)
-      return CONTINUE_L;    
-    
-    if(internalStep==thisIndex.x && internalStep==thisIndex.y)
-      return CONTINUE_LU;
-    
-    return NO_CONTINUE;    
-  }
   
- bool buffersEmpty(){
-    int validMsgInUBuffer = 0;
-    int validMsgInLBuffer = 0;
-    
-    for (int i=0; i<UBuffers.size(); i++) 
-      if(UBuffers[i] != NULL)
-	validMsgInUBuffer ++;
-	
-    for (int i=0; i<LBuffers.size(); i++) 
-      if(LBuffers[i] != NULL)
-	validMsgInLBuffer ++;
-    
-    return validMsgInUBuffer==0 && validMsgInLBuffer==0;
-  }
-
-  void printInfo(){
-    int validMsgInUBuffer = 0;
-    int validMsgInLBuffer = 0;
-    
-    for (int i=0; i<UBuffers.size(); i++) 
-      if(UBuffers[i] != NULL)
-	validMsgInUBuffer ++;
-	
-    for (int i=0; i<LBuffers.size(); i++) 
-      if(LBuffers[i] != NULL)
-	validMsgInLBuffer ++;
-    
-    //  CkPrintf("[%d] elem %d,%d has %d buffered U messages and %d buffered L messages\n", CkMyPe(), thisIndex.x, thisIndex.y, validMsgInUBuffer, validMsgInLBuffer);
-    
-  }
-
-  double *getBufferedL(int idx) {
-    //    DEBUG_PRINT("getBufferedL: size=%d, idx=%d\n", LBuffers.size(), idx );
-    if (LBuffers.size() <= idx) return NULL;
-    if (LBuffers[idx] == NULL) return NULL;
-
-    double *ret = LBuffers[idx]->data;
-    CkAssert(ret!=NULL);
-    // DEBUG_PRINT("idx=%d LBuffers[idx]->step=%d\n", idx,LBuffers[idx]->step);
-
-    CkAssert(idx==LBuffers[idx]->step);
-
-    return ret;
-  }
-
-  double *getBufferedU(int idx) {
-    //  DEBUG_PRINT("getBufferedU: size=%d, idx=%d\n", UBuffers.size(), idx );
-    if (UBuffers.size() <= idx) return NULL;
-    if (UBuffers[idx] == NULL) return NULL;
-
-    double *ret = UBuffers[idx]->data;
-    CkAssert(ret!=NULL);
-    CkAssert(idx==UBuffers[idx]->step);
-
-    return ret;
-  }
-  
-  void removeBufferedL(int idx) {
-    //  DEBUG_PRINT("elem %d,%d deleting LBuffers[%d] %p\n", thisIndex.x, thisIndex.y, idx, LBuffers[idx]);
-    CkAssert(idx < LBuffers.size());
-    CmiFree(UsrToEnv(LBuffers[idx]));
-    LBuffers[idx]=NULL;
-  }
-  
-  void removeBufferedU(int idx) {
-    //  DEBUG_PRINT("elem %d,%d deleting UBuffers[%d] %p\n", thisIndex.x, thisIndex.y, idx, UBuffers[idx]);
-    CkAssert(idx < UBuffers.size());
-    CmiFree(UsrToEnv(UBuffers[idx]));
-    UBuffers[idx]=NULL;
-  }
-
-
-  void deallocateBuffers() {
-    UBuffers.free();
-    LBuffers.free();
-    MERGE_PATH_DELETE_ALL_D(A);
-  }
+#endif
 
   int getIndex(int i, int j) {
     return j * BLKSIZE + i;
