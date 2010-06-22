@@ -603,23 +603,20 @@ public:
 
     
     double gflops_per_core = HPL_gflops / (double)CkNumPes();
-    double fractionOfPeakOnOrder = gflops_per_core / 7.4585;
-    double fractionOfPeakOnOrderPercent = fractionOfPeakOnOrder * 100.0;
-    
-    double fractionOfPeakOnAbe = gflops_per_core / 9.332;
-    double fractionOfPeakOnAbePercent = fractionOfPeakOnAbe * 100.0;
 
-    double fractionOfPeakOnKraken =  gflops_per_core / 10.4;
-    double fractionOfPeakOnKrakenPercent = fractionOfPeakOnKraken * 100.0;
-    
-    double fractionOfPeakOnBGP =  gflops_per_core / 3.4;
-    double fractionOfPeakOnBGPPercent = fractionOfPeakOnBGP * 100.0;
+    struct {
+      const char *machine;
+      double gflops_per_core;
+    } peaks[] = {{"order.cs.uiuc.edu", 7.4585},
+		 {"abe.ncsa.uiuc.edu", 9.332},
+		 {"Kraken", 10.4},
+		 {"BG/P", 3.4}};
 
-    std::cout << "If ran on order.cs.uiuc.edu, I think you got  \t" << fractionOfPeakOnOrderPercent << "% of peak" << std::endl;
-    std::cout << "If ran on abe.ncsa.uiuc.edu, I think you got  \t" << fractionOfPeakOnAbePercent << "% of peak" << std::endl;
-    std::cout << "If ran on kraken, I think you got  \t" << fractionOfPeakOnKrakenPercent << "% of peak" << std::endl;
-    std::cout << "If ran on BG/P, I think you got  \t" << fractionOfPeakOnBGPPercent << "% of peak" << std::endl;
-
+    for (int i = 0; i < sizeof(peaks)/sizeof(peaks[0]); ++i) {
+      double fractionOfPeak = gflops_per_core / peaks[i].gflops_per_core;
+      std::cout << "If ran on " << peaks[i].machine << ", I think you got \t"
+		<< 100.0*fractionOfPeak << "% of peak" << std::endl;
+    }
   }
 
   void terminateProg() {
