@@ -1355,8 +1355,6 @@ private:
 
     return msg;
   }
-
-  
 };
 
 #include "lu.def.h"
