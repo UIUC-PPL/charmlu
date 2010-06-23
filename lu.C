@@ -1398,20 +1398,20 @@ public:
     // Local forward solve, replace with library calls
     for (int i = 0; i < BLKSIZE; i++) {
       /*if (!initial) {
-        if (diag)
-          for (int k = 0; k < BLKSIZE; k++) {
-            xvec[i] = bvec[i] - LU[getIndex(i,k)] * cvec[k];
-          }
-        else
-          for (int k = 0; k < BLKSIZE; k++) {
-            xvec[i] = LU[getIndex(i,k)] * cvec[k];
-          }
-          }*/
+	if (diag)
+	  for (int k = 0; k < BLKSIZE; k++) {
+	    xvec[i] = bvec[i] - LU[getIndex(i,k)] * cvec[k];
+	  }
+	else
+	  for (int k = 0; k < BLKSIZE; k++) {
+	    xvec[i] = LU[getIndex(i,k)] * cvec[k];
+	  }
+	  }*/
       for (int j = 0; j < i; j++) {
-        //if (!diag || j != i)
-        xvec[i] -= LU[getIndex(i,j)] * bvec[j];
-        //else
-        //xvec[i] = LU[getIndex(i,j)] * bvec[j];
+	//if (!diag || j != i)
+	xvec[i] -= LU[getIndex(i,j)] * bvec[j];
+	//else
+	//xvec[i] = LU[getIndex(i,j)] * bvec[j];
       }
       
       //bvec[i] /= LU[getIndex(i,i)];
