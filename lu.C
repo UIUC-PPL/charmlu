@@ -116,20 +116,15 @@ public:
   }
 };
 
-class blkMsg: public CMessage_blkMsg {
-public:
+struct blkMsg: public CMessage_blkMsg {
   // TODO: what is happening?
   char pad[16-((sizeof(envelope)+sizeof(int))%16)];
   double *data;
-  int BLKSIZE;
 
-  blkMsg(int _BLKSIZE) : BLKSIZE(_BLKSIZE) { }
-
-  void setMsgData(double *d, int s) {
-    memcpy(data, d, sizeof(double)*BLKSIZE*BLKSIZE);
-    CkSetRefNum(this, s);
+  void setMsgData(double *data_, int step, int BLKSIZE) {
+    memcpy(data, data_, sizeof(double)*BLKSIZE*BLKSIZE);
+    CkSetRefNum(this, step);
   }
-
 };
 
 /** do a space filling curve style allocation from the bottom right to the upper left. */
@@ -1349,14 +1344,14 @@ private:
     blkMsg *msg;
     
     if(doPrioritize) {
-      msg = new(BLKSIZE*BLKSIZE, 8*sizeof(int)) blkMsg(BLKSIZE);
+      msg = new(BLKSIZE*BLKSIZE, 8*sizeof(int)) blkMsg;
       DEBUG_PRINT("setting priority to internalStep=%d\n", internalStep);
       *((int*)CkPriorityPtr(msg)) = (int)internalStep;
       CkSetQueueing(msg, CK_QUEUEING_IFIFO);
     } else {
-      msg = new(BLKSIZE*BLKSIZE)blkMsg(BLKSIZE);
+      msg = new(BLKSIZE*BLKSIZE) blkMsg;
     }
-    msg->setMsgData(LU, internalStep);
+    msg->setMsgData(LU, internalStep, BLKSIZE);
 
     return msg;
   }
