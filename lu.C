@@ -261,7 +261,7 @@ public:
 	minLoadFound = peLoads[p];
       }
     }
-    return minPEFound;    
+    return minPEFound;	  
   }
   
   int workLoad(int x, int y){
@@ -366,7 +366,7 @@ public:
     }
 
     stateN = minPEFound;
-    return minPEFound;    
+    return minPEFound;	  
   }
   
   int workLoad(int x, int y){
@@ -473,7 +473,7 @@ public:
     ControlPoint::EffectIncrease::GrainSize("block_size");
     ControlPoint::EffectDecrease::Concurrency("block_size");
     
-    //    ControlPoint::EffectIncrease::Concurrency("mapping");
+    //	  ControlPoint::EffectIncrease::Concurrency("mapping");
     ControlPoint::EffectIncrease::NumMessages("mapping");
     ControlPoint::EffectIncrease::MessageOverhead("mapping");
 
@@ -596,19 +596,19 @@ public:
 
     double n = gMatSize;
 
-    long long flopCount = 0;     // floating point ops
+    long long flopCount = 0;	 // floating point ops
     for (int i=1;i<=gMatSize;i++) {
       for (int j=1+i; j<=gMatSize; j++) {
 	flopCount += (1+2*gMatSize-2*i);
       }
     }
 
-    double flops = ((double)flopCount)  / duration; // floating point ops per second
+    double flops = ((double)flopCount)	/ duration; // floating point ops per second
     double gflops = flops / 1000000000.0; // Giga fp ops per second
     std::cout << "RESULT procs: \t" << CkNumPes() << "\tblock size:\t" << BLKSIZE << "\tGFlops:\t" << gflops << "\tTime(s):\t" << duration << std::endl;
 
     double HPL_flop_count =  (2.0/3.0*n*n*n-2*n*n)/duration ;
-    double HPL_gflops =  HPL_flop_count / 1000000000.0; // Giga fp ops per second
+    double HPL_gflops =	 HPL_flop_count / 1000000000.0; // Giga fp ops per second
     std::cout << "HPL flop count gives \t" << HPL_gflops << "\tGFlops" << std::endl;
 
     
@@ -625,8 +625,8 @@ public:
     double fractionOfPeakOnBGP =  gflops_per_core / 3.4;
     double fractionOfPeakOnBGPPercent = fractionOfPeakOnBGP * 100.0;
 
-    std::cout << "If ran on order.cs.uiuc.edu, I think you got  \t" << fractionOfPeakOnOrderPercent << "% of peak" << std::endl;
-    std::cout << "If ran on abe.ncsa.uiuc.edu, I think you got  \t" << fractionOfPeakOnAbePercent << "% of peak" << std::endl;
+    std::cout << "If ran on order.cs.uiuc.edu, I think you got	\t" << fractionOfPeakOnOrderPercent << "% of peak" << std::endl;
+    std::cout << "If ran on abe.ncsa.uiuc.edu, I think you got	\t" << fractionOfPeakOnAbePercent << "% of peak" << std::endl;
     std::cout << "If ran on kraken, I think you got  \t" << fractionOfPeakOnKrakenPercent << "% of peak" << std::endl;
     std::cout << "If ran on BG/P, I think you got  \t" << fractionOfPeakOnBGPPercent << "% of peak" << std::endl;
 
@@ -639,7 +639,7 @@ public:
 
   void done(pathInformationMsg *m){
     // CkPrintf("Main::done() After critical path has been determined\n");
-    //    m->printme();
+    //	  m->printme();
     gotoNextPhase(); // <<< Make sure we get timings for the phase that just finished.
     CkExit();
   }
@@ -677,12 +677,12 @@ public:
 
 
 
-    /*internalStep = 0;  
+    /*internalStep = 0;	 
      
-    traceUserSuppliedData(-1);  
-    traceMemoryUsage();  
+    traceUserSuppliedData(-1);	
+    traceMemoryUsage();	 
      
-    MatGen rnd(thisIndex.x * numBlks + thisIndex.y);      
+    MatGen rnd(thisIndex.x * numBlks + thisIndex.y);	  
     for (int i=0; i<BLKSIZE*BLKSIZE; i++) {  
       LU[i] = rnd.toRndDouble(rnd.nextRndInt());  
     } 
@@ -694,14 +694,14 @@ public:
 
   void flushLogs() {
     flushTraceLog();
-    contribute(CkCallback(CkIndex_Main::continueIter(), mainProxy));    
+    contribute(CkCallback(CkIndex_Main::continueIter(), mainProxy));	
   }
 
   void testdgemm(){
 #if 0
     unsigned long blocksize = 32 << thisIndex.x;
     
-    if(thisIndex.y == 0 && thisIndex.x == 1){     
+    if(thisIndex.y == 0 && thisIndex.x == 1){	  
       
 #if USE_MEMALIGN
       double *m1 = (double*)memalign(128, blocksize*blocksize*sizeof(double) );
@@ -717,9 +717,9 @@ public:
 
       MatGen rnd(0); 
       for (int i=0; i<blocksize*blocksize; i++) { 
-        m1[i] = rnd.toRndDouble(rnd.nextRndInt()); 
-        m2[i] = rnd.toRndDouble(rnd.nextRndInt()); 
-        m3[i] = rnd.toRndDouble(rnd.nextRndInt()); 
+	m1[i] = rnd.toRndDouble(rnd.nextRndInt()); 
+	m2[i] = rnd.toRndDouble(rnd.nextRndInt()); 
+	m3[i] = rnd.toRndDouble(rnd.nextRndInt()); 
       } 
       
       double startTest = CmiWallTimer(); 
@@ -732,12 +732,12 @@ public:
 	     1.0, m3, blocksize);
 #else
       cblas_dgemm( CblasRowMajor, 
-                   CblasNoTrans, CblasNoTrans, 
-                   blocksize, blocksize, blocksize, 
-                   -1.0, m1, 
-                   blocksize, m2, blocksize, 
-                   1.0, m3, blocksize); 
-#endif     
+		   CblasNoTrans, CblasNoTrans, 
+		   blocksize, blocksize, blocksize, 
+		   -1.0, m1, 
+		   blocksize, m2, blocksize, 
+		   1.0, m3, blocksize); 
+#endif	   
       
       double endTest = CmiWallTimer(); 
       double duration = endTest-startTest; 
@@ -758,12 +758,12 @@ public:
 	     1.0, m3, blocksize);
 #else
       cblas_dgemm( CblasRowMajor, 
-                   CblasTrans, CblasTrans, 
-                   blocksize, blocksize, blocksize, 
-                   -1.0, m1, 
-                   blocksize, m2, blocksize, 
-                   1.0, m3, blocksize); 
-#endif     
+		   CblasTrans, CblasTrans, 
+		   blocksize, blocksize, blocksize, 
+		   -1.0, m1, 
+		   blocksize, m2, blocksize, 
+		   1.0, m3, blocksize); 
+#endif	   
       
       double endTest = CmiWallTimer(); 
       double duration = endTest-startTest; 
@@ -811,7 +811,7 @@ public:
 
 #if USE_MEMALIGN
     LU = (double*)memalign(128, BLKSIZE*BLKSIZE*sizeof(double) );
-    //   CkPrintf("LU mod 128 = %lu\n", ((unsigned long)LU) % 128);
+    //	 CkPrintf("LU mod 128 = %lu\n", ((unsigned long)LU) % 128);
     CkAssert(LU != NULL);
 #else
     LU = new double[BLKSIZE*BLKSIZE];
@@ -942,7 +942,7 @@ public:
     traceUserSuppliedData(internalStep);
     traceMemoryUsage();
     double *givenU = givenUMsg->data;
-    //    CkAssert( ((unsigned long)givenU) % 16 == 0);
+    //	  CkAssert( ((unsigned long)givenU) % 16 == 0);
 
 
     //traceUserEvent(traceComputeL);
@@ -991,7 +991,7 @@ public:
 
   void updateRecvU(blkMsg *UMsg) {
     CkAssert(!done);
-    //   CkAssert(UMsg->step == 0);
+    //	 CkAssert(UMsg->step == 0);
     traceUserSuppliedData(UMsg->step);
     traceMemoryUsage();
     DEBUG_PRINT("elem[%d,%d]::updateRecvU entry method containing message from step %d\n", thisIndex.x, thisIndex.y, UMsg->step);
@@ -999,7 +999,7 @@ public:
     MERGE_PATH_MAX_D(A,UMsg->step);
     if(canContinue() && alreadyReEnqueuedDuringPhase < internalStep){
       alreadyReEnqueuedDuringPhase = internalStep;
-      DEBUG_PRINT("NOTE   :                                  calling progress() from updateRecvU\n");
+      DEBUG_PRINT("NOTE	  :				     calling progress() from updateRecvU\n");
       selfContinue();
     }
   }
@@ -1013,7 +1013,7 @@ public:
     MERGE_PATH_MAX_D(A,LMsg->step);
     if(canContinue() && alreadyReEnqueuedDuringPhase < internalStep){
       alreadyReEnqueuedDuringPhase = internalStep;
-      DEBUG_PRINT("NOTE   :                                  calling progress() from updateRecvL\n");
+      DEBUG_PRINT("NOTE	  :				     calling progress() from updateRecvL\n");
       selfContinue();
     }
   }
@@ -1034,9 +1034,9 @@ public:
     oneCol.updateRecvU(givenU);
 
 //     for(int i=thisIndex.x+1; i<numBlks; i++){
-//       blkMsg *givenU = createABlkMsg();
-//       DEBUG_PRINT("P2P sending U from %d,%d down to %d,%d\n", thisIndex.x, thisIndex.y, i,thisIndex.y);
-//       thisProxy(i,thisIndex.y).updateRecvU(givenU);
+//	 blkMsg *givenU = createABlkMsg();
+//	 DEBUG_PRINT("P2P sending U from %d,%d down to %d,%d\n", thisIndex.x, thisIndex.y, i,thisIndex.y);
+//	 thisProxy(i,thisIndex.y).updateRecvU(givenU);
 //     }
     
   }
@@ -1058,9 +1058,9 @@ public:
     oneRow.updateRecvL(givenL);
     
 //     for(int i=thisIndex.y+1; i<numBlks; i++){
-//       blkMsg *givenL = createABlkMsg();
-//       DEBUG_PRINT("P2P sending L from %d,%d right to %d,%d\n", thisIndex.x, thisIndex.y, thisIndex.x, i);
-//       thisProxy(thisIndex.x, i).updateRecvL(givenL);
+//	 blkMsg *givenL = createABlkMsg();
+//	 DEBUG_PRINT("P2P sending L from %d,%d right to %d,%d\n", thisIndex.x, thisIndex.y, thisIndex.x, i);
+//	 thisProxy(thisIndex.x, i).updateRecvL(givenL);
 //     }
     
   }
@@ -1098,7 +1098,7 @@ public:
     
     // We are in the left row of active blocks
       
-    //  CkPrintf("[%d] chare %d,%d internalStep=%d computeL\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep);
+    //	CkPrintf("[%d] chare %d,%d internalStep=%d computeL\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep);
     computeL(UBuffers[internalStep]);
       
     //broadcast the newly computed L rightwards to the blocks in the same row
@@ -1176,7 +1176,7 @@ public:
     } else {
       DEBUG_PRINT("[%d] chare %d,%d is top,left block this step, multicast U & L\n", CkMyPe(), thisIndex.x, thisIndex.y);
       multicastRecvU();	//broadcast the U downwards to the blocks in the same column
-      multicastRecvL(); 	//broadcast the L rightwards to the blocks in the same row
+      multicastRecvL();		//broadcast the L rightwards to the blocks in the same row
     }
       
     MERGE_PATH_DELETE_D(A,internalStep);
@@ -1189,7 +1189,7 @@ public:
   /// Store a pointer to the buffered L messages
   void bufferL(blkMsg *msg) {
     CmiReference(UsrToEnv(msg));
-    //    DEBUG_PRINT("elem %d,%d buffering UBuffers[%d] %p\n", thisIndex.x, thisIndex.y, msg->step, msg);
+    //	  DEBUG_PRINT("elem %d,%d buffering UBuffers[%d] %p\n", thisIndex.x, thisIndex.y, msg->step, msg);
     for (int i=LBuffers.size(); i<msg->step; i++) 
       LBuffers.insert(i, (blkMsg*)NULL);
     LBuffers.insert(msg->step, msg);
@@ -1198,7 +1198,7 @@ public:
   /// Store a pointer to the buffered U message
   void bufferU(blkMsg *msg) {
     CmiReference(UsrToEnv(msg));
-    //   DEBUG_PRINT("elem %d,%d buffering UBuffers[%d] %p\n", thisIndex.x, thisIndex.y, msg->step, msg);
+    //	 DEBUG_PRINT("elem %d,%d buffering UBuffers[%d] %p\n", thisIndex.x, thisIndex.y, msg->step, msg);
     for (int i=UBuffers.size(); i<msg->step; i++) 
       UBuffers.insert(i, (blkMsg*)NULL);
     UBuffers.insert(msg->step, msg);
@@ -1208,7 +1208,7 @@ public:
   inline void selfContinue(){
     int integerPrio;
     
-    //    CkPrintf("continuing %d,%d  internalStep=%d \n", thisIndex.x,thisIndex.y, internalStep);
+    //	  CkPrintf("continuing %d,%d  internalStep=%d \n", thisIndex.x,thisIndex.y, internalStep);
 
 
     double c1 = 1.0;
@@ -1265,7 +1265,7 @@ public:
 
     }
 
-#endif    
+#endif	  
 
     CkEntryOptions eOpts; 
     eOpts.setPriority (integerPrio); // setPriority sets the queuing type internally
@@ -1307,7 +1307,7 @@ public:
     if(internalStep==thisIndex.x && internalStep==thisIndex.y)
       return CONTINUE_LU;
     
-    return NO_CONTINUE;    
+    return NO_CONTINUE;	   
   }
   
  bool buffersEmpty(){
@@ -1337,12 +1337,12 @@ public:
       if(LBuffers[i] != NULL)
 	validMsgInLBuffer ++;
     
-    //  CkPrintf("[%d] elem %d,%d has %d buffered U messages and %d buffered L messages\n", CkMyPe(), thisIndex.x, thisIndex.y, validMsgInUBuffer, validMsgInLBuffer);
+    //	CkPrintf("[%d] elem %d,%d has %d buffered U messages and %d buffered L messages\n", CkMyPe(), thisIndex.x, thisIndex.y, validMsgInUBuffer, validMsgInLBuffer);
     
   }
 
   double *getBufferedL(int idx) {
-    //    DEBUG_PRINT("getBufferedL: size=%d, idx=%d\n", LBuffers.size(), idx );
+    //	  DEBUG_PRINT("getBufferedL: size=%d, idx=%d\n", LBuffers.size(), idx );
     if (LBuffers.size() <= idx) return NULL;
     if (LBuffers[idx] == NULL) return NULL;
 
@@ -1356,7 +1356,7 @@ public:
   }
 
   double *getBufferedU(int idx) {
-    //  DEBUG_PRINT("getBufferedU: size=%d, idx=%d\n", UBuffers.size(), idx );
+    //	DEBUG_PRINT("getBufferedU: size=%d, idx=%d\n", UBuffers.size(), idx );
     if (UBuffers.size() <= idx) return NULL;
     if (UBuffers[idx] == NULL) return NULL;
 
@@ -1368,14 +1368,14 @@ public:
   }
   
   void removeBufferedL(int idx) {
-    //  DEBUG_PRINT("elem %d,%d deleting LBuffers[%d] %p\n", thisIndex.x, thisIndex.y, idx, LBuffers[idx]);
+    //	DEBUG_PRINT("elem %d,%d deleting LBuffers[%d] %p\n", thisIndex.x, thisIndex.y, idx, LBuffers[idx]);
     CkAssert(idx < LBuffers.size());
     CmiFree(UsrToEnv(LBuffers[idx]));
     LBuffers[idx]=NULL;
   }
   
   void removeBufferedU(int idx) {
-    //  DEBUG_PRINT("elem %d,%d deleting UBuffers[%d] %p\n", thisIndex.x, thisIndex.y, idx, UBuffers[idx]);
+    //	DEBUG_PRINT("elem %d,%d deleting UBuffers[%d] %p\n", thisIndex.x, thisIndex.y, idx, UBuffers[idx]);
     CkAssert(idx < UBuffers.size());
     CmiFree(UsrToEnv(UBuffers[idx]));
     UBuffers[idx]=NULL;
@@ -1438,18 +1438,18 @@ public:
       localForward(xvec, NULL, true, true);
       
       if (thisIndex.x == numBlks-1) {
-        CkPrintf("forward-solve complete, (%d, %d) numBlks = %d\n", thisIndex.x, thisIndex.y, numBlks);
+	CkPrintf("forward-solve complete, (%d, %d) numBlks = %d\n", thisIndex.x, thisIndex.y, numBlks);
 
-        for (int i = 0; i < BLKSIZE; i++) {
-          CkPrintf("xvec[%d] = %f\n", i, xvec[i]);
-        }
-        
+	for (int i = 0; i < BLKSIZE; i++) {
+	  CkPrintf("xvec[%d] = %f\n", i, xvec[i]);
+	}
+	
        CkExit();
       }
 
       CProxySection_LUBlk col = 
-        CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 
-                                   1, thisIndex.y, thisIndex.y, 1);
+	CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 
+				   1, thisIndex.y, thisIndex.y, 1);
 
       col.forwardSolve(BLKSIZE, xvec);
     }
@@ -1462,7 +1462,7 @@ public:
     if (!storedVec) {
       storedVec = new double[BLKSIZE];
       for (int i = 0; i < BLKSIZE; i++) {
-        storedVec[i] = 0.0;
+	storedVec[i] = 0.0;
       }
     }
 
