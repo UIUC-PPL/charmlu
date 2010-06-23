@@ -69,8 +69,8 @@ mainmodule lu {
 	}
     };
 
-    entry /*[nokeep]*/ void recvL(blkMsg *);
-    entry /*[nokeep]*/ void recvU(blkMsg *);
+    entry [nokeep] void recvL(blkMsg *);
+    entry [nokeep] void recvU(blkMsg *);
 
     /// These process* entry methods are invoked locally with varying
     /// priorities, to let the scheduler decide when the work they
