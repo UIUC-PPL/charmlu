@@ -1278,7 +1278,7 @@ public:
     this->print("LU-solution");
   }
 
-  void print(char* step) {
+  void print(const char* step) {
     char buf[200];
     sprintf(buf, "%s-%d-%d", step, thisIndex.x, thisIndex.y);
 
