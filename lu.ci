@@ -43,7 +43,7 @@ mainmodule lu {
 		{ CmiReference(UsrToEnv(mU)); U = mU; }
 	    }
 	    atomic {
-		// Let the scheduler do this sometime later
+		// Schedule the trailing update for sometime later
 		thisProxy(thisIndex.x, thisIndex.y)
 		    .processTrailingUpdate(internalStep);
 	    }
