@@ -459,8 +459,8 @@ public:
     
     gMatSize = atoi(m->argv[1]);
  
-    if (gMatSize%1024!=0) 
-      CkAbort("The matrix size should be a multiple of 1024!\n");
+    /*if (gMatSize%1024!=0) 
+      CkAbort("The matrix size should be a multiple of 1024!\n");*/
   
     CkPrintf("Running LU on %d processors (%d nodes) on matrix %dX%d with control points\n",
 	     CkNumPes(), CmiNumNodes(), gMatSize, gMatSize);
@@ -530,7 +530,9 @@ public:
 
       return;
     } else if (!solved && LUcomplete) {
-      luArrProxy(0, 0).print();
+      luArrProxy.print();
+
+      //luArrProxy(0, 0).print();
 
       CkPrintf("called solve()\n");
       // Perform forward solving
@@ -548,7 +550,7 @@ public:
 	gotoNextPhase();
       
 	whichMulticastStrategy = controlPoint("multicast_strategy", 2, 2);
-	BLKSIZE = 1 << 8; //1 << controlPoint("block_size", 10,10);
+	BLKSIZE = 1 << 2; //1 << controlPoint("block_size", 10,10);
 	mapping = controlPoint("mapping", 1, 1);
 	memThreshold = 200 + controlPoint("memory_threshold", 0, 20) * 100;
       
@@ -817,22 +819,22 @@ public:
 
     internalStep = 0;  
      
-    traceUserSuppliedData(-1);  
-    traceMemoryUsage();  
+    traceUserSuppliedData(-1);	
+    traceMemoryUsage();	 
      
     //MatGen rnd(thisIndex.x * numBlks + thisIndex.y);
 
-    /*double b = thisIndex.y * BLKSIZE + 1, c = thisIndex.x * BLKSIZE + 1;
+    double b = thisIndex.x * BLKSIZE + 1, c = thisIndex.y * BLKSIZE + 1;
     for (int i = 0; i<BLKSIZE*BLKSIZE; i++) {
       if (i % BLKSIZE == 0 && thisIndex.y == 0) {
-        LU[i] = b;
-        b += 1.0;
-        c += 1.0;
-      } else if (i < 8 && thisIndex.x == 0) {
-        LU[i] = c;
-        c += 1.0;
+	LU[i] = b;
+	b += 1.0;
+	c += 1.0;
+      } else if (i < BLKSIZE && thisIndex.x == 0) {
+	LU[i] = c;
+	c += 1.0;
       } else 
-        LU[i] = 0.0;
+	LU[i] = 0.0;
     }
 
 
@@ -840,22 +842,12 @@ public:
       b = thisIndex.x * BLKSIZE + 1;
 
       for (int i = 0; i < BLKSIZE*BLKSIZE; i+=BLKSIZE+1) {
-        LU[i] = b;
-        b += 1.0;
+	LU[i] = b;
+	b += 1.0;
       }
-      }*/
-
-    char buf[200];
-    sprintf(buf, "output-%d-%d", thisIndex.x, thisIndex.y);
-
-    FILE *file = fopen(buf, "w+");
-
-    for (int i = 0; i < BLKSIZE; i++) {
-      for (int j = 0; j < BLKSIZE; j++) {
-        fprintf(file, "%f ", LU[getIndex(i,j)]);
-      }
-      fprintf(file, "\n");
     }
+
+    this->print("input-generated-LU");
 
     testdgemm();
 
@@ -904,45 +896,8 @@ public:
 
     double luStart = CmiWallTimer();
 
-    //#ifdef USE_LAPACK
+    LUdecompose(LU);
 
-    //There's an output for permuation array which is not
-    //used in the current non-lapack version. This permuation
-    //array should also be broadcasted to those elements that
-    //only needs ComputeL and ComputeU (???)
-
-#if USE_MKL_CBLAS_H 
-    int size = BLKSIZE;
-    int *ipiv = new int[BLKSIZE];
-    int info;
-    // This one doesn't quite do what we want... it does pivoting
-    dgetrf(&size, &size, LU, &size, ipiv, &info);
-#elif USE_ACCELERATE_BLAS
-    __CLPK_integer size = static_cast<__CLPK_integer>(BLKSIZE);
-    __CLPK_integer *ipiv = new __CLPK_integer[BLKSIZE];
-    __CLPK_integer info;
-    dgetrf_(&size, &size, LU, &size, ipiv, &info);
-    delete[] ipiv;
-#elif USE_ESSL
-    int size = BLKSIZE;
-    int *ipiv = new int[BLKSIZE];
-    int info;
-    // This one doesn't quite do what we want... it does pivoting
-    dgetrf(size, size, LU, size, ipiv, &info);
-    delete [] ipiv;
-#else
-    int *ipiv = new int[BLKSIZE];
-    clapack_dgetrf(CblasRowMajor, BLKSIZE, BLKSIZE, LU, BLKSIZE, ipiv);
-
-
-    //    int clapack_dgetrf(const enum CBLAS_ORDER Order, const int
-    //M, const int N,
-    //	       double *A, const int lda, int *ipiv);    
-
-    delete [] ipiv;
-#endif
-    
-    /** @FIXME: do the permutation of the rows specified by ipiv */
 
     traceUserBracketEvent(traceSolveLocalLU, luStart, CmiWallTimer());
   }
@@ -1434,7 +1389,7 @@ public:
   }
 
   int getIndex(int i, int j) {
-    return j * BLKSIZE + i;
+    return i * BLKSIZE + j;
   }
 
   void localForward(double *xvec, double *cvec, bool initial, bool diag) {
@@ -1534,37 +1489,55 @@ public:
       thisProxy(thisIndex.x, thisIndex.x).diagForwardSolve(size, xvec);
 
       if (thisIndex.x == thisIndex.y-1) {
-        /*CProxySection_LUBlk row = 
-          CProxySection_LUBlk::ckNew(thisArrayID, 0, numBlks/2-1, 
-          1, thisIndex.y, thisIndex.y, 1);*/
-        //thisProxy(numBlks/2, thisIndex.y)
-        //CkCallback cb(CkIndex_LUBlk::diagForwardSolve(NULL), thisProxy(numBlks/2, thisIndex.y));
-        //contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double, row, cb);
+	/*CProxySection_LUBlk row = 
+	  CProxySection_LUBlk::ckNew(thisArrayID, 0, numBlks/2-1, 
+	  1, thisIndex.y, thisIndex.y, 1);*/
+	//thisProxy(numBlks/2, thisIndex.y)
+	//CkCallback cb(CkIndex_LUBlk::diagForwardSolve(NULL), thisProxy(numBlks/2, thisIndex.y));
+	//contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double, row, cb);
 
-        // reduction instead
-        
+	// reduction instead
+	
       } else {
-        // reduction to diagonal
+	// reduction to diagonal
       }
       
     }
   }
 
   void print() {
-    /*FILE *file = fopen("output1", "w+");
+    this->print("LU-solution");
+  }
+
+  void print(char* step) {
+    char buf[200];
+    sprintf(buf, "%s-%d-%d", step, thisIndex.x, thisIndex.y);
+
+    FILE *file = fopen(buf, "w+");
 
     for (int i = 0; i < BLKSIZE; i++) {
       for (int j = 0; j < BLKSIZE; j++) {
-        fprintf(file, "%f ", LU[getIndex(i,j)]);
+	fprintf(file, "%f ", LU[getIndex(i,j)]);
       }
       fprintf(file, "\n");
-      }*/
+    }
+  }
 
-    for (int i = 0; i < BLKSIZE; i++) {
-      for (int j = 0; j < BLKSIZE; j++) {
-        CkPrintf("%f ", LU[getIndex(i,j)]);
+  void LUdecompose(double* A) { 
+    for (int j = 0; j < BLKSIZE; j++) {
+      for (int i = 0; i <= j; i++) {
+	double sum = 0.0;
+	for (int k = 0; k < i; k++)
+	  sum += A[getIndex(i, k)] * A[getIndex(k,j)];
+	A[getIndex(i,j)] -= sum;
       }
-      CkPrintf("\n");
+      for (int i = j + 1; i < BLKSIZE; i++) {
+	double sum = 0.0;
+	for (int k = 0; k < j; k++)
+	  sum += A[getIndex(i,k)] * A[getIndex(k,j)];
+	A[getIndex(i,j)] -= sum;
+	A[getIndex(i,j)] /= A[getIndex(j,j)];
+      }
     }
   }
 
