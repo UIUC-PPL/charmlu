@@ -4,7 +4,7 @@ OPTS=-g -O0
 #------------------------------------------------
 # To compile on order or faith(Ubuntu):
 #BLAS_INC =  -DUSE_CBLAS_H=1
-#BLAS_LD = -lcblas -llapack_atlas -lblas-3
+#BLAS_LD = -lcblas
 
 # To compile on hope (OSX):
 #BLAS_INC = -DUSE_ACCELERATE_BLAS=1
