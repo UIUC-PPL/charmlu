@@ -1280,6 +1280,8 @@ public:
       }
       fprintf(file, "\n");
     }
+
+    fclose(file);
   }
 
   void LUdecompose(double* A) { 
