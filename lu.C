@@ -252,7 +252,7 @@ public:
 	minLoadFound = peLoads[p];
       }
     }
-    return minPEFound;    
+    return minPEFound;	  
   }
   
   int workLoad(int x, int y){
@@ -357,7 +357,7 @@ public:
     }
 
     stateN = minPEFound;
-    return minPEFound;    
+    return minPEFound;	  
   }
   
   int workLoad(int x, int y){
@@ -464,8 +464,8 @@ public:
     
     gMatSize = atoi(m->argv[1]);
  
-    if (gMatSize%1024!=0) 
-      CkAbort("The matrix size should be a multiple of 1024!\n");
+    /*if (gMatSize%1024!=0) 
+      CkAbort("The matrix size should be a multiple of 1024!\n");*/
   
     CkPrintf("Running LU on %d processors (%d nodes) on matrix %dX%d with control points\n",
 	     CkNumPes(), CmiNumNodes(), gMatSize, gMatSize);
@@ -478,7 +478,7 @@ public:
     ControlPoint::EffectIncrease::GrainSize("block_size");
     ControlPoint::EffectDecrease::Concurrency("block_size");
     
-    //    ControlPoint::EffectIncrease::Concurrency("mapping");
+    //	  ControlPoint::EffectIncrease::Concurrency("mapping");
     ControlPoint::EffectIncrease::NumMessages("mapping");
     ControlPoint::EffectIncrease::MessageOverhead("mapping");
 
@@ -535,7 +535,9 @@ public:
 
       return;
     } else if (!solved && LUcomplete) {
-      luArrProxy(0, 0).print();
+      luArrProxy.print();
+
+      //luArrProxy(0, 0).print();
 
       CkPrintf("called solve()\n");
       // Perform forward solving
@@ -553,7 +555,7 @@ public:
 	gotoNextPhase();
       
 	whichMulticastStrategy = controlPoint("multicast_strategy", 2, 2);
-	BLKSIZE = 1 << 8; //1 << controlPoint("block_size", 10,10);
+	BLKSIZE = 1 << 2; //1 << controlPoint("block_size", 10,10);
 	mapping = controlPoint("mapping", 1, 1);
 	memThreshold = 200 + controlPoint("memory_threshold", 0, 20) * 100;
       
@@ -595,19 +597,19 @@ public:
 
     double n = gMatSize;
 
-    long long flopCount = 0;     // floating point ops
+    long long flopCount = 0;	 // floating point ops
     for (int i=1;i<=gMatSize;i++) {
       for (int j=1+i; j<=gMatSize; j++) {
 	flopCount += (1+2*gMatSize-2*i);
       }
     }
 
-    double flops = ((double)flopCount)  / duration; // floating point ops per second
+    double flops = ((double)flopCount)	/ duration; // floating point ops per second
     double gflops = flops / 1000000000.0; // Giga fp ops per second
     std::cout << "RESULT procs: \t" << CkNumPes() << "\tblock size:\t" << BLKSIZE << "\tGFlops:\t" << gflops << "\tTime(s):\t" << duration << std::endl;
 
     double HPL_flop_count =  (2.0/3.0*n*n*n-2*n*n)/duration ;
-    double HPL_gflops =  HPL_flop_count / 1000000000.0; // Giga fp ops per second
+    double HPL_gflops =	 HPL_flop_count / 1000000000.0; // Giga fp ops per second
     std::cout << "HPL flop count gives \t" << HPL_gflops << "\tGFlops" << std::endl;
 
     
@@ -635,7 +637,7 @@ public:
 
   void done(pathInformationMsg *m){
     // CkPrintf("Main::done() After critical path has been determined\n");
-    //    m->printme();
+    //	  m->printme();
     gotoNextPhase(); // <<< Make sure we get timings for the phase that just finished.
     CkExit();
   }
@@ -672,12 +674,12 @@ public:
 
 
 
-    /*internalStep = 0;  
+    /*internalStep = 0;	 
      
-    traceUserSuppliedData(-1);  
-    traceMemoryUsage();  
+    traceUserSuppliedData(-1);	
+    traceMemoryUsage();	 
      
-    MatGen rnd(thisIndex.x * numBlks + thisIndex.y);      
+    MatGen rnd(thisIndex.x * numBlks + thisIndex.y);	  
     for (int i=0; i<BLKSIZE*BLKSIZE; i++) {  
       LU[i] = rnd.toRndDouble(rnd.nextRndInt());  
     } 
@@ -689,14 +691,14 @@ public:
 
   void flushLogs() {
     flushTraceLog();
-    contribute(CkCallback(CkIndex_Main::continueIter(), mainProxy));    
+    contribute(CkCallback(CkIndex_Main::continueIter(), mainProxy));	
   }
 
   void testdgemm(){
 #if 0
     unsigned long blocksize = 32 << thisIndex.x;
     
-    if(thisIndex.y == 0 && thisIndex.x == 1){     
+    if(thisIndex.y == 0 && thisIndex.x == 1){	  
       
 #if USE_MEMALIGN
       double *m1 = (double*)memalign(128, blocksize*blocksize*sizeof(double) );
@@ -712,9 +714,9 @@ public:
 
       MatGen rnd(0); 
       for (int i=0; i<blocksize*blocksize; i++) { 
-        m1[i] = rnd.toRndDouble(rnd.nextRndInt()); 
-        m2[i] = rnd.toRndDouble(rnd.nextRndInt()); 
-        m3[i] = rnd.toRndDouble(rnd.nextRndInt()); 
+	m1[i] = rnd.toRndDouble(rnd.nextRndInt()); 
+	m2[i] = rnd.toRndDouble(rnd.nextRndInt()); 
+	m3[i] = rnd.toRndDouble(rnd.nextRndInt()); 
       } 
       
       double startTest = CmiWallTimer(); 
@@ -727,12 +729,12 @@ public:
 	     1.0, m3, blocksize);
 #else
       cblas_dgemm( CblasRowMajor, 
-                   CblasNoTrans, CblasNoTrans, 
-                   blocksize, blocksize, blocksize, 
-                   -1.0, m1, 
-                   blocksize, m2, blocksize, 
-                   1.0, m3, blocksize); 
-#endif     
+		   CblasNoTrans, CblasNoTrans, 
+		   blocksize, blocksize, blocksize, 
+		   -1.0, m1, 
+		   blocksize, m2, blocksize, 
+		   1.0, m3, blocksize); 
+#endif	   
       
       double endTest = CmiWallTimer(); 
       double duration = endTest-startTest; 
@@ -753,12 +755,12 @@ public:
 	     1.0, m3, blocksize);
 #else
       cblas_dgemm( CblasRowMajor, 
-                   CblasTrans, CblasTrans, 
-                   blocksize, blocksize, blocksize, 
-                   -1.0, m1, 
-                   blocksize, m2, blocksize, 
-                   1.0, m3, blocksize); 
-#endif     
+		   CblasTrans, CblasTrans, 
+		   blocksize, blocksize, blocksize, 
+		   -1.0, m1, 
+		   blocksize, m2, blocksize, 
+		   1.0, m3, blocksize); 
+#endif	   
       
       double endTest = CmiWallTimer(); 
       double duration = endTest-startTest; 
@@ -803,7 +805,7 @@ public:
 
 #if USE_MEMALIGN
     LU = (double*)memalign(128, BLKSIZE*BLKSIZE*sizeof(double) );
-    //   CkPrintf("LU mod 128 = %lu\n", ((unsigned long)LU) % 128);
+    //	 CkPrintf("LU mod 128 = %lu\n", ((unsigned long)LU) % 128);
     CkAssert(LU != NULL);
 #else
     LU = new double[BLKSIZE*BLKSIZE];
@@ -811,22 +813,22 @@ public:
 
     internalStep = 0;  
      
-    traceUserSuppliedData(-1);  
-    traceMemoryUsage();  
+    traceUserSuppliedData(-1);	
+    traceMemoryUsage();	 
      
     //MatGen rnd(thisIndex.x * numBlks + thisIndex.y);
 
-    /*double b = thisIndex.y * BLKSIZE + 1, c = thisIndex.x * BLKSIZE + 1;
+    double b = thisIndex.x * BLKSIZE + 1, c = thisIndex.y * BLKSIZE + 1;
     for (int i = 0; i<BLKSIZE*BLKSIZE; i++) {
       if (i % BLKSIZE == 0 && thisIndex.y == 0) {
-        LU[i] = b;
-        b += 1.0;
-        c += 1.0;
-      } else if (i < 8 && thisIndex.x == 0) {
-        LU[i] = c;
-        c += 1.0;
+	LU[i] = b;
+	b += 1.0;
+	c += 1.0;
+      } else if (i < BLKSIZE && thisIndex.x == 0) {
+	LU[i] = c;
+	c += 1.0;
       } else 
-        LU[i] = 0.0;
+	LU[i] = 0.0;
     }
 
 
@@ -834,22 +836,12 @@ public:
       b = thisIndex.x * BLKSIZE + 1;
 
       for (int i = 0; i < BLKSIZE*BLKSIZE; i+=BLKSIZE+1) {
-        LU[i] = b;
-        b += 1.0;
+	LU[i] = b;
+	b += 1.0;
       }
-      }*/
-
-    char buf[200];
-    sprintf(buf, "output-%d-%d", thisIndex.x, thisIndex.y);
-
-    FILE *file = fopen(buf, "w+");
-
-    for (int i = 0; i < BLKSIZE; i++) {
-      for (int j = 0; j < BLKSIZE; j++) {
-        fprintf(file, "%f ", LU[getIndex(i,j)]);
-      }
-      fprintf(file, "\n");
     }
+
+    this->print("input-generated-LU");
 
     testdgemm();
 
@@ -894,45 +886,7 @@ public:
 
     CkAssert(thisIndex.x == thisIndex.y);
 
-    //#ifdef USE_LAPACK
-
-    //There's an output for permuation array which is not
-    //used in the current non-lapack version. This permuation
-    //array should also be broadcasted to those elements that
-    //only needs ComputeL and ComputeU (???)
-
-#if USE_MKL_CBLAS_H 
-    int size = BLKSIZE;
-    int *ipiv = new int[BLKSIZE];
-    int info;
-    // This one doesn't quite do what we want... it does pivoting
-    dgetrf(&size, &size, LU, &size, ipiv, &info);
-#elif USE_ACCELERATE_BLAS
-    __CLPK_integer size = static_cast<__CLPK_integer>(BLKSIZE);
-    __CLPK_integer *ipiv = new __CLPK_integer[BLKSIZE];
-    __CLPK_integer info;
-    dgetrf_(&size, &size, LU, &size, ipiv, &info);
-    delete[] ipiv;
-#elif USE_ESSL
-    int size = BLKSIZE;
-    int *ipiv = new int[BLKSIZE];
-    int info;
-    // This one doesn't quite do what we want... it does pivoting
-    dgetrf(size, size, LU, size, ipiv, &info);
-    delete [] ipiv;
-#else
-    int *ipiv = new int[BLKSIZE];
-    clapack_dgetrf(CblasRowMajor, BLKSIZE, BLKSIZE, LU, BLKSIZE, ipiv);
-
-
-    //    int clapack_dgetrf(const enum CBLAS_ORDER Order, const int
-    //M, const int N,
-    //	       double *A, const int lda, int *ipiv);    
-
-    delete [] ipiv;
-#endif
-    
-    /** @FIXME: do the permutation of the rows specified by ipiv */
+    LUdecompose(LU);
   }
 
 
@@ -969,7 +923,7 @@ public:
   void computeL(blkMsg *givenUMsg) {
     traceLU t(internalStep, traceComputeL);
     double *givenU = givenUMsg->data;
-    //    CkAssert( ((unsigned long)givenU) % 16 == 0);
+    //	  CkAssert( ((unsigned long)givenU) % 16 == 0);
 
     DEBUG_PRINT("elem[%d,%d]::computeL called at step %d\n", thisIndex.x, thisIndex.y, internalStep);
 
@@ -1019,9 +973,9 @@ public:
     oneCol.recvU(givenU);
 
 //     for(int i=thisIndex.x+1; i<numBlks; i++){
-//       blkMsg *givenU = createABlkMsg();
-//       DEBUG_PRINT("P2P sending U from %d,%d down to %d,%d\n", thisIndex.x, thisIndex.y, i,thisIndex.y);
-//       thisProxy(i,thisIndex.y).updateRecvU(givenU);
+//	 blkMsg *givenU = createABlkMsg();
+//	 DEBUG_PRINT("P2P sending U from %d,%d down to %d,%d\n", thisIndex.x, thisIndex.y, i,thisIndex.y);
+//	 thisProxy(i,thisIndex.y).updateRecvU(givenU);
 //     }
     
   }
@@ -1042,9 +996,9 @@ public:
     oneRow.recvL(givenL);
     
 //     for(int i=thisIndex.y+1; i<numBlks; i++){
-//       blkMsg *givenL = createABlkMsg();
-//       DEBUG_PRINT("P2P sending L from %d,%d right to %d,%d\n", thisIndex.x, thisIndex.y, thisIndex.x, i);
-//       thisProxy(thisIndex.x, i).updateRecvL(givenL);
+//	 blkMsg *givenL = createABlkMsg();
+//	 DEBUG_PRINT("P2P sending L from %d,%d right to %d,%d\n", thisIndex.x, thisIndex.y, thisIndex.x, i);
+//	 thisProxy(thisIndex.x, i).updateRecvL(givenL);
 //     }
     
   }
@@ -1102,7 +1056,7 @@ public:
     } else {
       DEBUG_PRINT("[%d] chare %d,%d is top,left block this step, multicast U & L\n", CkMyPe(), thisIndex.x, thisIndex.y);
       multicastRecvU();	//broadcast the U downwards to the blocks in the same column
-      multicastRecvL(); 	//broadcast the L rightwards to the blocks in the same row
+      multicastRecvL();		//broadcast the L rightwards to the blocks in the same row
     }
       
     DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
@@ -1113,7 +1067,7 @@ public:
   inline void selfContinue(){
     int integerPrio;
     
-    //    CkPrintf("continuing %d,%d  internalStep=%d \n", thisIndex.x,thisIndex.y, internalStep);
+    //	  CkPrintf("continuing %d,%d  internalStep=%d \n", thisIndex.x,thisIndex.y, internalStep);
 
 
     double c1 = 1.0;
@@ -1170,7 +1124,7 @@ public:
 
     }
 
-#endif    
+#endif	  
 
     CkEntryOptions eOpts; 
     eOpts.setPriority (integerPrio); // setPriority sets the queuing type internally
@@ -1194,11 +1148,10 @@ public:
     }
 
   }
-  
 #endif
 
   int getIndex(int i, int j) {
-    return j * BLKSIZE + i;
+    return i * BLKSIZE + j;
   }
 
   void localForward(double *xvec, double *cvec, bool initial, bool diag) {
@@ -1207,20 +1160,20 @@ public:
     // Local forward solve, replace with library calls
     for (int i = 0; i < BLKSIZE; i++) {
       /*if (!initial) {
-        if (diag)
-          for (int k = 0; k < BLKSIZE; k++) {
-            xvec[i] = bvec[i] - LU[getIndex(i,k)] * cvec[k];
-          }
-        else
-          for (int k = 0; k < BLKSIZE; k++) {
-            xvec[i] = LU[getIndex(i,k)] * cvec[k];
-          }
-          }*/
+	if (diag)
+	  for (int k = 0; k < BLKSIZE; k++) {
+	    xvec[i] = bvec[i] - LU[getIndex(i,k)] * cvec[k];
+	  }
+	else
+	  for (int k = 0; k < BLKSIZE; k++) {
+	    xvec[i] = LU[getIndex(i,k)] * cvec[k];
+	  }
+	  }*/
       for (int j = 0; j < i; j++) {
-        //if (!diag || j != i)
-        xvec[i] -= LU[getIndex(i,j)] * bvec[j];
-        //else
-        //xvec[i] = LU[getIndex(i,j)] * bvec[j];
+	//if (!diag || j != i)
+	xvec[i] -= LU[getIndex(i,j)] * bvec[j];
+	//else
+	//xvec[i] = LU[getIndex(i,j)] * bvec[j];
       }
       
       //bvec[i] /= LU[getIndex(i,i)];
@@ -1247,18 +1200,18 @@ public:
       localForward(xvec, NULL, true, true);
       
       if (thisIndex.x == numBlks-1) {
-        CkPrintf("forward-solve complete, (%d, %d) numBlks = %d\n", thisIndex.x, thisIndex.y, numBlks);
+	CkPrintf("forward-solve complete, (%d, %d) numBlks = %d\n", thisIndex.x, thisIndex.y, numBlks);
 
-        for (int i = 0; i < BLKSIZE; i++) {
-          CkPrintf("xvec[%d] = %f\n", i, xvec[i]);
-        }
-        
+	for (int i = 0; i < BLKSIZE; i++) {
+	  CkPrintf("xvec[%d] = %f\n", i, xvec[i]);
+	}
+	
        CkExit();
       }
 
       CProxySection_LUBlk col = 
-        CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 
-                                   1, thisIndex.y, thisIndex.y, 1);
+	CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 
+				   1, thisIndex.y, thisIndex.y, 1);
 
       col.forwardSolve(BLKSIZE, xvec);
     }
@@ -1268,7 +1221,7 @@ public:
     if (!storedVec) {
       storedVec = new double[BLKSIZE];
       for (int i = 0; i < BLKSIZE; i++) {
-        storedVec[i] = 0.0;
+	storedVec[i] = 0.0;
       }
     }
 
@@ -1295,37 +1248,55 @@ public:
       thisProxy(thisIndex.x, thisIndex.x).diagForwardSolve(size, xvec);
 
       if (thisIndex.x == thisIndex.y-1) {
-        /*CProxySection_LUBlk row = 
-          CProxySection_LUBlk::ckNew(thisArrayID, 0, numBlks/2-1, 
-          1, thisIndex.y, thisIndex.y, 1);*/
-        //thisProxy(numBlks/2, thisIndex.y)
-        //CkCallback cb(CkIndex_LUBlk::diagForwardSolve(NULL), thisProxy(numBlks/2, thisIndex.y));
-        //contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double, row, cb);
+	/*CProxySection_LUBlk row = 
+	  CProxySection_LUBlk::ckNew(thisArrayID, 0, numBlks/2-1, 
+	  1, thisIndex.y, thisIndex.y, 1);*/
+	//thisProxy(numBlks/2, thisIndex.y)
+	//CkCallback cb(CkIndex_LUBlk::diagForwardSolve(NULL), thisProxy(numBlks/2, thisIndex.y));
+	//contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double, row, cb);
 
-        // reduction instead
-        
+	// reduction instead
+	
       } else {
-        // reduction to diagonal
+	// reduction to diagonal
       }
       
     }
   }
 
   void print() {
-    /*FILE *file = fopen("output1", "w+");
+    this->print("LU-solution");
+  }
+
+  void print(const char* step) {
+    char buf[200];
+    sprintf(buf, "%s-%d-%d", step, thisIndex.x, thisIndex.y);
+
+    FILE *file = fopen(buf, "w+");
 
     for (int i = 0; i < BLKSIZE; i++) {
       for (int j = 0; j < BLKSIZE; j++) {
-        fprintf(file, "%f ", LU[getIndex(i,j)]);
+	fprintf(file, "%f ", LU[getIndex(i,j)]);
       }
       fprintf(file, "\n");
-      }*/
+    }
+  }
 
-    for (int i = 0; i < BLKSIZE; i++) {
-      for (int j = 0; j < BLKSIZE; j++) {
-        CkPrintf("%f ", LU[getIndex(i,j)]);
+  void LUdecompose(double* A) { 
+    for (int j = 0; j < BLKSIZE; j++) {
+      for (int i = 0; i <= j; i++) {
+	double sum = 0.0;
+	for (int k = 0; k < i; k++)
+	  sum += A[getIndex(i, k)] * A[getIndex(k,j)];
+	A[getIndex(i,j)] -= sum;
       }
-      CkPrintf("\n");
+      for (int i = j + 1; i < BLKSIZE; i++) {
+	double sum = 0.0;
+	for (int k = 0; k < j; k++)
+	  sum += A[getIndex(i,k)] * A[getIndex(k,j)];
+	A[getIndex(i,j)] -= sum;
+	A[getIndex(i,j)] /= A[getIndex(j,j)];
+      }
     }
   }
 
