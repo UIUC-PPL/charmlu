@@ -399,6 +399,20 @@ public:
   }
 };
 
+struct traceLU {
+  int step, event;
+  double startTime;
+  traceLU(int internalStep, int eventType)
+    : step(internalStep), event(eventType), startTime(CkWallTimer()) {
+    traceUserSuppliedData(internalStep);
+    traceMemoryUsage();
+  }
+
+  ~traceLU() {
+    traceUserBracketEvent(event, startTime, CkWallTimer());
+  }
+};
+
 class Main : public CBase_Main {
 public:
   double startTime;
@@ -873,15 +887,12 @@ public:
 
   //thisIndex.x indicates the internal step it is going to work on
   void solveLocalLU() {
-    traceUserSuppliedData(internalStep);
-    traceMemoryUsage();
+    traceLU t(internalStep, traceSolveLocalLU);
     internalStep = thisIndex.x;
 
     DEBUG_PRINT("elem[%d,%d]::solveLocalLU called at step %d\n", thisIndex.x, thisIndex.y, internalStep);
 
     CkAssert(thisIndex.x == thisIndex.y);
-
-    double luStart = CmiWallTimer();
 
     //#ifdef USE_LAPACK
 
@@ -922,14 +933,11 @@ public:
 #endif
     
     /** @FIXME: do the permutation of the rows specified by ipiv */
-
-    traceUserBracketEvent(traceSolveLocalLU, luStart, CmiWallTimer());
   }
 
 
   void computeU(blkMsg *givenLMsg) {
-    traceUserSuppliedData(internalStep);
-    traceMemoryUsage();
+    traceLU t(internalStep, traceComputeU);
     double *givenL = givenLMsg->data;
 
 #if 0
@@ -942,8 +950,6 @@ public:
 
     CkAssert( ((unsigned long)givenL) % 16 == 0);
 #endif
-
-    double uStart = CmiWallTimer();
 
     DEBUG_PRINT("elem[%d,%d]::computeU called at step %d\n", thisIndex.x, thisIndex.y, internalStep);
 
@@ -958,19 +964,12 @@ public:
 #else
     cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU, BLKSIZE);
 #endif
-
-    traceUserBracketEvent(traceComputeU, uStart, CmiWallTimer());
   }
 
   void computeL(blkMsg *givenUMsg) {
-    traceUserSuppliedData(internalStep);
-    traceMemoryUsage();
+    traceLU t(internalStep, traceComputeL);
     double *givenU = givenUMsg->data;
     //    CkAssert( ((unsigned long)givenU) % 16 == 0);
-
-
-    //traceUserEvent(traceComputeL);
-    double lStart = CmiWallTimer();
 
     DEBUG_PRINT("elem[%d,%d]::computeL called at step %d\n", thisIndex.x, thisIndex.y, internalStep);
 
@@ -979,17 +978,11 @@ public:
 #else
     cblas_dtrsm(CblasRowMajor, CblasRight, CblasUpper, CblasNoTrans, CblasNonUnit, BLKSIZE, BLKSIZE, 1.0, givenU, BLKSIZE, LU, BLKSIZE);
 #endif
-
-    traceUserBracketEvent(traceComputeL, lStart, CmiWallTimer());
   }
 
   void updateMatrix(blkMsg *givenLMsg, blkMsg *givenUMsg) {
-    traceUserSuppliedData(internalStep);
-    traceMemoryUsage();
+    traceLU t(internalStep, traceTrailingUpdate);
     DEBUG_PRINT("elem[%d,%d] is updating its value at step %d\n", thisIndex.x, thisIndex.y, internalStep);
-
-    //traceUserEvent(traceTrailingUpdate);
-    double updateStart = CmiWallTimer();
 
     double *incomingL = givenLMsg->data;
     double *incomingU = givenUMsg->data;
@@ -1008,8 +1001,6 @@ public:
 		 BLKSIZE, incomingU, BLKSIZE,
 		 1.0, LU, BLKSIZE);
 #endif
-
-    traceUserBracketEvent(traceTrailingUpdate, updateStart, CmiWallTimer());
   }
 
   //broadcast the U downwards to the blocks in the same column
