@@ -1203,18 +1203,13 @@ public:
       CkPrintf("bvec[%d] = %f\n", i, bvec[i]);
     }
 
-    double *xvec;
-
     CkPrintf("allocate xvec\n");
-    xvec = new double[BLKSIZE];
+    double *xvec = new double[BLKSIZE];
+
+    CkPrintf("Calling local solver - diag = true\n");
+    localSolve(xvec, (size == BLKSIZE) ? preVec : NULL, true, !backward);
 
     if (!backward) {
-      CkPrintf("calling localForward() diag = true\n");
-
-      if (size != BLKSIZE)
-        localSolve(xvec, NULL, true, true);
-      else
-        localSolve(xvec, preVec, true, true);
       
       /*for (int i = 0; i < BLKSIZE; i++) {
         CkPrintf("%d, %d: xvec[%d] = %f\n", thisIndex.x, thisIndex.y, i, xvec[i]);
@@ -1243,12 +1238,6 @@ public:
 
       col.forwardSolve(BLKSIZE, xvec);
     } else {
-      CkPrintf("calling localBackward() diag = true\n");
-
-      if (size != BLKSIZE)
-        localSolve(xvec, NULL, true, false);
-      else
-        localSolve(xvec, preVec, true, false);
 
       for (int i = 0; i < BLKSIZE; i++) {
         CkPrintf("xvec[%d] = %f\n", i, xvec[i]);
