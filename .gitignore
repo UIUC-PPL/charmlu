@@ -6,5 +6,5 @@ lu-proj.sts
 *.decl.h
 *.def.h
 *.o
-output-*
 input-generated-*
+LU-solution-*
