@@ -492,12 +492,14 @@ public:
   void finishInit() {
     if (!sentVectorData) {
       // Generate vector data
-      double* vec = new double[BLKSIZE];
+      double* vec = new double[BLKSIZE*numBlks];
     
-      for (int i = 0; i < BLKSIZE; i++)
+      for (int i = 0; i < BLKSIZE*numBlks; i++)
 	vec[i] = i;
       
-      luArrProxy.initVec(BLKSIZE, vec);
+      for (int i = 0; i < numBlks; i++)
+        for (int j = 0; j < numBlks; j++)
+          luArrProxy(i, j).initVec(BLKSIZE, vec+(i*BLKSIZE));
 
       sentVectorData = true;
     } else {
@@ -831,7 +833,6 @@ public:
 	LU[i] = 0.0;
     }
 
-
     if (thisIndex.x == thisIndex.y) {
       b = thisIndex.x * BLKSIZE + 1;
 
@@ -880,7 +881,8 @@ public:
   //thisIndex.x indicates the internal step it is going to work on
   void solveLocalLU() {
     traceLU t(internalStep, traceSolveLocalLU);
-    internalStep = thisIndex.x;
+
+    CkAssert(internalStep == thisIndex.x);
 
     DEBUG_PRINT("elem[%d,%d]::solveLocalLU called at step %d\n", thisIndex.x, thisIndex.y, internalStep);
 
@@ -1154,33 +1156,31 @@ public:
     return i * BLKSIZE + j;
   }
 
-  void localForward(double *xvec, double *cvec, bool initial, bool diag) {
-    memcpy(xvec, bvec, sizeof(double) * BLKSIZE);
-
-    // Local forward solve, replace with library calls
-    for (int i = 0; i < BLKSIZE; i++) {
-      /*if (!initial) {
-	if (diag)
-	  for (int k = 0; k < BLKSIZE; k++) {
-	    xvec[i] = bvec[i] - LU[getIndex(i,k)] * cvec[k];
-	  }
-	else
-	  for (int k = 0; k < BLKSIZE; k++) {
-	    xvec[i] = LU[getIndex(i,k)] * cvec[k];
-	  }
-	  }*/
-      for (int j = 0; j < i; j++) {
-	//if (!diag || j != i)
-	xvec[i] -= LU[getIndex(i,j)] * bvec[j];
-	//else
-	//xvec[i] = LU[getIndex(i,j)] * bvec[j];
+  void localForward(double *xvec, double *preVec, bool diag) {
+    if (!diag) {
+      for (int i = 0; i < BLKSIZE; i++) {
+        xvec[i] = 0.0;
       }
       
-      //bvec[i] /= LU[getIndex(i,i)];
+      for (int i = 0; i < BLKSIZE; i++) {
+        for (int j = 0; j < BLKSIZE; j++) {
+          xvec[i] += LU[getIndex(i,j)] * preVec[j];
+        }
+      }
+    } else {
+      memcpy(xvec, bvec, sizeof(double) * BLKSIZE);
+      
+      // Local forward solve, replace with library calls
+      for (int i = 0; i < BLKSIZE; i++) {
+        for (int j = 0; j < i; j++) {
+          xvec[i] -= LU[getIndex(i,j)] * xvec[j];
+        }
+        //bvec[i] /= LU[getIndex(i,i)];
+      }
     }
   }
-  
-  void solve(bool backward, int size, double* cvec) {
+    
+  void solve(bool backward, int size, double* preVec) {
     CkPrintf("solved called on: (%d, %d)\n", thisIndex.x, thisIndex.y);
 
     for (int i = 0; i < BLKSIZE; i++) {
@@ -1189,23 +1189,31 @@ public:
 
     double *xvec;
 
-    if (size == BLKSIZE)
-      xvec = cvec;
-    else {
-      CkPrintf("allocate xvec\n");
-      xvec = new double[BLKSIZE];
+    if (size == BLKSIZE) {
+      for (int i = 0; i < size; i++) {
+        bvec[i] -= preVec[i];
+      }
     }
 
+    CkPrintf("allocate xvec\n");
+    xvec = new double[BLKSIZE];
+
     if (!backward) {
-      localForward(xvec, NULL, true, true);
+      CkPrintf("calling localForward() diag = true\n");
+
+      localForward(xvec, NULL, true);
+      
+      /*for (int i = 0; i < BLKSIZE; i++) {
+        CkPrintf("%d, %d: xvec[%d] = %f\n", thisIndex.x, thisIndex.y, i, xvec[i]);
+        }*/
+
+      for (int i = 0; i < BLKSIZE; i++) {
+        CkPrintf("xvec[%d] = %f\n", i, xvec[i]);
+      }
       
       if (thisIndex.x == numBlks-1) {
 	CkPrintf("forward-solve complete, (%d, %d) numBlks = %d\n", thisIndex.x, thisIndex.y, numBlks);
 
-	for (int i = 0; i < BLKSIZE; i++) {
-	  CkPrintf("xvec[%d] = %f\n", i, xvec[i]);
-	}
-	
        CkExit();
       }
 
@@ -1235,13 +1243,13 @@ public:
       thisProxy(thisIndex.x, thisIndex.y).solve(false, BLKSIZE, storedVec);
   }
 
-  void forwardSolve(int size, double* cvec) {
+  void forwardSolve(int size, double* preVec) {
     if (thisIndex.x == thisIndex.y) {
-      thisProxy(thisIndex.x, thisIndex.y).solve(false, BLKSIZE, cvec);
+      thisProxy(thisIndex.x, thisIndex.y).solve(false, BLKSIZE, preVec);
     } else {
       double *xvec = new double[BLKSIZE];
 
-      localForward(xvec, cvec, false, false);
+      localForward(xvec, preVec, false);
     
       CkPrintf("diagForwardSolve called from: (%d, %d), on: (%d, %d)\n", thisIndex.x, thisIndex.y, thisIndex.x, thisIndex.x);
 
