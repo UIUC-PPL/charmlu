@@ -512,7 +512,7 @@ public:
 
   void arrayIsCreated(CkReductionMsg * m) {
     startTime = CmiWallTimer();
-    luArrProxy.run();
+    luArrProxy.factor();
   }
 
   void iterationCompleted() {

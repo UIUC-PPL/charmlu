@@ -31,7 +31,7 @@ mainmodule lu {
     entry void init(int whichMulticastStrategy, int, int, int memThreshold);
     entry void initVec(int size, double bvec[size]);
 
-    entry void run()
+    entry void factor()
     {
 	for (internalStep = 0;
 	     internalStep < min(thisIndex.x, thisIndex.y);
