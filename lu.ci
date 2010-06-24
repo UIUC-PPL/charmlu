@@ -69,19 +69,33 @@ mainmodule lu {
 	}
     };
 
+    // These entry methods are the targets of the row- and column-wise
+    // multicasts each block makes.
+    //
+    // These methods reference but will not modify the messages
+    // delivered to them. Thus, we can use the [nokeep] annotation to
+    // tell the runtime that it can safely deliver the same message
+    // instance to every object on a processor, rather than making a
+    // separate copy for each object.
     entry [nokeep] void recvL(blkMsg *);
     entry [nokeep] void recvU(blkMsg *);
 
-    /// These process* entry methods are invoked locally with varying
-    /// priorities, to let the scheduler decide when the work they
-    /// represent (the bulk of the computation) should execute.
-
+    // These process* entry methods are invoked locally by each block
+    // on itself with varying priorities, to let the scheduler decide
+    // when the work they represent (the bulk of the computation)
+    // should execute.
+    //
+    // When a block computes a trailing update, it no longer needs to
+    // retain the incoming data from the corresponding row and column
+    // updates. The [memcritical] annotation tells the runtime that it
+    // should schedule invocations of this entry method when it is in
+    // a memory critical (i.e. over threshold) condition, so that
+    // retained messages can be freed.
     entry [memcritical] void processTrailingUpdate(int ignoredParam);
     entry void processLocalLU(int ignoredParam);
-
     // These two free buffered messages, but don't really reduce
     // memory pressure, because they generate multicasts along the
-    // way. Hence, not marked [memcritical]
+    // way. Hence, they're not marked [memcritical].
     entry void processComputeL(int ignoredParam);
     entry void processComputeU(int ignoredParam);
 
