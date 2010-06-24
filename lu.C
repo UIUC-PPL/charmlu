@@ -542,11 +542,9 @@ public:
       //luArrProxy(0, 0).print();
 
       CkPrintf("called solve()\n");
+
       // Perform forward solving
       luArrProxy(0, 0).solve(false, 0, NULL);
-
-      // Perform backward solving
-      //luArrProxy(numBlks-1, numBlks-1).solve(true, 0, NULL);
 
       solved = true;
       iteration++;
@@ -1168,7 +1166,11 @@ public:
         }
       }
     } else {
-      memcpy(xvec, bvec, sizeof(double) * BLKSIZE);
+      if (preVec != NULL)
+        for (int i = 0; i < BLKSIZE; i++)
+          xvec[i] = bvec[i] - preVec[i];
+      else
+        memcpy(xvec, bvec, sizeof(double) * BLKSIZE);
       
       // Local forward solve, replace with library calls
       for (int i = 0; i < BLKSIZE; i++) {
@@ -1176,6 +1178,34 @@ public:
           xvec[i] -= LU[getIndex(i,j)] * xvec[j];
         }
         //bvec[i] /= LU[getIndex(i,i)];
+      }
+    }
+  }
+
+  void localBackward(double *xvec, double *preVec, bool diag) {
+    if (!diag) {
+      for (int i = 0; i < BLKSIZE; i++) {
+        xvec[i] = 0.0;
+      }
+      
+      for (int i = 0; i < BLKSIZE; i++) {
+        for (int j = 0; j < BLKSIZE; j++) {
+          xvec[i] += LU[getIndex(i,j)] * preVec[j];
+        }
+      }
+    } else {
+      if (preVec != NULL)
+        for (int i = 0; i < BLKSIZE; i++)
+          xvec[i] = bvec[i] - preVec[i];
+      else
+        memcpy(xvec, bvec, sizeof(double) * BLKSIZE);
+      
+      // Local forward solve, replace with library calls
+      for (int i = BLKSIZE-1; i >= 0; i--) {
+        for (int j = i+1; j < BLKSIZE; j++) {
+          xvec[i] -= LU[getIndex(i,j)] * xvec[j];
+        }
+        xvec[i] /= LU[getIndex(i,i)];
       }
     }
   }
@@ -1189,32 +1219,36 @@ public:
 
     double *xvec;
 
-    if (size == BLKSIZE) {
-      for (int i = 0; i < size; i++) {
-        bvec[i] -= preVec[i];
-      }
-    }
-
     CkPrintf("allocate xvec\n");
     xvec = new double[BLKSIZE];
 
     if (!backward) {
       CkPrintf("calling localForward() diag = true\n");
 
-      localForward(xvec, NULL, true);
+      if (size != BLKSIZE)
+        localForward(xvec, NULL, true);
+      else
+        localForward(xvec, preVec, true);
       
       /*for (int i = 0; i < BLKSIZE; i++) {
         CkPrintf("%d, %d: xvec[%d] = %f\n", thisIndex.x, thisIndex.y, i, xvec[i]);
         }*/
 
       for (int i = 0; i < BLKSIZE; i++) {
+        bvec[i] = xvec[i];
         CkPrintf("xvec[%d] = %f\n", i, xvec[i]);
       }
+
+      delete[] storedVec;
+      storedVec = NULL;
+      
+      diagRec = 0;
       
       if (thisIndex.x == numBlks-1) {
 	CkPrintf("forward-solve complete, (%d, %d) numBlks = %d\n", thisIndex.x, thisIndex.y, numBlks);
 
-       CkExit();
+        // Perform backward solving
+        thisProxy(numBlks-1, numBlks-1).solve(true, 0, NULL);
       }
 
       CProxySection_LUBlk col = 
@@ -1222,7 +1256,31 @@ public:
 				   1, thisIndex.y, thisIndex.y, 1);
 
       col.forwardSolve(BLKSIZE, xvec);
+    } else {
+      CkPrintf("calling localBackward() diag = true\n");
+
+      if (size != BLKSIZE)
+        localBackward(xvec, NULL, true);
+      else
+        localBackward(xvec, preVec, true);
+
+      for (int i = 0; i < BLKSIZE; i++) {
+        CkPrintf("xvec[%d] = %f\n", i, xvec[i]);
+      }
+      
+      if (thisIndex.x == 0) {
+	CkPrintf("backward-solve complete, (%d, %d) numBlks = %d\n", thisIndex.x, thisIndex.y, numBlks);
+
+        CkExit();
+      }
+
+      CProxySection_LUBlk col = 
+	CProxySection_LUBlk::ckNew(thisArrayID, 0, thisIndex.x-1,
+				   1, thisIndex.y, thisIndex.y, 1);
+
+      col.backwardSolve(BLKSIZE, xvec);
     }
+
   }
 
   void diagForwardSolve(int size, double* vec) {
@@ -1237,39 +1295,52 @@ public:
       storedVec[i] += vec[i];
     }
     
-    CkPrintf("expected %d, received %d\n", thisIndex.y, diagRec+1);
+    CkPrintf("FORWARD: expected %d, received %d\n", thisIndex.y, diagRec+1);
 
     if (++diagRec == thisIndex.y)
       thisProxy(thisIndex.x, thisIndex.y).solve(false, BLKSIZE, storedVec);
   }
 
-  void forwardSolve(int size, double* preVec) {
-    if (thisIndex.x == thisIndex.y) {
-      thisProxy(thisIndex.x, thisIndex.y).solve(false, BLKSIZE, preVec);
-    } else {
-      double *xvec = new double[BLKSIZE];
-
-      localForward(xvec, preVec, false);
-    
-      CkPrintf("diagForwardSolve called from: (%d, %d), on: (%d, %d)\n", thisIndex.x, thisIndex.y, thisIndex.x, thisIndex.x);
-
-      thisProxy(thisIndex.x, thisIndex.x).diagForwardSolve(size, xvec);
-
-      if (thisIndex.x == thisIndex.y-1) {
-	/*CProxySection_LUBlk row = 
-	  CProxySection_LUBlk::ckNew(thisArrayID, 0, numBlks/2-1, 
-	  1, thisIndex.y, thisIndex.y, 1);*/
-	//thisProxy(numBlks/2, thisIndex.y)
-	//CkCallback cb(CkIndex_LUBlk::diagForwardSolve(NULL), thisProxy(numBlks/2, thisIndex.y));
-	//contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double, row, cb);
-
-	// reduction instead
-	
-      } else {
-	// reduction to diagonal
+  void diagBackwardSolve(int size, double* vec) {
+    if (!storedVec) {
+      storedVec = new double[BLKSIZE];
+      for (int i = 0; i < BLKSIZE; i++) {
+	storedVec[i] = 0.0;
       }
-      
     }
+
+    for (int i = 0; i < BLKSIZE; i++) {
+      storedVec[i] += vec[i];
+    }
+    
+    int expected = numBlks-1-thisIndex.y;
+    
+    CkPrintf("BACKWARD: expected %d, received %d\n", expected, diagRec+1);
+
+    if (++diagRec == expected)
+      thisProxy(thisIndex.x, thisIndex.y).solve(true, BLKSIZE, storedVec);
+  }
+
+  void forwardSolve(int size, double* preVec) {
+    double *xvec = new double[BLKSIZE];
+    
+    localForward(xvec, preVec, false);
+    
+    CkPrintf("diagForwardSolve called from: (%d, %d), on: (%d, %d)\n", 
+             thisIndex.x, thisIndex.y, thisIndex.x, thisIndex.x);
+    
+    thisProxy(thisIndex.x, thisIndex.x).diagForwardSolve(size, xvec);
+  }
+
+  void backwardSolve(int size, double* preVec) {
+    double *xvec = new double[BLKSIZE];
+    
+    localBackward(xvec, preVec, false);
+    
+    CkPrintf("diagBackwardSolve called from: (%d, %d), on: (%d, %d)\n", 
+             thisIndex.x, thisIndex.y, thisIndex.x, thisIndex.x);
+    
+    thisProxy(thisIndex.x, thisIndex.x).diagBackwardSolve(size, xvec);
   }
 
   void print() {
