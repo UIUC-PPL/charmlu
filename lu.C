@@ -784,9 +784,11 @@ public:
     bvec = new double[BLKSIZE];
     memcpy(bvec, vec, sizeof(double) * BLKSIZE);
 
+#if defined(PRINT_VECTORS)
     for (int i = 0; i < BLKSIZE; i++) {
       CkPrintf("memcpy bvec[%d] = %f\n", i, bvec[i]);
     }
+#endif
 
     contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
   }
@@ -1201,9 +1203,11 @@ public:
 
     bool forward = !backward;
 
+#if defined(PRINT_VECTORS)
     for (int i = 0; i < BLKSIZE; i++) {
       CkPrintf("bvec[%d] = %f\n", i, bvec[i]);
     }
+#endif
 
     CkPrintf("allocate xvec\n");
     double *xvec = new double[BLKSIZE];
@@ -1219,7 +1223,9 @@ public:
 
       for (int i = 0; i < BLKSIZE; i++) {
         bvec[i] = xvec[i];
+#if defined(PRINT_VECTORS)
         CkPrintf("xvec[%d] = %f\n", i, xvec[i]);
+#endif
       }
 
       delete[] storedVec;
@@ -1241,10 +1247,11 @@ public:
       col.forwardSolve(BLKSIZE, xvec);
     } else {
 
+#if defined(PRINT_VECTORS)
       for (int i = 0; i < BLKSIZE; i++) {
         CkPrintf("xvec[%d] = %f\n", i, xvec[i]);
       }
-      
+#endif
       if (thisIndex.x == 0) {
 	CkPrintf("backward-solve complete, (%d, %d) numBlks = %d\n", thisIndex.x, thisIndex.y, numBlks);
 
@@ -1325,6 +1332,7 @@ public:
   }
 
   void print(const char* step) {
+#if defined(PRINT_VECTORS)
     char buf[200];
     sprintf(buf, "%s-%d-%d", step, thisIndex.x, thisIndex.y);
 
@@ -1338,6 +1346,7 @@ public:
     }
 
     fclose(file);
+#endif
   }
 
   void LUdecompose(double* A) { 
