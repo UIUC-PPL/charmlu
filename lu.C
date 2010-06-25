@@ -1248,7 +1248,7 @@ public:
       if (thisIndex.x == 0) {
 	CkPrintf("backward-solve complete, (%d, %d) numBlks = %d\n", thisIndex.x, thisIndex.y, numBlks);
 
-        CkExit();
+        mainProxy.iterationCompleted();
       }
 
       CProxySection_LUBlk col = 
