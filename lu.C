@@ -1199,6 +1199,8 @@ public:
   void solve(bool backward, int size, double* preVec) {
     CkPrintf("solved called on: (%d, %d)\n", thisIndex.x, thisIndex.y);
 
+    bool forward = !backward;
+
     for (int i = 0; i < BLKSIZE; i++) {
       CkPrintf("bvec[%d] = %f\n", i, bvec[i]);
     }
@@ -1207,9 +1209,9 @@ public:
     double *xvec = new double[BLKSIZE];
 
     CkPrintf("Calling local solver - diag = true\n");
-    localSolve(xvec, (size == BLKSIZE) ? preVec : NULL, true, !backward);
+    localSolve(xvec, (size == BLKSIZE) ? preVec : NULL, true, forward);
 
-    if (!backward) {
+    if (forward) {
       
       /*for (int i = 0; i < BLKSIZE; i++) {
         CkPrintf("%d, %d: xvec[%d] = %f\n", thisIndex.x, thisIndex.y, i, xvec[i]);
