@@ -25,8 +25,8 @@ OPTS=-g -O0
 
 
 # To compile on Cray XT5 with "module load atlas/3.8.3"
-BLAS_LD = -L$(ATLAS_DIR)/lib -llapack -lf77blas -lcblas -latlas
-BLAS_INC = -I$(ATLAS_DIR)/include -DUSE_BLAS  -DUSE_CBLAS_H=1 -DUSE_MEMALIGN
+#BLAS_LD = -L$(ATLAS_DIR)/lib -llapack -lf77blas -lcblas -latlas
+#BLAS_INC = -I$(ATLAS_DIR)/include -DUSE_BLAS  -DUSE_CBLAS_H=1 -DUSE_MEMALIGN
 
 # To compile on Cray XT5 with "module load acml"
 #BLAS_LD = -L/lustre/scratch/idooley2/LU/CBLAS/lib -lcblas -L$(ACML_DIR)/gfortran64/lib/ -llibacml 
@@ -34,15 +34,21 @@ BLAS_INC = -I$(ATLAS_DIR)/include -DUSE_BLAS  -DUSE_CBLAS_H=1 -DUSE_MEMALIGN
 
 
 # To compile on BG/P with ESSL:
-#BGP_ESSL = /soft/apps/ESSL-4.4.1-0
-#BLAS_INC = -DUSE_ESSL=1 -I$(BGP_ESSL)/include -DUSE_MEMALIGN=1
-#BGP_LIBS = -L/opt/ibmcmp/xlf/bg/11.1/bglib \
-#	-L/opt/ibmcmp/xlsmp/bg/1.7/bglib \
-#	 -L$(BGP_ESSL)/lib \
-#	-L/bgsys/drivers/ppcfloor/gnu-linux/powerpc-bgp-linux/lib \
-#	-lesslbg -lesslsmpbg -lxlf90_r  \
-#        -lmass -lmassv -lxlfmath -lxlomp_ser -lxlsmp -lpthread
-#BLAS_LD =  $(BGP_LIBS)
+BGP_ESSL = /soft/apps/ESSL-4.4.1-0
+BLAS_INC = -DUSE_ESSL=1 -I$(BGP_ESSL)/include -DUSE_MEMALIGN=1
+BGP_LIBS = -L$(BGP_ESSL)/lib \
+	-L/bgsys/ibm_compilers/sles10/prod/opt/ibmcmp/xlf/bg/11.1/bglib/ \
+	-L/soft/apps/ibmcmp/xlsmp/bg/1.7/bglib \
+	-L/soft/apps/ibmcmp/xlf/bg/11.1/bglib \
+	 -lesslbg -lmass   -lxlfmath -lxlf90_r -lxlsmp -lxlomp_ser -lpthread
+
+BLAS_LD =  $(BGP_LIBS)
+
+
+# A test program for getting essl working on BG/P
+#link-test-essl : link-test-essl.cxx
+#	/soft/apps/ibmcmp-jan2010/vacpp/bg/9.0/bin/bgxlc++ link-test-essl.cxx $(BLAS_INC) $(BLAS_LD)
+
 
 
 # ----------------------------------------------
@@ -60,7 +66,7 @@ BLAS_INC = -I$(ATLAS_DIR)/include -DUSE_BLAS  -DUSE_CBLAS_H=1 -DUSE_MEMALIGN
 PROJ = -tracemode projections
 #MULTICAST = -module CkMulticast
 
-CHARMC=$(HOME)/charm-for-lu/bin/charmc $(OPTS) 
+CHARMC=../charm/bin/charmc $(OPTS) 
 #CHARMC=${HOME}/current/charm/net-linux/bin/charmc $(OPTS) -g
 #CHARMC=${HOME}/current/lastestfromcvs/charm/net-linux-amd64/bin/charmc $(OPTS)
 #CHARMC=${HOME}/charm/bin/charmc $(FLAGS)
