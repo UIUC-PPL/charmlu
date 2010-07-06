@@ -555,7 +555,7 @@ public:
 	gotoNextPhase();
       
 	whichMulticastStrategy = controlPoint("multicast_strategy", 2, 2);
-	BLKSIZE = 1 << 2; //1 << controlPoint("block_size", 10,10);
+	BLKSIZE = 1 << 10; //1 << controlPoint("block_size", 10,10);
 	mapping = controlPoint("mapping", 1, 1);
 	memThreshold = 200 + controlPoint("memory_threshold", 0, 20) * 100;
       
