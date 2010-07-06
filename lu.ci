@@ -30,6 +30,7 @@ mainmodule lu {
     entry LUBlk(void);
     entry void init(int whichMulticastStrategy, int, int, int memThreshold);
     entry void initVec(int size, double bvec[size]);
+    entry void matrixUpdated(int a);
 
     entry void factor()
     {
@@ -49,8 +50,10 @@ mainmodule lu {
 	    }
 	    when processTrailingUpdate[internalStep](int step) atomic {
 		updateMatrix(L, U);
-		CmiFree(UsrToEnv(L)); CmiFree(UsrToEnv(U));
 	    }
+            when matrixUpdated[internalStep](int step) atomic {
+              CmiFree(UsrToEnv(L)); CmiFree(UsrToEnv(U));
+            }
 	}
 
 	if (thisIndex.x == thisIndex.y) atomic {

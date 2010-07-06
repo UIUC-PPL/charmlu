@@ -957,6 +957,8 @@ public:
 		 BLKSIZE, incomingU, BLKSIZE,
 		 1.0, LU, BLKSIZE);
 #endif
+
+    thisProxy(thisIndex.x, thisIndex.y).matrixUpdated(internalStep);
   }
 
   //broadcast the U downwards to the blocks in the same column
