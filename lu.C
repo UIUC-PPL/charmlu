@@ -57,6 +57,8 @@ extern "C" {
 
 #include <queueing.h> // for access to memory threshold setting
 
+#include </usr/local/cuda/include/cublas.h>
+
 /* readonly: */
 CProxy_Main mainProxy;
 CProxy_LUBlk luArrProxy;
@@ -943,6 +945,14 @@ public:
     double *incomingL = givenLMsg->data;
     double *incomingU = givenUMsg->data;
 
+    cublasDgemm('n', 'n',
+                BLKSIZE, BLKSIZE, BLKSIZE,
+                -1.0, incomingL,
+                BLKSIZE, incomingU, BLKSIZE,
+                1.0, LU, BLKSIZE);
+
+#if 0
+
 #if USE_ESSL
     dgemm( "N", "N",
 	   BLKSIZE, BLKSIZE, BLKSIZE,
@@ -956,6 +966,8 @@ public:
 		 -1.0, incomingL,
 		 BLKSIZE, incomingU, BLKSIZE,
 		 1.0, LU, BLKSIZE);
+#endif
+
 #endif
 
     thisProxy(thisIndex.x, thisIndex.y).matrixUpdated(internalStep);
