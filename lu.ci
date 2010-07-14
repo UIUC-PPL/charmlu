@@ -102,7 +102,6 @@ mainmodule lu {
     entry void processComputeL(int ignoredParam);
     entry void processComputeU(int ignoredParam);
 
-
     entry void solve(bool backward, int size, double d[size]);
     entry void forwardSolve(int size, double d[size]);
     entry void diagForwardSolve(int size, double d[size]);
