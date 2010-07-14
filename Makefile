@@ -76,14 +76,9 @@ CHARMC=charmc $(OPTS)
 #CHARMC=${HOME}/current/new/charm/net-linux-amd64-icc10/bin/charmc $(OPTS)
 #CHARMC=charm/bin/charmc $(OPTS)
 
-
 MODULES=  -module ControlPoints   -module comlib -tracemode controlPoints 
 
-
-
 all: lu-proj
-
-
 
 lu: lu.o
 	$(CHARMC) -language charm++ -o lu lu.o  $(BLAS_LD) $(MULTICAST)  $(MODULES)
