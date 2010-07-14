@@ -1,0 +1,24 @@
+#ifndef C_COMMON_H
+#define C_COMMON_H
+
+#define DEFAULT_MASS 1
+#define DEFAULT_DELTA 0.005
+#define DEFAULT_PARTICLES 50000
+#define DEFAULT_M 20
+#define DEFAULT_N 20
+#define DEFAULT_L 10
+#define DEFAULT_RADIUS 5
+#define DEFAULT_FINALSTEPCOUNT 10
+#define MAX_VELOCITY 30.0
+#define MIN_SIZE 1
+#define MAX_SIZE 1000000
+
+//#define MIN_SIZE 1
+//#define MAX_SIZE 1
+
+#define MAX_CPU_SIZE 0
+//#define GPU_NO_SCHEDULER 1
+
+#define MAX_OFFLOAD_SIZE 100000
+
+#endif

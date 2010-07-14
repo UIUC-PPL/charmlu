@@ -130,3 +130,30 @@ mainmodule lu {
   };
 
 };
+
+module scheduler {
+  extern module lu;
+  extern module gpuwork;
+
+  class JMessage;
+
+  array [1D] Scheduler {
+    entry Scheduler();
+    entry  void tryAgain(int);
+    entry void cpuFree(int);
+    entry [local] void finishedGPU(std::list<JMessage>);
+    entry void checkIn();
+  };
+};
+
+module gpuwork {
+  extern module lu;
+  extern module scheduler;
+
+  class JMessage;
+
+  array [1D] GPUWork {
+    entry GPUWork();
+    entry [local] void gpu_offload(std::list<JMessage>);
+  };
+};

@@ -80,7 +80,7 @@ MODULES=  -module ControlPoints   -module comlib -tracemode controlPoints
 
 all: lu-proj
 
-lu: lu.o
+lu: lu.o Scheduler.o
 	$(CHARMC) -language charm++ -o lu lu.o  $(BLAS_LD) $(MULTICAST)  $(MODULES)
 
 lu-proj: lu.o 
@@ -92,9 +92,11 @@ lu.decl.h: lu.ci
 clean:
 	rm -f *.decl.h *.def.h conv-host *.o charmrun *~ lu lu-blas lu-mem lu-blas-proj.*.log lu-blas-proj.*.sum lu-blas-proj.*.sts lu-blas-proj.sts lu-blas-proj.projrc lu-blas-proj lu-proj controlPointData.txt lu*.log lu*.sum lu*.sts lu*.projrc SummaryDump.out *.output *.error *.cobaltlog traces/* core.* perfCounterBGP.o job-lu-* moduleinit* moduleInit*
 
-lu.o: lu.C lu.decl.h$
+lu.o: lu.C lu.decl.h Scheduler.o$
 	$(CHARMC) -c lu.C -o lu.o $(BLAS_INC) $(OPTS) -DADAPT_SCHED_MEM
 
+Scheduler.o: Scheduler.C scheduler.decl.h$
+	$(CHARMC) -c Scheduler.C -o $@ $(BLAS_INC) $(OPTS) -DADAPT_SCHED_MEM
 
  # run for up to 15 minutes on 16 nodes * 4 pe/node. Matrix size 8192*8192
 run-BGP: lu-proj
