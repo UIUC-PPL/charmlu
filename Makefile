@@ -7,8 +7,8 @@ OPTS=-g -O0
 #BLAS_LD = -lcblas
 
 # To compile on hope (OSX):
-#BLAS_INC = -DUSE_ACCELERATE_BLAS=1
-#BLAS_LD = -framework Accelerate
+BLAS_INC = -DUSE_ACCELERATE_BLAS=1
+BLAS_LD = -framework Accelerate
 
 # To compile against a custom atlas install on linux:
 #BLAS_INC = -I/scratch/idooley2/atlas-install/include  -DUSE_CBLAS_H=1
@@ -34,15 +34,15 @@ OPTS=-g -O0
 
 
 # To compile on BG/P with ESSL:
-BGP_ESSL = /soft/apps/ESSL-4.4.1-0
-BLAS_INC = -DUSE_ESSL=1 -I$(BGP_ESSL)/include -DUSE_MEMALIGN=1
-BGP_LIBS = -L$(BGP_ESSL)/lib \
-	-L/bgsys/ibm_compilers/sles10/prod/opt/ibmcmp/xlf/bg/11.1/bglib/ \
-	-L/soft/apps/ibmcmp/xlsmp/bg/1.7/bglib \
-	-L/soft/apps/ibmcmp/xlf/bg/11.1/bglib \
-	 -lesslbg -lmass   -lxlfmath -lxlf90_r -lxlsmp -lxlomp_ser -lpthread
+#BGP_ESSL = /soft/apps/ESSL-4.4.1-0
+#BLAS_INC = -DUSE_ESSL=1 -I$(BGP_ESSL)/include -DUSE_MEMALIGN=1
+#BGP_LIBS = -L$(BGP_ESSL)/lib \
+#	-L/bgsys/ibm_compilers/sles10/prod/opt/ibmcmp/xlf/bg/11.1/bglib/ \
+#	-L/soft/apps/ibmcmp/xlsmp/bg/1.7/bglib \
+#	-L/soft/apps/ibmcmp/xlf/bg/11.1/bglib \
+#	 -lesslbg -lmass   -lxlfmath -lxlf90_r -lxlsmp -lxlomp_ser -lpthread
 
-BLAS_LD =  $(BGP_LIBS)
+#BLAS_LD =  $(BGP_LIBS)
 
 
 # A test program for getting essl working on BG/P
