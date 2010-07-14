@@ -66,7 +66,7 @@ BLAS_LD = -framework Accelerate
 PROJ = -tracemode projections
 #MULTICAST = -module CkMulticast
 
-CHARMC=../charm/bin/charmc $(OPTS) 
+CHARMC=charmc $(OPTS)
 #CHARMC=${HOME}/current/charm/net-linux/bin/charmc $(OPTS) -g
 #CHARMC=${HOME}/current/lastestfromcvs/charm/net-linux-amd64/bin/charmc $(OPTS)
 #CHARMC=${HOME}/charm/bin/charmc $(FLAGS)
