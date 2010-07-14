@@ -22,7 +22,7 @@ mainmodule lu {
     entry void arrayIsCreated(CkReductionMsg *);
     entry void outputStats();
     entry void terminateProg();
-    entry void done(pathInformationMsg *m);
+    entry void done();
     entry void iterationCompleted();
   };
 

@@ -633,11 +633,12 @@ public:
   }
 
   void terminateProg() {
-    CkCallback cb(CkIndex_Main::done(NULL),thisProxy); 
-    traceCriticalPathBack(cb);
+    //CkCallback cb(CkIndex_Main::done(NULL),thisProxy); 
+    //traceCriticalPathBack(cb);
+    thisProxy.done();
   }
 
-  void done(pathInformationMsg *m){
+  void done() {
     // CkPrintf("Main::done() After critical path has been determined\n");
     //	  m->printme();
     gotoNextPhase(); // <<< Make sure we get timings for the phase that just finished.
