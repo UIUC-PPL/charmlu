@@ -34,7 +34,9 @@ mainmodule lu {
     entry void init(int whichMulticastStrategy, int, int, int memThreshold);
     entry void initVec(int size, double bvec[size]);
     entry void matrixUpdated(int a);
-
+    entry void calcResiduals();
+    entry [nokeep] void recvXvec(int size, double x[size]);
+    entry void sumXvec(int size, double x[size]);
     entry void factor()
     {
 	for (internalStep = 0;

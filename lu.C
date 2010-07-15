@@ -519,6 +519,11 @@ public:
     luArrProxy.factor();
   }
 
+  //VALIDATION: call to each LU Block to calculate its residuals
+  void validate() {
+	  luArrProxy.calcResiduals();
+  }
+
   void iterationCompleted() {
     CkPrintf("called iterationCompleted()\n");
 
@@ -535,7 +540,9 @@ public:
       
       outputStats();
 
-      terminateProg();
+      //VALIDATION: Instead of ending program, perform validation
+      //terminateProg();
+      validate();
 
       return;
     } else if (!solved && LUcomplete) {
@@ -650,14 +657,22 @@ public:
 class LUBlk: public CBase_LUBlk {
   /// Variables used during factorization
   double *LU;
+  //VALIDATION: variable to hold copy of untouched matrix
+  double *A;
   int BLKSIZE, numBlks;
   blkMsg *L, *U;
   int internalStep;
 
   /// Variables used only during solution
   double *bvec;
+  //VALIDATION: variable to hold copy of untouched b vector
+  double *b;
+
   double* storedVec;
   int diagRec;
+
+  //VALIDATION: count of the number of point-to-point messages rcvd in a row
+  int msgsRecvd;
 
   LUBlk_SDAG_CODE
 
@@ -666,7 +681,7 @@ class LUBlk: public CBase_LUBlk {
   int whichMulticastStrategy;
 
 public:
-  LUBlk() : storedVec(NULL), diagRec(0) {
+  LUBlk() : storedVec(NULL), diagRec(0), msgsRecvd(0) {
       __sdag_init();
     whichMulticastStrategy = 0;
 
@@ -690,6 +705,74 @@ public:
 
     testdgemm();*/
 
+  }
+
+  //VALIDATION
+  void calcResiduals() {
+	  // Starting state:
+	  // variable A has the original matrix sub-block
+	  // solution sub-vector x is in bvec on the diagonals
+	  // variable b has the original b vector on the diagonals
+
+	  //Distribute bvec across entire column
+	  if(thisIndex.x == thisIndex.y)
+	  {
+		  CProxySection_LUBlk col =
+				  CProxySection_LUBlk::ckNew(thisArrayID, 0, numBlks-1,
+						  1, thisIndex.y, thisIndex.y, 1);
+
+		  col.recvXvec(BLKSIZE, bvec);
+	  }
+  }
+
+  //VALIDATION
+  void recvXvec(int size, double* x) {
+	  //Perform local dgemv with A*bvec
+
+#if USE_ESSL
+    dgemv('T', BLKSIZE, BLKSIZE, 1.0, A, BLKSIZE, x, 1, 0.0, bvec, 1);
+#else
+    cblas_dgemv( CblasColMajor, CblasTrans,
+    		  BLKSIZE, BLKSIZE, 1.0, A,
+    		  BLKSIZE, x, 1, 0.0, bvec, 1);
+#endif
+
+//	  CkPrintf("%d,%d dgemv gave\n",thisIndex.x,thisIndex.y);
+//	  for (int i = 0; i < BLKSIZE; i++) {
+//	  			  CkPrintf("x[%d] = %f\n", i, bvec[i]);
+//	  		  }
+
+	  //sum-reduction of dgemm result across row to diagonal
+      //Cheating for now and just sending point-to-point messages
+      if(thisIndex.x != thisIndex.y)
+      {
+    	  thisProxy(thisIndex.x,thisIndex.x).sumXvec(size,bvec);
+    	  //CkPrintf("%d,%d sending to %d,%d\n",thisIndex.x,thisIndex.y,thisIndex.x,thisIndex.x);
+    	  contribute(CkCallback(CkIndex_Main::terminateProg(NULL),mainProxy));
+      }
+  }
+
+  //VALIDATION
+  void sumXvec(int size, double* x) {
+	  //Sum up messages
+	  if(++msgsRecvd <= numBlks-1) {
+		  //CkPrintf("%d,%d Expected %d, got %d so far\n", thisIndex.x, thisIndex.y, numBlks-1, msgsRecvd);
+		  for (int i = 0; i < size; i++)
+			  bvec[i] += x[i];
+	  }
+
+	  //if all messages recieved, calculate the residual
+	  if (msgsRecvd == numBlks-1) {
+		  double *residuals = new double[BLKSIZE];
+		  CkPrintf("%d,%d Calculating residuals\n", thisIndex.x, thisIndex.y);
+		  //diagonal elements that received sum-reduction perform b - A*x
+		  for (int i = 0; i < size; i++) {
+			  residuals[i] = b[i] - bvec[i];
+			  CkPrintf("res[%d] = %e\n",i,residuals[i]);
+		  }
+
+		  contribute(CkCallback(CkIndex_Main::terminateProg(NULL),mainProxy));
+	  }
   }
 
   void flushLogs() {
@@ -787,6 +870,13 @@ public:
     bvec = new double[BLKSIZE];
     memcpy(bvec, vec, sizeof(double) * BLKSIZE);
 
+    //VALIDATION: keep a copy of the original b vector on the diagonals
+    if(thisIndex.x == thisIndex.y)
+    {
+    	b = new double[BLKSIZE];
+    	memcpy(b, bvec, sizeof(double) * BLKSIZE);
+    }
+
 #if defined(PRINT_VECTORS)
     for (int i = 0; i < BLKSIZE; i++) {
       CkPrintf("memcpy bvec[%d] = %f\n", i, bvec[i]);
@@ -810,10 +900,14 @@ public:
 
 #if USE_MEMALIGN
     LU = (double*)memalign(128, BLKSIZE*BLKSIZE*sizeof(double) );
+    //VALIDATION: A is an untouched copy for validation
+    A  = (double*)memalign(128, BLKSIZE*BLKSIZE*sizeof(double) );
     //	 CkPrintf("LU mod 128 = %lu\n", ((unsigned long)LU) % 128);
     CkAssert(LU != NULL);
 #else
     LU = new double[BLKSIZE*BLKSIZE];
+    //VALIDATION: A is an untouched copy for validation
+    A  = new double[BLKSIZE*BLKSIZE];
 #endif
 
     internalStep = 0;  
@@ -844,6 +938,9 @@ public:
 	b += 1.0;
       }
     }
+
+    //VALIDATION: Make a copy for validation
+    memcpy(A, LU, BLKSIZE*BLKSIZE*sizeof(double));
 
     this->print("input-generated-LU");
 
@@ -1239,7 +1336,7 @@ public:
       for (int i = 0; i < BLKSIZE; i++) {
         bvec[i] = xvec[i];
 #if defined(PRINT_VECTORS)
-        CkPrintf("xvec[%d] = %f\n", i, xvec[i]);
+        CkPrintf("After forward solve - xvec[%d] = %f\n", i, xvec[i]);
 #endif
       }
 
@@ -1262,9 +1359,13 @@ public:
       col.forwardSolve(BLKSIZE, xvec);
     } else {
 
+    	//VALIDATION: put final solution into bvec
+    	for (int i = 0; i < BLKSIZE; i++)
+    		bvec[i] = xvec[i];
+
 #if defined(PRINT_VECTORS)
       for (int i = 0; i < BLKSIZE; i++) {
-        CkPrintf("xvec[%d] = %f\n", i, xvec[i]);
+        CkPrintf("After backward solve - xvec[%d] = %f\n", i, xvec[i]);
       }
 #endif
       if (thisIndex.x == 0) {
