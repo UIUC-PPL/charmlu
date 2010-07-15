@@ -21,7 +21,7 @@ mainmodule lu {
     entry void continueIter();
     entry void arrayIsCreated(CkReductionMsg *);
     entry void outputStats();
-    entry void terminateProg();
+    entry void terminateProg(CkReductionMsg *);
     entry void done(pathInformationMsg *m);
     entry void iterationCompleted();
   };
@@ -30,6 +30,9 @@ mainmodule lu {
     entry LUBlk(void);
     entry void init(int whichMulticastStrategy, int, int, int memThreshold);
     entry void initVec(int size, double bvec[size]);
+    entry void calcResiduals();
+    entry [nokeep] void recvXvec(int size, double x[size]);
+    entry void sumXvec(int size, double x[size]);
 
     entry void factor()
     {
