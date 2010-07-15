@@ -62,6 +62,8 @@ extern "C" {
 /* readonly: */
 CProxy_Main mainProxy;
 CProxy_LUBlk luArrProxy;
+CProxy_Scheduler scheduler;
+CProxy_GPUWork gpu;
 int gMatSize;
 int traceTrailingUpdate;
 int traceComputeU;
@@ -72,8 +74,6 @@ ComlibInstanceHandle multicastStats[4];
  
 //#define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
 #define DEBUG_PRINT(...) 
-
-
 
 enum continueWithTask {
   NO_CONTINUE = 0,
@@ -453,7 +453,7 @@ public:
     }
 
     mainProxy = thisProxy;
-      
+
     DEBUG_PRINT("Registering user events\n");
     traceTrailingUpdate = traceRegisterUserEvent("Trailing Update");
     traceComputeU = traceRegisterUserEvent("Compute U");

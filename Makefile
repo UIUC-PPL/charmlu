@@ -80,11 +80,11 @@ MODULES=  -module ControlPoints   -module comlib -tracemode controlPoints
 
 all: lu-proj
 
-lu: lu.o Scheduler.o
-	$(CHARMC) -language charm++ -o lu lu.o  $(BLAS_LD) $(MULTICAST)  $(MODULES)
+lu: lu.o Scheduler.o gpu_offloader.o
+	$(CHARMC) -language charm++ -o $@ $^  $(BLAS_LD) $(MULTICAST)  $(MODULES)
 
-lu-proj: lu.o 
-	$(CHARMC) -L/usr/local/cuda/lib -lcublas -language charm++ -o lu-proj lu.o $(BLAS_LD) $(PROJ) $(MULTICAST)  $(MODULES) -DADAPT_SCHED_MEM
+lu-proj: lu.o Scheduler.o gpu_offloader.o
+	$(CHARMC) -L/usr/local/cuda/lib -lcublas -language charm++ -o $@ $^ $(BLAS_LD) $(PROJ) $(MULTICAST)  $(MODULES) -DADAPT_SCHED_MEM
 
 lu.decl.h: lu.ci
 	$(CHARMC)  lu.ci -DADAPT_SCHED_MEM
@@ -92,11 +92,14 @@ lu.decl.h: lu.ci
 clean:
 	rm -f *.decl.h *.def.h conv-host *.o charmrun *~ lu lu-blas lu-mem lu-blas-proj.*.log lu-blas-proj.*.sum lu-blas-proj.*.sts lu-blas-proj.sts lu-blas-proj.projrc lu-blas-proj lu-proj controlPointData.txt lu*.log lu*.sum lu*.sts lu*.projrc SummaryDump.out *.output *.error *.cobaltlog traces/* core.* perfCounterBGP.o job-lu-* moduleinit* moduleInit*
 
-lu.o: lu.C lu.decl.h Scheduler.o$
+lu.o: lu.C lu.decl.h Scheduler.o gpu_offloader.o$
 	$(CHARMC) -c lu.C -o lu.o $(BLAS_INC) $(OPTS) -DADAPT_SCHED_MEM
 
 Scheduler.o: Scheduler.C scheduler.decl.h$
 	$(CHARMC) -c Scheduler.C -o $@ $(BLAS_INC) $(OPTS) -DADAPT_SCHED_MEM
+
+gpu_offloader.o: gpu_offloader.C gpuwork.decl.h$
+	$(CHARMC) -c gpu_offloader.C -o $@ $(BLAS_INC) $(OPTS) -DADAPT_SCHED_MEM
 
  # run for up to 15 minutes on 16 nodes * 4 pe/node. Matrix size 8192*8192
 run-BGP: lu-proj

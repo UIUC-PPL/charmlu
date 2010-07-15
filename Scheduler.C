@@ -138,7 +138,7 @@ void Scheduler::finishedGPU(list<JMessage> msgs) {
 
 void Scheduler::haveWork(CProxyElement_LUBlk block, double** first, 
 			 double** second, int x, int y, int cx,
-			 int cy) {
+			 int cy, int fsize, int ssize) {
 
   //ckout << "haveWork called" << endl;
 
@@ -149,6 +149,8 @@ void Scheduler::haveWork(CProxyElement_LUBlk block, double** first,
   msg->first = *first;
   msg->second = *second;
   msg->block = block;
+  msg->fsize = fsize;
+  msg->ssize = ssize;
   msg->x = x;
   msg->y = y;
   msg->cx = cx;

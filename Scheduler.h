@@ -44,7 +44,7 @@ public:
 
   void haveWork(CProxyElement_LUBlk block, double** first, 
 		double** second, int x, int y, int cx,
-		int cy);
+		int cy, int fsize, int ssize);
   
   void checkIn();
 };

@@ -1,4 +1,7 @@
 mainmodule lu {
+  extern module gpuwork;
+  extern module scheduler;
+
   readonly CProxy_Main mainProxy;
   readonly CProxy_LUBlk luArrProxy;
 
