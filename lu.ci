@@ -30,9 +30,9 @@ mainmodule lu {
     entry LUBlk(void);
     entry void init(int whichMulticastStrategy, int, int, int memThreshold);
     entry void initVec(int size, double bvec[size]);
-    entry void calcResiduals();
-    entry [nokeep] void recvXvec(int size, double x[size]);
-    entry void sumXvec(int size, double x[size]);
+    entry void startValidation();
+    entry [nokeep] void recvXvec(int size, double xvec[size]);
+    entry void sumBvec(int size, double partial_b[size]);
 
     entry void factor()
     {
