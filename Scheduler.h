@@ -17,8 +17,10 @@ struct JMessage {
   int cx, cy;
   double *first;
   double *second;
+  double *LU;
 
   int fsize, ssize;
+  int step;
 
   int getSize();
 };
@@ -27,11 +29,15 @@ class Scheduler : public CBase_Scheduler {
 public:
   Scheduler() : count(0), total_size(0), sch_count(0),
 		msg_count(0), gpu_count(0), cpu_count(0),
-		GPUworking(false), cpuStatus(CkNumPes()), gpu_state(0) {}
+		GPUworking(false), cpuStatus(CkNumPes()), gpu_state(0),
+                maxRow(0), maxCol(0) {}
   Scheduler(CkMigrateMessage* msg) {}
 
   list<JMessage*> mapMsg;
   vector<bool> cpuStatus;
+  map<int, list<JMessage*> > rowMap, colMap;
+  int maxRow, maxCol;
+  int maxRowSize, maxColSize;
 
   int count, total_size, sch_count, msg_count, gpu_count, cpu_count;
   int gpu_state;
@@ -43,10 +49,16 @@ public:
   void finishedGPU(list<JMessage> msgs);
 
   void haveWork(CProxyElement_LUBlk block, double** first, 
-		double** second, int x, int y, int cx,
-		int cy, int fsize, int ssize);
+		double** second, double** LU, int x, int y, int cx,
+		int cy, int fsize, int ssize, int step);
   
   void checkIn();
+
+  void findNewMax();
+  list<JMessage*>* findLargestAgglom();
+
+private:
+  int findLargestInMap(map<int, list<JMessage*> >);
 };
 
 #endif

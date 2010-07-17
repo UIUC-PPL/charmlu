@@ -59,6 +59,8 @@ extern "C" {
 
 #include </usr/local/cuda/include/cublas.h>
 
+#include "Scheduler.h"
+
 /* readonly: */
 CProxy_Main mainProxy;
 CProxy_LUBlk luArrProxy;
@@ -454,6 +456,9 @@ public:
 
     mainProxy = thisProxy;
 
+    scheduler = CProxy_Scheduler::ckNew();
+    gpu = CProxy_GPUWork::ckNew(2);
+
     DEBUG_PRINT("Registering user events\n");
     traceTrailingUpdate = traceRegisterUserEvent("Trailing Update");
     traceComputeU = traceRegisterUserEvent("Compute U");
@@ -564,7 +569,7 @@ public:
 	gotoNextPhase();
       
 	whichMulticastStrategy = controlPoint("multicast_strategy", 2, 2);
-	BLKSIZE = 1 << 10; //1 << controlPoint("block_size", 10,10);
+	BLKSIZE = 1 << 2; //1 << controlPoint("block_size", 10,10);
 	mapping = controlPoint("mapping", 1, 1);
 	memThreshold = 200 + controlPoint("memory_threshold", 0, 20) * 100;
       
@@ -748,7 +753,7 @@ public:
       {
     	  thisProxy(thisIndex.x,thisIndex.x).sumXvec(size,bvec);
     	  //CkPrintf("%d,%d sending to %d,%d\n",thisIndex.x,thisIndex.y,thisIndex.x,thisIndex.x);
-    	  contribute(CkCallback(CkIndex_Main::terminateProg(NULL),mainProxy));
+    	  contribute(CkCallback(CkIndex_Main::terminateProg(),mainProxy));
       }
   }
 
@@ -771,7 +776,7 @@ public:
 			  CkPrintf("res[%d] = %e\n",i,residuals[i]);
 		  }
 
-		  contribute(CkCallback(CkIndex_Main::terminateProg(NULL),mainProxy));
+		  contribute(CkCallback(CkIndex_Main::terminateProg(),mainProxy));
 	  }
   }
 
@@ -1040,17 +1045,34 @@ public:
     traceLU t(internalStep, traceTrailingUpdate);
     DEBUG_PRINT("elem[%d,%d] is updating its value at step %d\n", thisIndex.x, thisIndex.y, internalStep);
 
-    double *incomingL = givenLMsg->data;
-    double *incomingU = givenUMsg->data;
+    double **incomingLp = (double**)malloc(sizeof(double*));
+    double **incomingUp = (double**)malloc(sizeof(double*));
+    double **LUp = (double**)malloc(sizeof(double*));
 
-    cublasDgemm('n', 'n',
+    double *incomingL = (double*)malloc(sizeof(double)*BLKSIZE);
+    double *incomingU = (double*)malloc(sizeof(double)*BLKSIZE);
+
+    memcpy(givenLMsg->data, incomingL, sizeof(double)*BLKSIZE);
+    memcpy(givenUMsg->data, incomingU, sizeof(double)*BLKSIZE);
+
+    *incomingLp = incomingL;
+    *incomingUp = incomingU;
+    *LUp = LU;
+
+    CkPrintf("mype = %d\n", CkMyPe());
+
+    Scheduler* s = scheduler.ckLocalBranch();
+
+    s->haveWork(thisProxy(thisIndex.x, thisIndex.y),
+                incomingLp, incomingUp, LUp, thisIndex.x, thisIndex.y,
+                thisIndex.x, thisIndex.y, BLKSIZE, BLKSIZE, internalStep);
+
+    /*cublasDgemm('n', 'n',
                 BLKSIZE, BLKSIZE, BLKSIZE,
                 -1.0, incomingL,
                 BLKSIZE, incomingU, BLKSIZE,
-                1.0, LU, BLKSIZE);
-
+                1.0, LU, BLKSIZE);*/
 #if 0
-
 #if USE_ESSL
     dgemm( "N", "N",
 	   BLKSIZE, BLKSIZE, BLKSIZE,
@@ -1065,9 +1087,8 @@ public:
 		 BLKSIZE, incomingU, BLKSIZE,
 		 1.0, LU, BLKSIZE);
 #endif
-
 #endif
-
+    
     thisProxy(thisIndex.x, thisIndex.y).matrixUpdated(internalStep);
   }
 

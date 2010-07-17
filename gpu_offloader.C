@@ -18,7 +18,7 @@ public:
   GPUWork(CkMigrateMessage* msg) {}
 
   void gpu_offload(list<JMessage> msgs) {    
-    //ckout << "---- offloading to GPU" << endl;
+    ckout << "---- offloading to GPU" << endl;
 
     char note[200];
     sprintf(note, "gpu offloading happening");

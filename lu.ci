@@ -4,6 +4,8 @@ mainmodule lu {
 
   readonly CProxy_Main mainProxy;
   readonly CProxy_LUBlk luArrProxy;
+  readonly CProxy_Scheduler scheduler;
+  readonly CProxy_GPUWork gpu;
 
   readonly int gMatSize;
   readonly ComlibInstanceHandle multicastStats[4];
@@ -54,10 +56,12 @@ mainmodule lu {
 		    .processTrailingUpdate(internalStep);
 	    }
 	    when processTrailingUpdate[internalStep](int step) atomic {
+                ckout << "processing for " << internalStep << " for (" << 
+                thisIndex.x << ", " << thisIndex.y << ")" << endl;
 		updateMatrix(L, U);
 	    }
             when matrixUpdated[internalStep](int step) atomic {
-              CmiFree(UsrToEnv(L)); CmiFree(UsrToEnv(U));
+                CmiFree(UsrToEnv(L)); CmiFree(UsrToEnv(U));
             }
 	}
 
@@ -141,9 +145,9 @@ module scheduler {
 
   class JMessage;
 
-  array [1D] Scheduler {
+  group Scheduler {
     entry Scheduler();
-    entry  void tryAgain(int);
+    entry void tryAgain(int);
     entry void cpuFree(int);
     entry [local] void finishedGPU(std::list<JMessage>);
     entry void checkIn();
