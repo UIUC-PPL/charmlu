@@ -54,55 +54,65 @@ using namespace std;
 void Scheduler::tryAgain(int a) {
   sch_count++;
 
+  ckout << "calling tryAgain" << endl;
+
   // GPU offloading
-  if (0) {
+  if (1) {
     int totalSize = 0;
     int numberAgglom = 0;
     list<JMessage*> toOffload;
 
     if (mapMsg.size() >= MIN_SIZE) {
       while (numberAgglom < MAX_SIZE) {
-        list<JMessage*> msgs = *findLargestAgglom();
+        list<JMessage*>* msgs = findLargestAgglom();
 
-        for (list<JMessage*>::iterator iter = msgs.begin();
-             iter != msgs.end(); ++iter) {
-          int tsize = (*iter)->fsize + (*iter)->ssize;
+        if (msgs != NULL) {
+          for (list<JMessage*>::iterator iter = msgs->begin();
+               iter != msgs->end(); ++iter) {
+            int tsize = (*iter)->fsize + (*iter)->ssize;
 
-          if (tsize + totalSize < MAX_SIZE) {
-            toOffload.push_back(*iter);
+            if (tsize + totalSize < MAX_SIZE) {
+              toOffload.push_back(*iter);
 
-            mapMsg.remove(*iter);
-            rowMap[(*iter)->x].remove(*iter);
-            colMap[(*iter)->y].remove(*iter);
+              mapMsg.remove(*iter);
+              rowMap[(*iter)->x].remove(*iter);
+              colMap[(*iter)->y].remove(*iter);
 
-            numberAgglom++;
+              numberAgglom++;
+            } else {
+              break;
+            }
           }
+        } else {
+          break;
         }
       }
 
-      //ckout << "numberAgglom = " << numberAgglom << ", queue size = " << mapMsg.size() << endl; 
+      ckout << "numberAgglom = " << numberAgglom << ", queue size = " << mapMsg.size() << endl; 
 
-      // run on GPU
-      gpu_count++;
-      total_size += toOffload.size();
+      if (numberAgglom > 0) {
+        // run on GPU
+        gpu_count++;
+        total_size += toOffload.size();
 
-      int partsize = 0, k = 0;
+        int partsize = 0, k = 0;
 
-      list<JMessage> toSend;
+        list<JMessage> toSend;
 
-      for (list<JMessage*>::iterator iter2 = toOffload.begin(); 
-	   iter2 != toOffload.end(); ++iter2) {
-	toSend.push_back(**iter2);
+        for (list<JMessage*>::iterator iter2 = toOffload.begin(); 
+             iter2 != toOffload.end(); ++iter2) {
+          toSend.push_back(**iter2);
+        }
+
+        GPUworking = true;
+
+        CkEntryOptions opts;
+        opts.setPriority(-1000);
+
+        //ckout << "running " << numberAgglom  << " msg on GPU, " << "queue size is " << mapMsg.size() << endl;
+
+        gpu[CkMyPe()].gpu_offload(toSend, &opts);
       }
-
-      GPUworking = true;
-
-      CkEntryOptions opts;
-      opts.setPriority(-1000);
-
-      //ckout << "running " << numberAgglom  << " msg on GPU, " << "queue size is " << mapMsg.size() << endl;
-
-      gpu[CkMyPe()].gpu_offload(toSend, &opts);
     }
   }
 
