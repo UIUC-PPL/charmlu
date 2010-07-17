@@ -84,7 +84,7 @@ lu: lu.o Scheduler.o gpu_offloader.o
 	$(CHARMC) -language charm++ -o $@ $^  $(BLAS_LD) $(MULTICAST)  $(MODULES)
 
 lu-proj: lu.o Scheduler.o gpu_offloader.o
-	$(CHARMC) -L/usr/local/cuda/lib -lcublas -language charm++ -o $@ $^ $(BLAS_LD) $(PROJ) $(MULTICAST)  $(MODULES) -DADAPT_SCHED_MEM
+	$(CHARMC) -L/usr/local/cuda/lib -lcublas -lcudart -language charm++ -o $@ $^ $(BLAS_LD) $(PROJ) $(MULTICAST)  $(MODULES) -DADAPT_SCHED_MEM
 
 lu.decl.h: lu.ci
 	$(CHARMC)  lu.ci -DADAPT_SCHED_MEM

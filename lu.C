@@ -58,6 +58,7 @@ extern "C" {
 #include <queueing.h> // for access to memory threshold setting
 
 #include </usr/local/cuda/include/cublas.h>
+#include </usr/local/cuda/include/cuda_runtime.h>
 
 #include "Scheduler.h"
 
@@ -524,11 +525,6 @@ public:
     luArrProxy.factor();
   }
 
-  //VALIDATION: call to each LU Block to calculate its residuals
-  void validate() {
-	  luArrProxy.calcResiduals();
-  }
-
   void iterationCompleted() {
     CkPrintf("called iterationCompleted()\n");
 
@@ -547,9 +543,8 @@ public:
 
       //VALIDATION: Instead of ending program, perform validation
       //terminateProg();
-      validate();
+      luArrProxy.startValidation();
 
-      return;
     } else if (!solved && LUcomplete) {
       luArrProxy.print();
 
@@ -672,6 +667,8 @@ class LUBlk: public CBase_LUBlk {
   double *bvec;
   //VALIDATION: variable to hold copy of untouched b vector
   double *b;
+  //VALIDATION: variable to hold copy of final x
+  double *x;
 
   double* storedVec;
   int diagRec;
@@ -713,71 +710,80 @@ public:
   }
 
   //VALIDATION
-  void calcResiduals() {
+  void startValidation() {
 	  // Starting state:
 	  // variable A has the original matrix sub-block
-	  // solution sub-vector x is in bvec on the diagonals
+	  // solution sub-vector x is in variable x on the diagonals
 	  // variable b has the original b vector on the diagonals
 
-	  //Distribute bvec across entire column
+	  //Diagonals distribute x across entire column
 	  if(thisIndex.x == thisIndex.y)
 	  {
 		  CProxySection_LUBlk col =
 				  CProxySection_LUBlk::ckNew(thisArrayID, 0, numBlks-1,
 						  1, thisIndex.y, thisIndex.y, 1);
 
-		  col.recvXvec(BLKSIZE, bvec);
+		  col.recvXvec(BLKSIZE, x);
 	  }
   }
 
   //VALIDATION
-  void recvXvec(int size, double* x) {
-	  //Perform local dgemv with A*bvec
+  void recvXvec(int size, double* xvec) {
 
+	  double *partial_b = new double[BLKSIZE];
+
+	  //Perform local dgemv
 #if USE_ESSL
-    dgemv('T', BLKSIZE, BLKSIZE, 1.0, A, BLKSIZE, x, 1, 0.0, bvec, 1);
+    dgemv("T", BLKSIZE, BLKSIZE, 1.0, A, BLKSIZE, x, 1, 0.0, partial_b, 1);
 #else
     cblas_dgemv( CblasColMajor, CblasTrans,
     		  BLKSIZE, BLKSIZE, 1.0, A,
-    		  BLKSIZE, x, 1, 0.0, bvec, 1);
+    		  BLKSIZE, xvec, 1, 0.0, partial_b, 1);
 #endif
 
-//	  CkPrintf("%d,%d dgemv gave\n",thisIndex.x,thisIndex.y);
-//	  for (int i = 0; i < BLKSIZE; i++) {
-//	  			  CkPrintf("x[%d] = %f\n", i, bvec[i]);
-//	  		  }
+    //sum-reduction of result across row with diagonal element as target
+    thisProxy(thisIndex.x,thisIndex.x).sumBvec(BLKSIZE,partial_b);
 
-	  //sum-reduction of dgemm result across row to diagonal
-      //Cheating for now and just sending point-to-point messages
-      if(thisIndex.x != thisIndex.y)
-      {
-    	  thisProxy(thisIndex.x,thisIndex.x).sumXvec(size,bvec);
-    	  //CkPrintf("%d,%d sending to %d,%d\n",thisIndex.x,thisIndex.y,thisIndex.x,thisIndex.x);
-    	  contribute(CkCallback(CkIndex_Main::terminateProg(),mainProxy));
-      }
+    //if you are not the diagonal, signal finish
+    if(thisIndex.x != thisIndex.y)
+    	contribute(CkCallback(CkIndex_Main::terminateProg(),mainProxy));
   }
 
   //VALIDATION
-  void sumXvec(int size, double* x) {
+  void sumBvec(int size, double* partial_b) {
+
+	  //Clear bvec before first message processed for sum-reduction
+	  if(msgsRecvd == 0) {
+		  for(int i = 0; i < BLKSIZE; i++)
+			  bvec[i] = 0.0;
+	  }
+
 	  //Sum up messages
-	  if(++msgsRecvd <= numBlks-1) {
-		  //CkPrintf("%d,%d Expected %d, got %d so far\n", thisIndex.x, thisIndex.y, numBlks-1, msgsRecvd);
-		  for (int i = 0; i < size; i++)
-			  bvec[i] += x[i];
+	  if(++msgsRecvd <= numBlks) {
+		  for (int i = 0; i < size; i++) {
+			  bvec[i] += partial_b[i];
+		  }
 	  }
 
 	  //if all messages recieved, calculate the residual
-	  if (msgsRecvd == numBlks-1) {
-		  double *residuals = new double[BLKSIZE];
-		  CkPrintf("%d,%d Calculating residuals\n", thisIndex.x, thisIndex.y);
-		  //diagonal elements that received sum-reduction perform b - A*x
-		  for (int i = 0; i < size; i++) {
-			  residuals[i] = b[i] - bvec[i];
-			  CkPrintf("res[%d] = %e\n",i,residuals[i]);
-		  }
+	  if (msgsRecvd == numBlks)
+		  calcResiduals();
+  }
 
-		  contribute(CkCallback(CkIndex_Main::terminateProg(),mainProxy));
+  //VALIDATION
+  void calcResiduals() {
+	  double *residuals = new double[BLKSIZE];
+
+	  //diagonal elements that received sum-reduction perform b - A*x
+	  for (int i = 0; i < BLKSIZE; i++) {
+		  residuals[i] = b[i] - bvec[i];
+		  //if(fabs(residuals[i]) > 1e-10)
+                  CkPrintf("RESIDUAL VALUE = %e\n",residuals[i]);
+		  //CkPrintf("res[%d] = %f - %f = %e\n",i,b[i],bvec[i],residuals[i]);
 	  }
+
+	  //Diagonal elements signal finish
+	  contribute(CkCallback(CkIndex_Main::terminateProg(),mainProxy));
   }
 
   void flushLogs() {
@@ -1048,12 +1054,17 @@ public:
     double **incomingLp = (double**)malloc(sizeof(double*));
     double **incomingUp = (double**)malloc(sizeof(double*));
     double **LUp = (double**)malloc(sizeof(double*));
+    
+    for (int i = 0; i < BLKSIZE; i++) {
+      ckout << "givenL: " << givenLMsg->data[i] << endl;
+      ckout << "givenU: " << givenUMsg->data[i] << endl;
+    }
 
-    double *incomingL = (double*)malloc(sizeof(double)*BLKSIZE);
-    double *incomingU = (double*)malloc(sizeof(double)*BLKSIZE);
+    double *incomingL = (double*)malloc(sizeof(double)*BLKSIZE*BLKSIZE);
+    double *incomingU = (double*)malloc(sizeof(double)*BLKSIZE*BLKSIZE);
 
-    memcpy(givenLMsg->data, incomingL, sizeof(double)*BLKSIZE);
-    memcpy(givenUMsg->data, incomingU, sizeof(double)*BLKSIZE);
+    memcpy(incomingL, givenLMsg->data, sizeof(double)*BLKSIZE*BLKSIZE);
+    memcpy(incomingU, givenUMsg->data, sizeof(double)*BLKSIZE*BLKSIZE);
 
     *incomingLp = incomingL;
     *incomingUp = incomingU;
@@ -1067,11 +1078,30 @@ public:
                 incomingLp, incomingUp, LUp, thisIndex.x, thisIndex.y,
                 thisIndex.x, thisIndex.y, BLKSIZE, BLKSIZE, internalStep);
 
-    /*cublasDgemm('n', 'n',
+    // TODO: need to copy on and off of device
+    // Clear the last error
+    /*cublasGetError();
+
+    cublasDgemm('n', 'n',
                 BLKSIZE, BLKSIZE, BLKSIZE,
                 -1.0, incomingL,
                 BLKSIZE, incomingU, BLKSIZE,
-                1.0, LU, BLKSIZE);*/
+                1.0, LU, BLKSIZE);
+
+    cublasStatus status = cublasGetError();
+
+    if (status != CUBLAS_STATUS_SUCCESS) {
+      fprintf(stderr, "Kernel execution error.\n");
+      CkExit();
+    }
+
+    cudaError_t cudaErr = cudaThreadSynchronize();
+
+    if (cudaErr != cudaSuccess) {
+      fprintf(stderr, "DGEMM failed on invocation %s\n", cudaGetErrorString(cudaErr));
+      CkExit();
+      }*/
+
 #if 0
 #if USE_ESSL
     dgemm( "N", "N",
@@ -1086,10 +1116,10 @@ public:
 		 -1.0, incomingL,
 		 BLKSIZE, incomingU, BLKSIZE,
 		 1.0, LU, BLKSIZE);
-#endif
-#endif
-    
+
     thisProxy(thisIndex.x, thisIndex.y).matrixUpdated(internalStep);
+#endif
+#endif
   }
 
   //broadcast the U downwards to the blocks in the same column
@@ -1342,11 +1372,11 @@ public:
     }
 #endif
 
-    CkPrintf("allocate xvec\n");
-    double *xvec = new double[BLKSIZE];
+    CkPrintf("allocate x\n");
+    x = new double[BLKSIZE];
 
     CkPrintf("Calling local solver - diag = true\n");
-    localSolve(xvec, (size == BLKSIZE) ? preVec : NULL, true, forward);
+    localSolve(x, (size == BLKSIZE) ? preVec : NULL, true, forward);
 
     if (forward) {
       
@@ -1355,9 +1385,9 @@ public:
         }*/
 
       for (int i = 0; i < BLKSIZE; i++) {
-        bvec[i] = xvec[i];
+        bvec[i] = x[i];
 #if defined(PRINT_VECTORS)
-        CkPrintf("After forward solve - xvec[%d] = %f\n", i, xvec[i]);
+        CkPrintf("After forward solve - x[%d] = %f\n", i, x[i]);
 #endif
       }
 
@@ -1377,31 +1407,30 @@ public:
 	CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 
 				   1, thisIndex.y, thisIndex.y, 1);
 
-      col.forwardSolve(BLKSIZE, xvec);
+      col.forwardSolve(BLKSIZE, x);
     } else {
-
-    	//VALIDATION: put final solution into bvec
-    	for (int i = 0; i < BLKSIZE; i++)
-    		bvec[i] = xvec[i];
-
 #if defined(PRINT_VECTORS)
       for (int i = 0; i < BLKSIZE; i++) {
-        CkPrintf("After backward solve - xvec[%d] = %f\n", i, xvec[i]);
+        CkPrintf("After backward solve - x[%d] = %f\n", i, x[i]);
       }
 #endif
+
+      //VALIDATION: put final solution into bvec
+//      for (int i = 0; i < BLKSIZE; i++)
+//      	bvec[i] = x[i];
+
       if (thisIndex.x == 0) {
-	CkPrintf("backward-solve complete, (%d, %d) numBlks = %d\n", thisIndex.x, thisIndex.y, numBlks);
+    	  CkPrintf("backward-solve complete, (%d, %d) numBlks = %d\n", thisIndex.x, thisIndex.y, numBlks);
 
-        mainProxy.iterationCompleted();
+    	  mainProxy.iterationCompleted();
+      } else {
+    	  CProxySection_LUBlk col =
+    			  CProxySection_LUBlk::ckNew(thisArrayID, 0, thisIndex.x-1,
+    					  1, thisIndex.y, thisIndex.y, 1);
+
+    	  col.backwardSolve(BLKSIZE, x);
       }
-
-      CProxySection_LUBlk col = 
-	CProxySection_LUBlk::ckNew(thisArrayID, 0, thisIndex.x-1,
-				   1, thisIndex.y, thisIndex.y, 1);
-
-      col.backwardSolve(BLKSIZE, xvec);
     }
-
   }
 
   void diagForwardSolve(int size, double* vec) {
