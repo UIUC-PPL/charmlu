@@ -56,6 +56,10 @@ public:
 
   void findNewMax();
   list<JMessage*>* findLargestAgglom();
+  void removeItemXY(list<JMessage*>& list1, JMessage* &msg);
+
+  // Just for testing
+  void square_dgemm(int N, double *A, double *B, double *C);
 
 private:
   int findLargestInMap(map<int, list<JMessage*> >);

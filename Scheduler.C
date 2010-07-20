@@ -54,7 +54,7 @@ using namespace std;
 void Scheduler::tryAgain(int a) {
   sch_count++;
 
-  ckout << "calling tryAgain" << endl;
+  //ckout << "calling tryAgain" << endl;
 
   // GPU offloading
   if (1) {
@@ -65,6 +65,7 @@ void Scheduler::tryAgain(int a) {
     if (mapMsg.size() >= MIN_SIZE) {
       while (numberAgglom < MAX_SIZE) {
         list<JMessage*>* msgs = findLargestAgglom();
+        list<JMessage*> toRemove;
 
         if (msgs != NULL) {
           for (list<JMessage*>::iterator iter = msgs->begin();
@@ -73,10 +74,7 @@ void Scheduler::tryAgain(int a) {
 
             if (tsize + totalSize < MAX_SIZE) {
               toOffload.push_back(*iter);
-
-              mapMsg.remove(*iter);
-              rowMap[(*iter)->x].remove(*iter);
-              colMap[(*iter)->y].remove(*iter);
+              toRemove.push_back(*iter);
 
               numberAgglom++;
             } else {
@@ -86,6 +84,15 @@ void Scheduler::tryAgain(int a) {
         } else {
           break;
         }
+
+        for (list<JMessage*>::iterator iter = toRemove.begin();
+             iter != toRemove.end(); ++iter) {
+          removeItemXY(mapMsg, *iter);
+          removeItemXY(rowMap[(*iter)->x], *iter);
+          removeItemXY(colMap[(*iter)->y], *iter);
+        }
+
+        toRemove.clear();
       }
 
       ckout << "numberAgglom = " << numberAgglom << ", queue size = " << mapMsg.size() << endl; 
@@ -129,14 +136,14 @@ void Scheduler::tryAgain(int a) {
 
     int BLKSIZE = msg->fsize;
 
-    ckout << "XXXXXXXXX cblas_dgemm happening" << endl;
+    square_dgemm(BLKSIZE, msg->second, msg->first, msg->LU);
 
-    cblas_dgemm(CblasRowMajor,
+    /*cblas_dgemm(CblasRowMajor,
                 CblasNoTrans, CblasNoTrans,
                 BLKSIZE, BLKSIZE, BLKSIZE,
                 -1.0, msg->first,
                 BLKSIZE, msg->second, BLKSIZE,
-                1.0, msg->LU, BLKSIZE);
+                1.0, msg->LU, BLKSIZE);*/
 
     msg->block.matrixUpdated(msg->step);
 
@@ -150,7 +157,30 @@ void Scheduler::tryAgain(int a) {
     thisProxy[CkMyPe()].tryAgain(0, &opts);
   }
 }
-    
+
+void Scheduler::square_dgemm (int M, double *A, double *B, double *C) {
+  int i, j, k;
+
+  for (i = 0; i < M*M; i++) {
+    A[i] = A[i] * -1.0;
+  }
+
+  for (i = 0; i < M; ++i) {
+    for (j = 0; j < M; ++j) {
+      const double *Ai_ = A + i;
+      const double *B_j = B + j*M;
+
+      double cij = *(C + j*M + i);
+
+      for (k = 0; k < M; ++k) {
+        cij += *(Ai_ + k*M) * *(B_j + k);
+      }
+
+      *(C + j*M + i) = cij;
+    }
+  }
+}
+
 void Scheduler::cpuFree(int cpu) {
   cpuStatus[cpu] = false;
 }
@@ -159,8 +189,7 @@ void Scheduler::finishedGPU(list<JMessage> msgs) {
   for (list<JMessage>::iterator iter = msgs.begin(); 
        iter != msgs.end(); ++iter) {
 
-    // TODO: set internal step
-    iter->block.matrixUpdated(0);
+    iter->block.matrixUpdated(iter->step);
   }
 
   GPUworking = false;
@@ -170,7 +199,7 @@ void Scheduler::haveWork(CProxyElement_LUBlk block, double** first,
 			 double** second, double **LU, int x, int y, int cx,
 			 int cy, int fsize, int ssize, int step) {
 
-  ckout << "haveWork called" << endl;
+  //ckout << "haveWork called" << endl;
 
   msg_count++;
 
@@ -187,6 +216,12 @@ void Scheduler::haveWork(CProxyElement_LUBlk block, double** first,
   msg->cx = cx;
   msg->cy = cy;
   msg->step = step;
+
+  /*for (int i = 0; i < fsize * ssize; i++) {
+    ckout << "L = " << msg->first[i] << endl;
+    ckout << "U = " << msg->second[i] << endl;
+    ckout << "LU = " << msg->LU[i] << endl;
+    }*/
 
   mapMsg.push_back(msg);
 
@@ -226,6 +261,8 @@ list<JMessage*>* Scheduler::findLargestAgglom() {
   int elm1 = findLargestInMap(rowMap);
   int elm2 = findLargestInMap(colMap);
 
+  //ckout << "--------------elm1 = " << elm1 << ", " << "elm2 = " << elm2 << endl;
+
   int sz1 = -1, sz2 = -1;
 
   if (elm1 != -1)
@@ -233,6 +270,8 @@ list<JMessage*>* Scheduler::findLargestAgglom() {
 
   if (elm2 != -1)
     sz2 = colMap[elm2].size();
+
+  //ckout << "--------------sz1 = " << sz1 << ", " << "sz2 = " << sz2 << endl;
 
   if (sz1 == -1 && sz2 == -1)
     return NULL;
@@ -255,6 +294,17 @@ int Scheduler::findLargestInMap(map<int, list<JMessage*> > map1) {
   }
   
   return maxElm;
+}
+
+void Scheduler::removeItemXY(list<JMessage*>& list1, JMessage* &msg) {
+  for (list<JMessage*>::iterator iter = list1.begin();
+       iter != list1.end(); ++iter) {
+    if ((*iter)->x == msg->x &&
+        (*iter)->y == msg->y &&
+        (*iter)->step == msg->step) {
+      list1.erase(iter);
+    }
+  }
 }
 
 #include "scheduler.def.h"

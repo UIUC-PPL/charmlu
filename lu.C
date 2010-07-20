@@ -1055,10 +1055,10 @@ public:
     double **incomingUp = (double**)malloc(sizeof(double*));
     double **LUp = (double**)malloc(sizeof(double*));
     
-    for (int i = 0; i < BLKSIZE; i++) {
+    /*for (int i = 0; i < BLKSIZE; i++) {
       ckout << "givenL: " << givenLMsg->data[i] << endl;
       ckout << "givenU: " << givenUMsg->data[i] << endl;
-    }
+      }*/
 
     double *incomingL = (double*)malloc(sizeof(double)*BLKSIZE*BLKSIZE);
     double *incomingU = (double*)malloc(sizeof(double)*BLKSIZE*BLKSIZE);
@@ -1070,7 +1070,7 @@ public:
     *incomingUp = incomingU;
     *LUp = LU;
 
-    CkPrintf("mype = %d\n", CkMyPe());
+    //CkPrintf("mype = %d\n", CkMyPe());
 
     Scheduler* s = scheduler.ckLocalBranch();
 

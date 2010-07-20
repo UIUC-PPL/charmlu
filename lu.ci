@@ -57,8 +57,8 @@ mainmodule lu {
 		    .processTrailingUpdate(internalStep);
 	    }
 	    when processTrailingUpdate[internalStep](int step) atomic {
-                ckout << "processing for " << internalStep << " for (" << 
-                thisIndex.x << ", " << thisIndex.y << ")" << endl;
+                //ckout << "processing for " << internalStep << " for (" <<
+                //thisIndex.x << ", " << thisIndex.y << ")" << endl;
 		updateMatrix(L, U);
 	    }
             when matrixUpdated[internalStep](int step) atomic {
