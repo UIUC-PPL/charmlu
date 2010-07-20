@@ -1,6 +1,7 @@
 #include "pup_stl.h"
 #include "c_common.h"
 #include "Scheduler.h"
+#include "gpu_kernel.h"
 #include "assert.h"
 
 #include "gpuwork.decl.h"
@@ -25,7 +26,7 @@ public:
     sprintf(note, "gpu offloading happening");
     traceUserSuppliedNote(note);
 
-    vector<double> Lvec, Uvec, Avec;
+    vector<float> Lvec, Uvec, Avec;
     vector<int> Lstart, Lend, Ustart, Uend;
 
     int lastX = -1, lastY = -1;
@@ -52,12 +53,12 @@ public:
 
       for (int i = 0; i < tsize; i++) {
         if (copyL)
-          Lvec.push_back(iter->first[i]);
+          Lvec.push_back((float)iter->first[i]);
 
         if (copyU)
-          Uvec.push_back(iter->second[i]);
+          Uvec.push_back((float)iter->second[i]);
 
-        Avec.push_back(iter->LU[i]);
+        Avec.push_back((float)iter->LU[i]);
 
         Lstart.push_back(startL);
         Lend.push_back(startL + tsize);
@@ -70,7 +71,7 @@ public:
       lastY = iter->y;
     }
 
-    double *Lm, *Um, *Am;
+    float *Lm, *Um, *Am;
     int *Ls, *Le, *Us, *Ue;
     int size;
 
@@ -85,8 +86,10 @@ public:
 
     size = Avec.size();
 
-    FakeGPUDGEMM(size, msgs.size(), block, Um, Lm, Am,
-                 Us, Ue, Ls, Le);
+    //FakeGPUDGEMM(size, msgs.size(), block, Um, Lm, Am,
+    //Us, Ue, Ls, Le);
+
+    GPUKernelDGEMM(Lm, Um, Am, Ls, Le, Us, Ue, block, size);
 
     /*GPUinteractNew(Fx, Fy, Sx, Sy, Ffx, Ffy, Sfx, Sfy, fn, sn, 
       fS, fE, sS, sE);*/
