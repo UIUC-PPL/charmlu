@@ -61,28 +61,33 @@ void Scheduler::tryAgain(int a) {
     int totalSize = 0;
     int numberAgglom = 0;
     list<JMessage*> toOffload;
+    list<JMessage*> toRemove;
 
     if (mapMsg.size() >= MIN_SIZE) {
       while (numberAgglom < MAX_SIZE) {
         list<JMessage*>* msgs = findLargestAgglom();
-        list<JMessage*> toRemove;
+        bool cont = true;
+
+        //ckout << "doing this" << endl;
 
         if (msgs != NULL) {
           for (list<JMessage*>::iterator iter = msgs->begin();
-               iter != msgs->end(); ++iter) {
+               iter != msgs->end() && numberAgglom < MAX_SIZE; ++iter) {
             int tsize = (*iter)->fsize + (*iter)->ssize;
 
-            if (tsize + totalSize < MAX_SIZE) {
+            if (tsize + totalSize < MAX_OFFLOAD_SIZE) {
               toOffload.push_back(*iter);
               toRemove.push_back(*iter);
 
               numberAgglom++;
             } else {
+              cont = false;
               break;
             }
           }
         } else {
-          break;
+          cont = false;
+          //break;
         }
 
         for (list<JMessage*>::iterator iter = toRemove.begin();
@@ -93,6 +98,9 @@ void Scheduler::tryAgain(int a) {
         }
 
         toRemove.clear();
+
+        if (!cont)
+          break;
       }
 
       ckout << "numberAgglom = " << numberAgglom << ", queue size = " << mapMsg.size() << endl; 
@@ -125,7 +133,7 @@ void Scheduler::tryAgain(int a) {
 
   // If there is work to do, run one message on CPU
   // for (int i = 0; i < MAX_CPU_SIZE && mapMsg.size() > 0; i++)
-  if (mapMsg.size() > 0) {
+  if (0 && mapMsg.size() > 0) {
     cpu_count++;
 
     JMessage *msg = mapMsg.front();
@@ -137,6 +145,10 @@ void Scheduler::tryAgain(int a) {
     int BLKSIZE = msg->fsize;
 
     square_dgemm(BLKSIZE, msg->second, msg->first, msg->LU);
+
+    for (int i = 0; i < msg->fsize*msg->ssize; i++) {
+      printf("CPU work: msg->LU[%d] = %f\n", i, msg->LU[i]);
+    }
 
     /*cblas_dgemm(CblasRowMajor,
                 CblasNoTrans, CblasNoTrans,
@@ -188,6 +200,8 @@ void Scheduler::cpuFree(int cpu) {
 void Scheduler::finishedGPU(list<JMessage> msgs) {
   for (list<JMessage>::iterator iter = msgs.begin(); 
        iter != msgs.end(); ++iter) {
+
+    //square_dgemm(iter->fsize, iter->second, iter->first, iter->LU);
 
     iter->block.matrixUpdated(iter->step);
   }

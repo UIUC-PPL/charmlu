@@ -7,23 +7,26 @@
 
 char buf[100000];
 
-__global__ void GPUKernelDGEMM(float *Lm, float *Um, float *LUm,
-                               float *Lstart, float *Lend, 
-                               float *Ustart, float *Uend,
-                               int block, int total) {
+__global__ void GPUKernel(float *Lm, float *Um, float *LUm,
+                          int *Lstart, int *Lend,
+                          int *Ustart, int *Uend,
+                          int block, int total) {
   int i = blockIdx.x * blockDim.x + threadIdx.x;
-  int lstart = Lstart[i], ustart = Ustart[i];;
+  int lstart = Lstart[i], ustart = Ustart[i];
   float val = 0.0;
-  int offsetx = i % block;
-  int offsety = i / block;
+  int offsetx = (i % (block * block)) % block;
+  int offsety = (i % (block * block)) / block;
 
   for (int k = 0; k < block; k++) {
-    float elm1 = Lm[k + block * offsetx];
-    float elm2 = Um[k * block + offsety];
+    int i1 = (k + block * offsety) + lstart;
+    int i2 = (k * block + offsetx) + ustart;
+
+    float elm1 = Lm[i1];
+    float elm2 = Um[i2];
     val += elm1 * elm2;
   }
 
-  LUm[i] += -1.0 * val;
+  LUm[i] += -1 * val;
 }
 
 void checkCUDAError(const char *msg) {
@@ -47,10 +50,10 @@ static int n = MAX_OFFLOAD_SIZE;
 static float *d_Lm;
 static float *d_Um;
 static float *d_LUm;
-static float *d_Lstart;
-static float *d_Lend;
-static float *d_Ustart;
-static float *d_Uend;
+static int *d_Lstart;
+static int *d_Lend;
+static int *d_Ustart;
+static int *d_Uend;
 static int allocated = 0;
   
 void GPUallocate() {
@@ -59,10 +62,10 @@ void GPUallocate() {
     cudaMalloc((void **) &d_Lm, n * sizeof(float));
     cudaMalloc((void **) &d_Um, n * sizeof(float));
     cudaMalloc((void **) &d_LUm, n * sizeof(float));
-    cudaMalloc((void **) &d_Lstart, n * sizeof(float));
-    cudaMalloc((void **) &d_Lend, n * sizeof(float));
-    cudaMalloc((void **) &d_Ustart, n * sizeof(float));
-    cudaMalloc((void **) &d_Uend, n * sizeof(float));
+    cudaMalloc((void **) &d_Lstart, n * sizeof(int));
+    cudaMalloc((void **) &d_Lend, n * sizeof(int));
+    cudaMalloc((void **) &d_Ustart, n * sizeof(int));
+    cudaMalloc((void **) &d_Uend, n * sizeof(int));
     checkCUDAError("mem allocation");
     allocated = 1;
     printf("allocation finished\n");
@@ -92,10 +95,12 @@ void GPUKernelDGEMM(float Lm[], float Um[], float LUm[],
   //printf("fStart[0] = %d, fEnd[0] = %d, fStart[%d] = %d, fEnd[%d] = %d\n", fStart[0], fEnd[0], findex, fStart[findex], findex, fEnd[findex]);
   //printf("sStart[0] = %d, sEnd[0] = %d, sStart[%d] = %d, sEnd[%d] = %d\n", sStart[0], sEnd[0], sindex, sStart[sindex], sindex, sEnd[sindex]);
 
-  printf("total = %d, block = %d\n", total, block);
+  //printf("total = %d, block = %d\n", total, block);
 
   size_t dsize = total * sizeof(float);
   size_t isize = total * sizeof(int);
+
+  //printf("dsize = %d, isize = %d\n", (int)dsize, (int)isize);
 	
   /*assert(sizes < (n * sizeof(float)) );
     assert(sizef < (n * sizeof(float)) );
@@ -114,32 +119,42 @@ void GPUKernelDGEMM(float Lm[], float Um[], float LUm[],
 
   checkCUDAError("mem copy to device");
 
-  for (int i = 0; i < total; i++) {
+  /*for (int i = 0; i < total; i++) {
     printf("before LUm[%d] = %f\n", i, LUm[i]);
   }
 
-  /*  for (int i = 0; i < total; i++) {
+  for (int i = 0; i < total; i++) {
+    printf("Lstart[%d] = %d\n", i, Lstart[i]);
+  }
+
+  for (int i = 0; i < total; i++) {
+    printf("Ustart[%d] = %d\n", i, Ustart[i]);
+  }
+
+  for (int i = 0; i < total; i++) {
     printf("before Lm[%d] = %f\n", i, Lm[i]);
   }
 
   for (int i = 0; i < total; i++) {
     printf("before Um[%d] = %f\n", i, Um[i]);
-    }*/
+  }
+
+  printf("TOTAL = %d\n", total);*/
 
   int blockSize = 16;
   int nBlocks = total/blockSize + (total%blockSize == 0?0:1);
 
-  GPUKernelDGEMM<<<nBlocks, blockSize>>>(d_Lm, d_Um,
-                                         d_LUm, d_Lstart,
-                                         d_Lend, d_Ustart,
-                                         d_Uend, block, total);
+  GPUKernel<<<nBlocks, blockSize>>>(d_Lm, d_Um, d_LUm,
+                                    d_Lstart, d_Lend,
+                                    d_Ustart, d_Uend,
+                                    block, total);
   checkCUDAKernelError("kernel execute");
 
   cudaMemcpy(LUm, d_LUm, dsize, cudaMemcpyDeviceToHost);
 
-  for (int i = 0; i < total; i++) {
+  /*for (int i = 0; i < total; i++) {
     printf("after LUm[%d] = %f\n", i, LUm[i]);
-  }
+    }*/
 
   checkCUDAError("mem copy from device");
 }

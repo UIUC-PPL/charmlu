@@ -8,9 +8,6 @@
 
 using namespace std;
 
-static double A = 2.0; // Force Calculation parameter 1
-static double B = 1.0; // Force Calculation parameter 2
-
 extern CProxy_Scheduler scheduler;
 
 class GPUWork : public CBase_GPUWork {
@@ -41,15 +38,15 @@ public:
 
       block = iter->fsize;
 
-      if (lastX == iter->x)  
-        copyL = false;
-      else if (lastX != -1)
+      //if (lastX == iter->x)  
+      //copyL = false;
+      if (lastX != -1)
         startL += tsize;
 
-      if (lastY == iter->y)
-        copyU = false;
-      else if (lastY != -1)
-        startU += tsize;
+      //if (lastY == iter->y)
+      //copyU = false;
+      if (lastY != -1)
+         startU += tsize;
 
       for (int i = 0; i < tsize; i++) {
         if (copyL)
@@ -86,15 +83,21 @@ public:
 
     size = Avec.size();
 
-    //FakeGPUDGEMM(size, msgs.size(), block, Um, Lm, Am,
-    //Us, Ue, Ls, Le);
+    float *AmP = (float*)malloc(sizeof(float) * size);
+    memcpy(AmP, &Avec[0], sizeof(float) * size);
 
     GPUKernelDGEMM(Lm, Um, Am, Ls, Le, Us, Ue, block, size);
 
-    /*GPUinteractNew(Fx, Fy, Sx, Sy, Ffx, Ffy, Sfx, Sfy, fn, sn, 
-      fS, fE, sS, sE);*/
+    /*FakeGPUDGEMM(size, msgs.size(), block, Um, Lm, AmP,
+                 Us, Ue, Ls, Le);
 
-    int firstLoc = 0, secondLoc = 0;
+    for (int i = 0; i < size; i++) {
+      if (Am[i] != AmP[i])
+        ckout << "FOUND: " << i << " Am = " << Am[i] << ", AmP = " << AmP[i] <<
+          ", Lstart = " << Ls[i] << endl;
+          }*/
+
+    int firstLoc = 0;
 
     for (list<JMessage>::iterator iter = msgs.begin();
 	 iter != msgs.end(); ++iter) {
@@ -110,8 +113,8 @@ public:
     scheduler[CkMyPe()].finishedGPU(msgs);
   }
 
-  void FakeGPUDGEMM(int tsize, int agglom, int block, double *Ap, double *Bp,
-                    double *Cp, int *Astart, int *Aend, int *Bstart,
+  void FakeGPUDGEMM(int tsize, int agglom, int block, float *Ap, float *Bp,
+                    float *Cp, int *Astart, int *Aend, int *Bstart,
                     int *Bend) {
     int bsize = tsize / agglom;
 
@@ -119,9 +122,9 @@ public:
       /*ckout << "bstart = " << Bstart[bsize * m] << endl;
         ckout << "astart = " << Astart[bsize * m] << endl;*/
 
-      double *A = Astart[bsize * m] + Ap;
-      double *B = Bstart[bsize * m] + Bp;
-      double *C = m * bsize + Cp;
+      float *A = Astart[bsize * m] + Ap;
+      float *B = Bstart[bsize * m] + Bp;
+      float *C = m * bsize + Cp;
 
       /*for (int i = 0; i < block; i++) {
         ckout << "L = " << B[i] << endl;
@@ -134,10 +137,10 @@ public:
 
       for (i = 0; i < N; ++i) {
         for (j = 0; j < N; ++j) {
-          const double *Ai_ = A + i;
-          const double *B_j = B + j*N;
+          const float *Ai_ = A + i;
+          const float *B_j = B + j*N;
 
-          double cij = *(C + j*N + i);
+          float cij = *(C + j*N + i);
 
           for (k = 0; k < N; ++k) {
             cij += -1 * *(Ai_ + k*N) * *(B_j + k);
