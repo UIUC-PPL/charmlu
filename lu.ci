@@ -29,6 +29,7 @@ mainmodule lu {
     entry void terminateProg();
     entry void done();
     entry void iterationCompleted();
+    entry void complete(int, int, int, int, int);
   };
 
   array [2D] LUBlk {

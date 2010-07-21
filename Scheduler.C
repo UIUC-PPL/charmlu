@@ -263,12 +263,7 @@ void Scheduler::haveWork(CProxyElement_LUBlk block, double** first,
 }
 
 void Scheduler::checkIn() {
-  //TODO: refactor so ends with this "complete" message
-  //mainProxy.complete(total_size, sch_count, msg_count, cpu_count, gpu_count);
-}
-
-void Scheduler::findNewMax() {
-
+  mainProxy.complete(total_size, sch_count, msg_count, cpu_count, gpu_count);
 }
 
 list<JMessage*>* Scheduler::findLargestAgglom() {

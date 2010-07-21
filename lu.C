@@ -434,25 +434,12 @@ public:
   Main(CkArgMsg* m) : numIterations(1), solved(false), LUcomplete(false), workStarted(false), sentVectorData(false) {
     iteration = 0;
 
-    if (m->argc<3) {
-      CkPrintf("Usage: %s <matrix size> <mem threshold> <iterations>\n", m->argv[0]);
+    if (m->argc < 5) {
+      CkPrintf("Usage: %s <matrix size> <mem threshold> <iterations> <block-size>\n", m->argv[0]);
       CkExit();
     }
 
-    if (m->argc > 3) {
-      /*sscanf( m->argv[2], "%d", &strategy);
-	CkPrintf("CLI: strategy=%d\n", strategy);*/
-      
-      /*
-      sscanf( m->argv[2], "%d", &memThreshold);
-      CkPrintf("CLI: memThreshold=%dMB\n", memThreshold);
-      */
-
-
-      if (m->argc >= 4)
-	numIterations = atoi(m->argv[3]);
-      CkPrintf("CLI: numIterations=%d\n", numIterations);
-    }
+    BLKSIZE = atoi(m->argv[4]);
 
     mainProxy = thisProxy;
 
@@ -563,7 +550,7 @@ public:
 	gotoNextPhase();
       
 	whichMulticastStrategy = controlPoint("multicast_strategy", 2, 2);
-	BLKSIZE = 1 << 2; //1 << controlPoint("block_size", 10,10);
+	//BLKSIZE = 1 << 2; //1 << controlPoint("block_size", 10,10);
 	mapping = controlPoint("mapping", 1, 1);
 	memThreshold = 200 + controlPoint("memory_threshold", 0, 20) * 100;
       
@@ -641,7 +628,10 @@ public:
   void terminateProg() {
     //CkCallback cb(CkIndex_Main::done(NULL),thisProxy); 
     //traceCriticalPathBack(cb);
-    thisProxy.done();
+    
+    Scheduler* s = scheduler.ckLocalBranch();
+
+    s->checkIn();
   }
 
   void done() {
@@ -651,6 +641,21 @@ public:
     CkExit();
   }
 
+  void complete(int total_size, int sch_count, int msg_count, 
+                      int cpu_count, int gpu_count) {
+    ckout << "total wall time " << CmiWallTimer() - startTime << endl;
+
+    CkPrintf("percent GPU work = %f\n", (double)total_size / msg_count);
+    CkPrintf("percent CPU work = %f\n", (double)cpu_count / msg_count);
+    CkPrintf("average GPU msg size = %f\n", (double)total_size / gpu_count);
+    CkPrintf("scheduler invocations = %d\n",sch_count);
+    CkPrintf("GPU invocations = %d\n",gpu_count);
+    CkPrintf("message instances = %d\n",msg_count);
+    CkPrintf("# messages on GPU = %d\n",total_size);
+    CkPrintf("# messages on CPU = %d\n",cpu_count);
+  
+    CkExit();
+  }
 };
 
 class LUBlk: public CBase_LUBlk {
