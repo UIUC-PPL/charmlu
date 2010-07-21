@@ -782,7 +782,7 @@ public:
 	  for (int i = 0; i < BLKSIZE; i++) {
 		  residuals[i] = b[i] - bvec[i];
 		  //if(fabs(residuals[i]) > 1e-10)
-                  //CkPrintf("RESIDUAL VALUE = %e\n",residuals[i]);
+                  CkPrintf("RESIDUAL VALUE = %e\n",residuals[i]);
 		  //CkPrintf("res[%d] = %f - %f = %e\n",i,b[i],bvec[i],residuals[i]);
 	  }
 
