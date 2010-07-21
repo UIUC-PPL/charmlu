@@ -31,10 +31,8 @@ public:
     float *Uvec= new float[msgs.size() * asize];
     float *Avec= new float[msgs.size() * asize];
 
-    int *Lstart = new int[msgs.size() * asize];
-    int *Lend = new int[msgs.size() * asize];
-    int *Ustart = new int[msgs.size() * asize];
-    int *Uend = new int[msgs.size() * asize];
+    int *Lstart = new int[msgs.size()];
+    int *Ustart = new int[msgs.size()];
 
     int Li = 0, Ui = 0, Ai = 0, 
       Lsi = 0, Lei = 0, Usi = 0, Uei = 0;
@@ -61,6 +59,9 @@ public:
       if (lastY != -1)
          startU += tsize;
 
+      Lstart[Lsi++] = startL;
+      Ustart[Usi++] = startU;
+
       for (int i = 0; i < tsize; i++) {
         if (copyL)
           Lvec[Li++] = iter->first[i];
@@ -69,12 +70,6 @@ public:
           Uvec[Ui++] = iter->second[i];
 
         Avec[Ai++] = iter->LU[i];
-
-        Lstart[Lsi++] = startL;
-        Lend[Lei++] = startL + tsize;
-
-        Ustart[Usi++] = startU;
-        Uend[Uei++] = startU + tsize;
       }
 
       lastX = iter->x;
@@ -91,7 +86,7 @@ public:
     GPUKernelDGEMM(Lvec, Uvec, Avec, Lstart, Ustart, block, size);
 
     /*FakeGPUDGEMM(size, msgs.size(), block, Uvec, Lvec, Avec,
-      Ustart, Uend, Lstart, Lend);*/
+      Ustart, Lstart);*/
 
     /*for (int i = 0; i < size; i++) {
       if (Am[i] != AmP[i])
@@ -112,22 +107,21 @@ public:
       firstLoc += tsize;
     }
 
-    delete[] Lvec, Uvec, Avec, Lstart, Lend, Ustart, Uend;
+    delete[] Lvec, Uvec, Avec, Lstart, Ustart;
 
     scheduler[CkMyPe()].finishedGPU(msgs);
   }
 
   void FakeGPUDGEMM(int tsize, int agglom, int block, float *Ap, float *Bp,
-                    float *Cp, int *Astart, int *Aend, int *Bstart,
-                    int *Bend) {
+                    float *Cp, int *Astart, int *Bstart) {
     int bsize = tsize / agglom;
 
     for (int m = 0; m < agglom; m++) {
       /*ckout << "bstart = " << Bstart[bsize * m] << endl;
         ckout << "astart = " << Astart[bsize * m] << endl;*/
 
-      float *A = Astart[bsize * m] + Ap;
-      float *B = Bstart[bsize * m] + Bp;
+      float *A = Astart[m] + Ap;
+      float *B = Bstart[m] + Bp;
       float *C = m * bsize + Cp;
 
       /*for (int i = 0; i < block; i++) {

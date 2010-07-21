@@ -14,7 +14,8 @@ __global__ void GPUKernel(float *Lm, float *Um, float *LUm,
                           int *Lstart, int *Ustart,
                           int block, int total) {
   int i = blockIdx.x * blockDim.x + threadIdx.x;
-  int lstart = Lstart[i], ustart = Ustart[i];
+  int ind = i / (block * block);
+  int lstart = Lstart[ind], ustart = Ustart[ind];
   float val = 0.0;
   int offsetx = (i % (block * block)) % block;
   int offsety = (i % (block * block)) / block;
@@ -96,7 +97,7 @@ void GPUKernelDGEMM(float Lm[], float Um[], float LUm[],
   //printf("total = %d, block = %d\n", total, block);
 
   size_t dsize = total * sizeof(float);
-  size_t isize = total * sizeof(int);
+  size_t isize = (total / (block * block)) * sizeof(int);
 
   //printf("dsize = %d, isize = %d\n", (int)dsize, (int)isize);
 	
