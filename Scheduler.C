@@ -103,7 +103,7 @@ void Scheduler::tryAgain(int a) {
           break;
       }
 
-      ckout << "numberAgglom = " << numberAgglom << ", queue size = " << mapMsg.size() << endl; 
+      //ckout << "numberAgglom = " << numberAgglom << ", queue size = " << mapMsg.size() << endl; 
 
       if (numberAgglom > 0) {
         // run on GPU

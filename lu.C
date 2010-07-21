@@ -782,7 +782,7 @@ public:
 	  for (int i = 0; i < BLKSIZE; i++) {
 		  residuals[i] = b[i] - bvec[i];
 		  //if(fabs(residuals[i]) > 1e-10)
-                  CkPrintf("RESIDUAL VALUE = %e\n",residuals[i]);
+                  //CkPrintf("RESIDUAL VALUE = %e\n",residuals[i]);
 		  //CkPrintf("res[%d] = %f - %f = %e\n",i,b[i],bvec[i],residuals[i]);
 	  }
 
@@ -1372,7 +1372,7 @@ public:
   }
 
   void solve(bool backward, int size, double* preVec) {
-    CkPrintf("solved called on: (%d, %d)\n", thisIndex.x, thisIndex.y);
+    //CkPrintf("solved called on: (%d, %d)\n", thisIndex.x, thisIndex.y);
 
     bool forward = !backward;
 
@@ -1382,10 +1382,10 @@ public:
     }
 #endif
 
-    CkPrintf("allocate x\n");
+    //CkPrintf("allocate x\n");
     x = new double[BLKSIZE];
 
-    CkPrintf("Calling local solver - diag = true\n");
+    //CkPrintf("Calling local solver - diag = true\n");
     localSolve(x, (size == BLKSIZE) ? preVec : NULL, true, forward);
 
     if (forward) {
@@ -1407,7 +1407,7 @@ public:
       diagRec = 0;
       
       if (thisIndex.x == numBlks-1) {
-	CkPrintf("forward-solve complete, (%d, %d) numBlks = %d\n", thisIndex.x, thisIndex.y, numBlks);
+	//CkPrintf("forward-solve complete, (%d, %d) numBlks = %d\n", thisIndex.x, thisIndex.y, numBlks);
 
         // Perform backward solving
         thisProxy(numBlks-1, numBlks-1).solve(true, 0, NULL);
@@ -1430,7 +1430,7 @@ public:
 //      	bvec[i] = x[i];
 
       if (thisIndex.x == 0) {
-    	  CkPrintf("backward-solve complete, (%d, %d) numBlks = %d\n", thisIndex.x, thisIndex.y, numBlks);
+        //CkPrintf("backward-solve complete, (%d, %d) numBlks = %d\n", thisIndex.x, thisIndex.y, numBlks);
 
     	  mainProxy.iterationCompleted();
       } else {
@@ -1455,7 +1455,7 @@ public:
       storedVec[i] += vec[i];
     }
     
-    CkPrintf("FORWARD: expected %d, received %d\n", thisIndex.y, diagRec+1);
+    //CkPrintf("FORWARD: expected %d, received %d\n", thisIndex.y, diagRec+1);
 
     if (++diagRec == thisIndex.y)
       thisProxy(thisIndex.x, thisIndex.y).solve(false, BLKSIZE, storedVec);
@@ -1475,7 +1475,7 @@ public:
     
     int expected = numBlks-1-thisIndex.y;
     
-    CkPrintf("BACKWARD: expected %d, received %d\n", expected, diagRec+1);
+    //CkPrintf("BACKWARD: expected %d, received %d\n", expected, diagRec+1);
 
     if (++diagRec == expected)
       thisProxy(thisIndex.x, thisIndex.y).solve(true, BLKSIZE, storedVec);
@@ -1486,8 +1486,8 @@ public:
     
     localSolve(xvec, preVec, false, true);
     
-    CkPrintf("diagForwardSolve called from: (%d, %d), on: (%d, %d)\n", 
-             thisIndex.x, thisIndex.y, thisIndex.x, thisIndex.x);
+    /*CkPrintf("diagForwardSolve called from: (%d, %d), on: (%d, %d)\n", 
+      thisIndex.x, thisIndex.y, thisIndex.x, thisIndex.x);*/
     
     thisProxy(thisIndex.x, thisIndex.x).diagForwardSolve(size, xvec);
   }
@@ -1497,8 +1497,8 @@ public:
     
     localSolve(xvec, preVec, false, false);
     
-    CkPrintf("diagBackwardSolve called from: (%d, %d), on: (%d, %d)\n", 
-             thisIndex.x, thisIndex.y, thisIndex.x, thisIndex.x);
+    /*CkPrintf("diagBackwardSolve called from: (%d, %d), on: (%d, %d)\n", 
+      thisIndex.x, thisIndex.y, thisIndex.x, thisIndex.x);*/
     
     thisProxy(thisIndex.x, thisIndex.x).diagBackwardSolve(size, xvec);
   }

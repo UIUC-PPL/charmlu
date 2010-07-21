@@ -54,7 +54,6 @@ public:
   
   void checkIn();
 
-  void findNewMax();
   list<JMessage*>* findLargestAgglom();
   void removeItemXY(list<JMessage*>& list1, JMessage* &msg);
 
