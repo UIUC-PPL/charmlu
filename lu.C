@@ -57,8 +57,7 @@ extern "C" {
 
 #include <queueing.h> // for access to memory threshold setting
 
-#include </usr/local/cuda/include/cublas.h>
-#include </usr/local/cuda/include/cuda_runtime.h>
+#include "gpu_kernel.h"
 
 #include "Scheduler.h"
 
@@ -1047,10 +1046,39 @@ public:
 #endif
   }
 
+  void runGPU(blkMsg *givenLMsg, blkMsg *givenUMsg) {
+    double *incomingL = givenLMsg->data;
+    double *incomingU = givenUMsg->data;
+
+    float *fL = (float*)malloc(sizeof(float) * BLKSIZE * BLKSIZE);
+    float *fU = (float*)malloc(sizeof(float) * BLKSIZE * BLKSIZE);
+    float *fLU = (float*)malloc(sizeof(float) * BLKSIZE * BLKSIZE);
+
+    for (int i = 0; i < BLKSIZE * BLKSIZE; i++) {
+      fL[i] = incomingL[i];
+      fU[i] = incomingU[i];
+      fLU[i] = LU[i];
+    }
+
+    /*for (int i = 0; i < BLKSIZE * BLKSIZE; i++) {
+      ckout << "before fLU[" << i << "] = " << fLU[i] << endl;
+      }*/
+
+    GPUSingleOffload(fU, fL, fLU, BLKSIZE);
+
+    for (int i = 0; i < BLKSIZE * BLKSIZE; i++) {
+      LU[i] = fLU[i];
+    }
+  }
+
   void updateMatrix(blkMsg *givenLMsg, blkMsg *givenUMsg) {
     traceLU t(internalStep, traceTrailingUpdate);
     DEBUG_PRINT("elem[%d,%d] is updating its value at step %d\n", thisIndex.x, thisIndex.y, internalStep);
 
+#if defined(GPU_NO_SCHEDULER)
+    runGPU(givenLMsg, givenUMsg);
+    thisProxy(thisIndex.x, thisIndex.y).matrixUpdated(internalStep);
+#else
     double **incomingLp = (double**)malloc(sizeof(double*));
     double **incomingUp = (double**)malloc(sizeof(double*));
     double **LUp = (double**)malloc(sizeof(double*));
@@ -1077,30 +1105,7 @@ public:
     s->haveWork(thisProxy(thisIndex.x, thisIndex.y),
                 incomingLp, incomingUp, LUp, thisIndex.x, thisIndex.y,
                 thisIndex.x, thisIndex.y, BLKSIZE, BLKSIZE, internalStep);
-
-    // TODO: need to copy on and off of device
-    // Clear the last error
-    /*cublasGetError();
-
-    cublasDgemm('n', 'n',
-                BLKSIZE, BLKSIZE, BLKSIZE,
-                -1.0, incomingL,
-                BLKSIZE, incomingU, BLKSIZE,
-                1.0, LU, BLKSIZE);
-
-    cublasStatus status = cublasGetError();
-
-    if (status != CUBLAS_STATUS_SUCCESS) {
-      fprintf(stderr, "Kernel execution error.\n");
-      CkExit();
-    }
-
-    cudaError_t cudaErr = cudaThreadSynchronize();
-
-    if (cudaErr != cudaSuccess) {
-      fprintf(stderr, "DGEMM failed on invocation %s\n", cudaGetErrorString(cudaErr));
-      CkExit();
-      }*/
+#endif
 
 #if 0
 #if USE_ESSL

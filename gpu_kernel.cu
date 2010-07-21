@@ -5,6 +5,9 @@
 #include "assert.h"
 #include "c_common.h"
 
+#include </usr/local/cuda/include/cublas.h>
+#include </usr/local/cuda/include/cuda_runtime.h>
+
 char buf[100000];
 
 __global__ void GPUKernel(float *Lm, float *Um, float *LUm,
@@ -155,6 +158,74 @@ void GPUKernelDGEMM(float Lm[], float Um[], float LUm[],
   /*for (int i = 0; i < total; i++) {
     printf("after LUm[%d] = %f\n", i, LUm[i]);
     }*/
+
+  checkCUDAError("mem copy from device");
+}
+
+static float *d_Lms;
+static float *d_Ums;
+static float *d_LUms;
+static int singleAllocated = 0;
+  
+void GPUSingleallocate() {
+  if (!singleAllocated) {
+    printf("allocation happening\n");
+    cudaMalloc((void **) &d_Lms, n * sizeof(float));
+    cudaMalloc((void **) &d_Ums, n * sizeof(float));
+    cudaMalloc((void **) &d_LUms, n * sizeof(float));
+    checkCUDAError("mem allocation");
+    singleAllocated = 1;
+    printf("allocation finished\n");
+  }
+}
+
+__global__ void GPUSingleKernel(float *Lm, float *Um, float *LUm,
+                                int block) {
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  float val = 0.0;
+  int offsetx = i % block;
+  int offsety = i / block;
+
+  for (int k = 0; k < block; k++) {
+    int i1 = k + block * offsety;
+    int i2 = k * block + offsetx;
+
+    float elm1 = Lm[i1];
+    float elm2 = Um[i2];
+    val += elm1 * elm2;
+  }
+
+  LUm[i] += -1 * val;
+}
+
+void GPUSingleOffload(float Lm[], float Um[], float LUm[], int block) {
+  size_t dsize = block * block * sizeof(float);
+  
+  GPUSingleallocate();
+
+  cudaMemcpy(d_Lms, Lm, dsize, cudaMemcpyHostToDevice);
+  cudaMemcpy(d_Ums, Um, dsize, cudaMemcpyHostToDevice);
+  cudaMemcpy(d_LUms, LUm, dsize, cudaMemcpyHostToDevice);
+
+  checkCUDAError("mem copy to device");
+
+#if defined(USE_TUNED_KERNEL)
+  cublasSgemm('n', 'n',
+              block, block, block,
+              -1.0, d_Lms,
+              block, d_Ums, block,
+              1.0, d_LUms, block);
+#else
+  int total = block * block;
+  int blockSize = 16;
+  int nBlocks = total/blockSize + (total%blockSize == 0?0:1);
+
+  GPUSingleKernel<<<nBlocks, blockSize>>>(d_Ums, d_Lms, d_LUms, block);
+#endif
+
+  checkCUDAKernelError("kernel execute");
+
+  cudaMemcpy(LUm, d_LUms, dsize, cudaMemcpyDeviceToHost);
 
   checkCUDAError("mem copy from device");
 }
