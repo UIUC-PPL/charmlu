@@ -76,15 +76,15 @@ CHARMC=charmc $(OPTS)
 #CHARMC=${HOME}/current/new/charm/net-linux-amd64-icc10/bin/charmc $(OPTS)
 #CHARMC=charm/bin/charmc $(OPTS)
 
-MODULES=  -module ControlPoints   -module comlib -tracemode controlPoints 
+MODULES=-module comlib
 
 all: lu-proj
 
-lu: lu.o Scheduler.o gpu_offloader.o
+lu: lu.o Scheduler.o gpu_offloader.o gpu_kernel.o
 	$(CHARMC) -language charm++ -o $@ $^  $(BLAS_LD) $(MULTICAST)  $(MODULES)
 
-lu-proj: lu.o Scheduler.o gpu_offloader.o
-	$(CHARMC) -L/usr/local/cuda/lib -lcublas -lcudart -language charm++ -o $@ $^ $(BLAS_LD) $(PROJ) $(MULTICAST)  $(MODULES) -DADAPT_SCHED_MEM
+lu-proj: lu.o Scheduler.o gpu_offloader.o gpu_kernel.o
+	$(CHARMC) -L/usr/local/cuda/lib -lcublas -lcudart -language charm++ -o $@ $^ $(BLAS_LD) $(MULTICAST) $(MODULES) -DADAPT_SCHED_MEM
 
 lu.decl.h: lu.ci
 	$(CHARMC)  lu.ci -DADAPT_SCHED_MEM
@@ -92,14 +92,19 @@ lu.decl.h: lu.ci
 clean:
 	rm -f *.decl.h *.def.h conv-host *.o charmrun *~ lu lu-blas lu-mem lu-blas-proj.*.log lu-blas-proj.*.sum lu-blas-proj.*.sts lu-blas-proj.sts lu-blas-proj.projrc lu-blas-proj lu-proj controlPointData.txt lu*.log lu*.sum lu*.sts lu*.projrc SummaryDump.out *.output *.error *.cobaltlog traces/* core.* perfCounterBGP.o job-lu-* moduleinit* moduleInit*
 
-lu.o: lu.C lu.decl.h Scheduler.o gpu_offloader.o$
+lu.o: lu.C lu.decl.h Scheduler.o gpu_offloader.o gpu_kernel.o c_common.h$
 	$(CHARMC) -c lu.C -o lu.o $(BLAS_INC) $(OPTS) -DADAPT_SCHED_MEM
 
-Scheduler.o: Scheduler.C scheduler.decl.h$
+Scheduler.o: Scheduler.C scheduler.decl.h c_common.h$
 	$(CHARMC) -c Scheduler.C -o $@ $(BLAS_INC) $(OPTS) -DADAPT_SCHED_MEM
 
-gpu_offloader.o: gpu_offloader.C gpuwork.decl.h$
+gpu_offloader.o: gpu_offloader.C gpuwork.decl.h c_common.h$
 	$(CHARMC) -c gpu_offloader.C -o $@ $(BLAS_INC) $(OPTS) -DADAPT_SCHED_MEM
+
+NVCC = nvcc
+
+gpu_kernel.o : gpu_kernel.cu c_common.h
+	$(NVCC) $(OPTS1) -c $<
 
  # run for up to 15 minutes on 16 nodes * 4 pe/node. Matrix size 8192*8192
 run-BGP: lu-proj
@@ -111,5 +116,6 @@ run-BGP: lu-proj
 run: lu-proj
 	-rm -rf traces
 	mkdir traces
-	charmrun +p2 ./lu-proj 8 1000 1
+	charmrun +p2 ./lu-proj 64 1000 1 8
+#++debug-no-pause
 #+CPSaveData +traceroot traces +logsize 10000000

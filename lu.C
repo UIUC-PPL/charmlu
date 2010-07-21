@@ -51,7 +51,7 @@ extern "C" {
 #endif
 
 #include <comlib.h>
-#include <controlPoints.h> // must come before user decl.h if they are using the pathInformationMsg
+//#include <controlPoints.h> // must come before user decl.h if they are using the pathInformationMsg
 #include "lu.decl.h"
 #include <trace-projections.h>
 
@@ -469,14 +469,14 @@ public:
     multicastStats[2] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(3) ); 
     multicastStats[3] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(4) ); 
 
-    ControlPoint::EffectIncrease::GrainSize("block_size");
+    /*ControlPoint::EffectIncrease::GrainSize("block_size");
     ControlPoint::EffectDecrease::Concurrency("block_size");
     
     //	  ControlPoint::EffectIncrease::Concurrency("mapping");
     ControlPoint::EffectIncrease::NumMessages("mapping");
     ControlPoint::EffectIncrease::MessageOverhead("mapping");
 
-    ControlPoint::EffectIncrease::MemoryConsumption("memory_threshold");
+    ControlPoint::EffectIncrease::MemoryConsumption("memory_threshold");*/
 
 
     thisProxy.iterationCompleted();
@@ -521,7 +521,7 @@ public:
     if (solved && LUcomplete) {
       double endTime = CmiWallTimer();
       double duration = endTime - startTime;
-      registerControlPointTiming(duration);
+      //registerControlPointTiming(duration);
       
       CkPrintf("Iteration %d time: %fs\n", iteration, duration);
       
@@ -547,12 +547,12 @@ public:
       // Only advance phases after a few factorizations have been performed
       // Prior to the first phase of actual work, iteration=1
       if( 1 || iteration % 2 == 1 || iteration==1){
-	gotoNextPhase();
+	//gotoNextPhase();
       
-	whichMulticastStrategy = controlPoint("multicast_strategy", 2, 2);
+	whichMulticastStrategy = 2; //controlPoint("multicast_strategy", 2, 2);
 	//BLKSIZE = 1 << 2; //1 << controlPoint("block_size", 10,10);
-	mapping = controlPoint("mapping", 1, 1);
-	memThreshold = 200 + controlPoint("memory_threshold", 0, 20) * 100;
+	mapping = 1;//controlPoint("mapping", 1, 1);
+	memThreshold = 1000; // + controlPoint("memory_threshold", 0, 20) * 100;
       
 	// CkPrintf("%d %d %d\n",  (int)BLKSIZE, (int)mapping, (int)whichMulticastStrategy);
 	// fflush(stdout);
@@ -637,7 +637,7 @@ public:
   void done() {
     // CkPrintf("Main::done() After critical path has been determined\n");
     //	  m->printme();
-    gotoNextPhase(); // <<< Make sure we get timings for the phase that just finished.
+    //gotoNextPhase(); // <<< Make sure we get timings for the phase that just finished.
     CkExit();
   }
 
