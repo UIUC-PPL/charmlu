@@ -16,15 +16,28 @@ public:
   GPUWork(CkMigrateMessage* msg) {}
 
   // L same row, U same col
-  void gpu_offload(list<JMessage> msgs) {    
+  void gpu_offload(list<JMessage>& msgs) {
     //ckout << "---- offloading to GPU" << endl;
 
-    char note[200];
-    sprintf(note, "gpu offloading happening");
-    traceUserSuppliedNote(note);
+    /*char note[200];
+      sprintf(note, "gpu offloading happening");
+      traceUserSuppliedNote(note);*/
+    
+    int asize = msgs.front().fsize * msgs.front().fsize;
 
-    vector<float> Lvec, Uvec, Avec;
-    vector<int> Lstart, Lend, Ustart, Uend;
+    //CkPrintf("asize = %d\n", asize);
+      
+    float *Lvec = new float[msgs.size() * asize];
+    float *Uvec= new float[msgs.size() * asize];
+    float *Avec= new float[msgs.size() * asize];
+
+    int *Lstart = new int[msgs.size() * asize];
+    int *Lend = new int[msgs.size() * asize];
+    int *Ustart = new int[msgs.size() * asize];
+    int *Uend = new int[msgs.size() * asize];
+
+    int Li = 0, Ui = 0, Ai = 0, 
+      Lsi = 0, Lei = 0, Usi = 0, Uei = 0;
 
     int lastX = -1, lastY = -1;
     int startL = 0, startU = 0;
@@ -50,48 +63,37 @@ public:
 
       for (int i = 0; i < tsize; i++) {
         if (copyL)
-          Lvec.push_back((float)iter->first[i]);
+          Lvec[Li++] = iter->first[i];
 
         if (copyU)
-          Uvec.push_back((float)iter->second[i]);
+          Uvec[Ui++] = iter->second[i];
 
-        Avec.push_back((float)iter->LU[i]);
+        Avec[Ai++] = iter->LU[i];
 
-        Lstart.push_back(startL);
-        Lend.push_back(startL + tsize);
+        Lstart[Lsi++] = startL;
+        Lend[Lei++] = startL + tsize;
 
-        Ustart.push_back(startU);
-        Uend.push_back(startU + tsize);
+        Ustart[Usi++] = startU;
+        Uend[Uei++] = startU + tsize;
       }
 
       lastX = iter->x;
       lastY = iter->y;
     }
 
-    float *Lm, *Um, *Am;
-    int *Ls, *Le, *Us, *Ue;
-    int size;
+    int size = Ui;
 
-    Lm = &Lvec[0];
-    Um = &Uvec[0];
-    Am = &Avec[0];
+    //CkPrintf("AA size = %d\n", size);
 
-    Ls = &Lstart[0];
-    Le = &Lend[0];
-    Us = &Ustart[0];
-    Ue = &Uend[0];
+    //float *AmP = (float*)malloc(sizeof(float) * size);
+    //memcpy(AmP, &Avec[0], sizeof(float) * size);
 
-    size = Avec.size();
+    GPUKernelDGEMM(Lvec, Uvec, Avec, Lstart, Ustart, block, size);
 
-    float *AmP = (float*)malloc(sizeof(float) * size);
-    memcpy(AmP, &Avec[0], sizeof(float) * size);
+    /*FakeGPUDGEMM(size, msgs.size(), block, Uvec, Lvec, Avec,
+      Ustart, Uend, Lstart, Lend);*/
 
-    GPUKernelDGEMM(Lm, Um, Am, Ls, Le, Us, Ue, block, size);
-
-    /*FakeGPUDGEMM(size, msgs.size(), block, Um, Lm, AmP,
-                 Us, Ue, Ls, Le);
-
-    for (int i = 0; i < size; i++) {
+    /*for (int i = 0; i < size; i++) {
       if (Am[i] != AmP[i])
         ckout << "FOUND: " << i << " Am = " << Am[i] << ", AmP = " << AmP[i] <<
           ", Lstart = " << Ls[i] << endl;
@@ -104,11 +106,13 @@ public:
       int tsize = iter->fsize * iter->ssize;
 
       for (int i = 0; i < tsize; i++) {
-        iter->LU[i] = Am[i + firstLoc];
+        iter->LU[i] = Avec[i + firstLoc];
       }
 
       firstLoc += tsize;
     }
+
+    delete[] Lvec, Uvec, Avec, Lstart, Lend, Ustart, Uend;
 
     scheduler[CkMyPe()].finishedGPU(msgs);
   }

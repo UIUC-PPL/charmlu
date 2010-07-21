@@ -9,7 +9,7 @@ void GPUallocate();
 void GPUSingleallocate();
 
 void GPUKernelDGEMM(float Lm[], float Um[], float LUm[], 
-                    int Lstart[], int Lend[], int Ustart[], int Uend[],
+                    int Lstart[], int Ustart[],
                     int block, int total);
 void GPUSingleOffload(float Lm[], float Um[], float LUm[], int block);
 

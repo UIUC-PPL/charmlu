@@ -11,8 +11,7 @@
 char buf[100000];
 
 __global__ void GPUKernel(float *Lm, float *Um, float *LUm,
-                          int *Lstart, int *Lend,
-                          int *Ustart, int *Uend,
+                          int *Lstart, int *Ustart,
                           int block, int total) {
   int i = blockIdx.x * blockDim.x + threadIdx.x;
   int lstart = Lstart[i], ustart = Ustart[i];
@@ -54,9 +53,7 @@ static float *d_Lm;
 static float *d_Um;
 static float *d_LUm;
 static int *d_Lstart;
-static int *d_Lend;
 static int *d_Ustart;
-static int *d_Uend;
 static int allocated = 0;
   
 void GPUallocate() {
@@ -66,9 +63,7 @@ void GPUallocate() {
     cudaMalloc((void **) &d_Um, n * sizeof(float));
     cudaMalloc((void **) &d_LUm, n * sizeof(float));
     cudaMalloc((void **) &d_Lstart, n * sizeof(int));
-    cudaMalloc((void **) &d_Lend, n * sizeof(int));
     cudaMalloc((void **) &d_Ustart, n * sizeof(int));
-    cudaMalloc((void **) &d_Uend, n * sizeof(int));
     checkCUDAError("mem allocation");
     allocated = 1;
     printf("allocation finished\n");
@@ -76,7 +71,7 @@ void GPUallocate() {
 }
 
 void GPUKernelDGEMM(float Lm[], float Um[], float LUm[], 
-                    int Lstart[], int Lend[], int Ustart[], int Uend[],
+                    int Lstart[], int Ustart[],
                     int block, int total) {
   /*for (int i = 0; i < sn; i++) {
     assert(sStart[i] >= 0);
@@ -116,9 +111,7 @@ void GPUKernelDGEMM(float Lm[], float Um[], float LUm[],
   cudaMemcpy(d_Um, Um, dsize, cudaMemcpyHostToDevice);
   cudaMemcpy(d_LUm, LUm, dsize, cudaMemcpyHostToDevice);
   cudaMemcpy(d_Lstart, Lstart, isize, cudaMemcpyHostToDevice);
-  cudaMemcpy(d_Lend, Lend, isize, cudaMemcpyHostToDevice);
   cudaMemcpy(d_Ustart, Ustart, isize, cudaMemcpyHostToDevice);
-  cudaMemcpy(d_Uend, Uend, isize, cudaMemcpyHostToDevice);
 
   checkCUDAError("mem copy to device");
 
@@ -148,8 +141,7 @@ void GPUKernelDGEMM(float Lm[], float Um[], float LUm[],
   int nBlocks = total/blockSize + (total%blockSize == 0?0:1);
 
   GPUKernel<<<nBlocks, blockSize>>>(d_Lm, d_Um, d_LUm,
-                                    d_Lstart, d_Lend,
-                                    d_Ustart, d_Uend,
+                                    d_Lstart, d_Ustart,
                                     block, total);
   checkCUDAKernelError("kernel execute");
 
