@@ -306,12 +306,15 @@ int Scheduler::findLargestInMap(map<int, list<JMessage*> > map1) {
 }
 
 void Scheduler::removeItemXY(list<JMessage*>& list1, JMessage* &msg) {
-  for (list<JMessage*>::iterator iter = list1.begin();
-       iter != list1.end(); ++iter) {
+  list<JMessage*>::iterator iter = list1.begin();
+
+  while (iter != list1.end()) {
     if ((*iter)->x == msg->x &&
         (*iter)->y == msg->y &&
         (*iter)->step == msg->step) {
-      list1.erase(iter);
+      iter = list1.erase(iter);
+    } else {
+      iter++;
     }
   }
 }
