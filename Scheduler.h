@@ -46,7 +46,7 @@ public:
   void tryAgain(int a);
   void cpuFree(int cpu);
   
-  void finishedGPU(list<JMessage> msgs);
+  void finishedGPU(list<JMessage*> msgs);
 
   void haveWork(CProxyElement_LUBlk block, double** first, 
 		double** second, double** LU, int x, int y, int cx,

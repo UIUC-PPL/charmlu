@@ -37,8 +37,9 @@ extern "C" {
 #include <climits>
 #include "pup_stl.h"
 #include "scheduler.decl.h"
+#include "gpuwork.decl.h"
 #include "Scheduler.h"
-
+#include "gpu_offloader.h"
 
 int JMessage::getSize() {
   return fsize + ssize;
@@ -112,12 +113,12 @@ void Scheduler::tryAgain(int a) {
 
         int partsize = 0, k = 0;
 
-        list<JMessage> toSend;
+        /*list<JMessage*> toSend;
 
         for (list<JMessage*>::iterator iter2 = toOffload.begin(); 
              iter2 != toOffload.end(); ++iter2) {
           toSend.push_back(**iter2);
-        }
+          }*/
 
         GPUworking = true;
 
@@ -126,7 +127,8 @@ void Scheduler::tryAgain(int a) {
 
         //ckout << "running " << numberAgglom  << " msg on GPU, " << "queue size is " << mapMsg.size() << endl;
 
-        gpu[CkMyPe()].gpu_offload(toSend, &opts);
+        GPUWork* gpu1 = gpu.ckLocalBranch();
+        gpu1->gpu_offload(toOffload);
       }
     }
   }
@@ -197,13 +199,13 @@ void Scheduler::cpuFree(int cpu) {
   cpuStatus[cpu] = false;
 }
 
-void Scheduler::finishedGPU(list<JMessage> msgs) {
-  for (list<JMessage>::iterator iter = msgs.begin(); 
+void Scheduler::finishedGPU(list<JMessage*> msgs) {
+  for (list<JMessage*>::iterator iter = msgs.begin(); 
        iter != msgs.end(); ++iter) {
 
     //square_dgemm(iter->fsize, iter->second, iter->first, iter->LU);
 
-    iter->block.matrixUpdated(iter->step);
+    (*iter)->block.matrixUpdated((*iter)->step);
   }
 
   GPUworking = false;

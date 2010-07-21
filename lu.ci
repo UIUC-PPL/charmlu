@@ -151,7 +151,7 @@ module scheduler {
     entry Scheduler();
     entry void tryAgain(int);
     entry void cpuFree(int);
-    entry [local] void finishedGPU(std::list<JMessage>);
+    entry [local] void finishedGPU(std::list<JMessage*>);
     entry void checkIn();
   };
 };
@@ -162,8 +162,8 @@ module gpuwork {
 
   class JMessage;
 
-  array [1D] GPUWork {
+  group GPUWork {
     entry GPUWork();
-    entry [local] void gpu_offload(std::list<JMessage>);
+    entry [local] void gpu_offload(std::list<JMessage*>);
   };
 };

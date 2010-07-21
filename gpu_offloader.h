@@ -6,7 +6,14 @@
 
 using namespace std;
 
-void gpu_offload(CProxy_LUBlk block, vector<int> cellIndices, vector<int> iter,
-		 vector<vector<float> > rows, int rowlen, int number);
+class GPUWork : public CBase_GPUWork {
+public:
+  GPUWork() {}
+  GPUWork(CkMigrateMessage* msg) {}
+
+  void gpu_offload(list<JMessage*>& msgs);
+  void FakeGPUDGEMM(int tsize, int agglom, int block, float *Ap, float *Bp,
+                    float *Cp, int *Astart, int *Bstart);
+};
 
 #endif

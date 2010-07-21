@@ -444,7 +444,7 @@ public:
     mainProxy = thisProxy;
 
     scheduler = CProxy_Scheduler::ckNew();
-    gpu = CProxy_GPUWork::ckNew(2);
+    gpu = CProxy_GPUWork::ckNew();
 
     DEBUG_PRINT("Registering user events\n");
     traceTrailingUpdate = traceRegisterUserEvent("Trailing Update");
