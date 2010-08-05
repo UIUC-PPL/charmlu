@@ -39,6 +39,13 @@ mainmodule lu {
 	for (internalStep = 0;
 	     internalStep < min(thisIndex.x, thisIndex.y);
 	     internalStep++) {
+            overlap {
+              for (int i = 0; i < BLKSIZE; i++) {
+                when doPivot[internalStep](int row1, int row2) atomic {  
+                  swap(row1, row2);
+                }
+              }
+	    }
 	    overlap {
 		when recvL[internalStep](blkMsg *mL) atomic
 		{ CmiReference(UsrToEnv(mL)); L = mL; }
@@ -58,25 +65,72 @@ mainmodule lu {
 
 	if (thisIndex.x == thisIndex.y) atomic {
 		ckout << "Block " << thisIndex.x << " queueing local LU" << endl;
-		thisProxy(thisIndex.x, thisIndex.y).processLocalLU(0);
+		//thisProxy(thisIndex.x, thisIndex.y).processLocalLU(0);
+                thisProxy(thisIndex.x, thisIndex.y).processLU();
 	} else if (thisIndex.x < thisIndex.y)
 	    when recvL[internalStep](blkMsg *mL) atomic {
 		CmiReference(UsrToEnv(mL)); L = mL;
 		thisProxy(thisIndex.x, thisIndex.y).processComputeU(0);
-	}
-	else {
-	    atomic "pivot" { pivot(); }
-	    when recvU[internalStep](blkMsg *mU) atomic {
+	} else {
+                for (int col = 0; col < BLKSIZE; col++) {
+                  atomic "computeMax" {
+                    double maxval = LU[getIndex(0, col)];
+                    int maxrow = 0;
+                    for (int row = 1; row < BLKSIZE; row++) {
+                      if (LU[getIndex(row, col)] > maxval) {
+                        maxrow = row;
+                        maxval = LU[getIndex(row, col)];
+	              }
+                    }
+                    
+                    locval l;
+                    l.val = maxval;
+                    l.loc = maxrow + BLKSIZE * thisIndex.y;
+                    // TODO: compute colSection for the section reduction
+                    // should be from [thisIndex.x, numBlks], needs to call colMax
+                    // CkGetSectionInfo();
+                    // colSection->contribute(sizeof(locval), &l, maxLocVal, colMax);
+                  }
+                  when doPivot(int row1, int row2) atomic {
+                    // Assume that row2 is always the non-diagonal row
+                    // and that LU is row-major
+                    if (row2 / BLKSIZE == thisIndex.x) {
+                      thisProxy(thisIndex.y, thisIndex.y).
+                                sendPivotData(BLKSIZE, &LU[getIndex(row2 % BLKSIZE, 0)]);
+                      when sendPivotData(int size, double* data) atomic {
+                        applySwap(row1 % BLKSIZE, data);
+                      }
+                    }
+                  }
+                  when sendUSegment(int size, double* usegment) {
+                    // Just the first column
+                    computeMultipliers();
+                    
+                    // Options: this SDAG code (or something like it)
+
+                    for (int innercol = 1; innercol < BLKSIZE; innercol++) {
+                      thisProxy(thisIndex.x, thisIndex.y).updateRemCols(innercol);
+                    }
+                    
+                    when updateRemCols(int icol) atomic {
+                      doUpdate();
+                    }
+                    
+                    // Or: DGEMM
+                    updateAllCols();
+                  }
+
+	    /*when recvU[internalStep](blkMsg *mU) atomic {
 		CmiReference(UsrToEnv(mU)); U = mU;
 		thisProxy(thisIndex.x, thisIndex.y).processComputeL(0);
-	    }
+	    }*/
 	}
     };
 
     entry void processLU()
     {
 	for (int col = 0; col < BLKSIZE; ++col) {
-	    when colMax[col](CkReductionMsg *m) atomic {
+	    when colMax(CkReductionMsg *m) atomic {
 		locval &l = *(locval *)(m->getData());
 		for (int row = col; row < BLKSIZE; ++row) {
 		    if (LU[getIndex(row, col)] > l.val) {
@@ -84,16 +138,21 @@ mainmodule lu {
 			l.loc = row + BLKSIZE * thisIndex.y;
 		    }
 		}
-		// Need to add permutation matrix to announce exchanges
 		if (l.loc / BLKSIZE != thisIndex.x) {
-		    needExchange = true;
 		    // Data must be row-major for marshalling to work
-		    // right here
-		    // Will need to only exchange
 		    thisProxy(l.loc / BLKSIZE, thisIndex.y).
-			getRow(l.loc % BLKSIZE, BLKSIZE, 
-			       &LU[getIndex(col, 0)]);
-		}
+                              sendPivotData(BLKSIZE, &LU[getIndex(col, 0)]);
+                    when sendPivotData(int size, double* data) atomic {
+                      applySwap(col, data);
+                    }
+		} else {
+                  swapLocal(l.loc, col);
+                }
+                
+                CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
+                oneCol.sendUSegment(BLKSIZE, &LU[getIndex(col, 0)]);
+                
+                localRowDecompose();
 	    }
 	}
     };

@@ -1148,25 +1148,6 @@ public:
     DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
   }
 
-  void pivot() {
-    for (int col = 0; col < BLKSIZE; ++col) {
-      double maxval = LU[getIndex(0, col)];
-      int maxrow = 0;
-      for (int row = 1; row < BLKSIZE; ++row) {
-	if (LU[getIndex(row, col)] > maxval) {
-	  maxrow = row;
-	  maxval = LU[getIndex(row, col)];
-	}
-      }
-		    
-      locval l;
-      l.val = maxval;
-      l.loc = maxrow + BLKSIZE * thisIndex.y;
-      CkGetSectionInfo();
-      colSection->contribute(sizeof(locval), &l, maxLocVal, red);
-    }
-  }
-  
   void processComputeL(int ignoredParam) {
     DEBUG_PRINT("processComputeL() called on block %d,%d\n", thisIndex.x, thisIndex.y);
     CkAssert(internalStep==thisIndex.y && U);
