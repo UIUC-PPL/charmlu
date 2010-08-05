@@ -59,16 +59,42 @@ mainmodule lu {
 	if (thisIndex.x == thisIndex.y) atomic {
 		ckout << "Block " << thisIndex.x << " queueing local LU" << endl;
 		thisProxy(thisIndex.x, thisIndex.y).processLocalLU(0);
-	}
-	else if (thisIndex.x < thisIndex.y)
+	} else if (thisIndex.x < thisIndex.y)
 	    when recvL[internalStep](blkMsg *mL) atomic {
 		CmiReference(UsrToEnv(mL)); L = mL;
 		thisProxy(thisIndex.x, thisIndex.y).processComputeU(0);
 	}
-	else
+	else {
+	    atomic "pivot" { pivot(); }
 	    when recvU[internalStep](blkMsg *mU) atomic {
 		CmiReference(UsrToEnv(mU)); U = mU;
 		thisProxy(thisIndex.x, thisIndex.y).processComputeL(0);
+	    }
+	}
+    };
+
+    entry void processLU()
+    {
+	for (int col = 0; col < BLKSIZE; ++col) {
+	    when colMax[col](CkReductionMsg *m) atomic {
+		locval &l = *(locval *)(m->getData());
+		for (int row = col; row < BLKSIZE; ++row) {
+		    if (LU[getIndex(row, col)] > l.val) {
+			l.val = LU[getIndex(row, col)];
+			l.loc = row + BLKSIZE * thisIndex.y;
+		    }
+		}
+		// Need to add permutation matrix to announce exchanges
+		if (l.loc / BLKSIZE != thisIndex.x) {
+		    needExchange = true;
+		    // Data must be row-major for marshalling to work
+		    // right here
+		    // Will need to only exchange
+		    thisProxy(l.loc / BLKSIZE, thisIndex.y).
+			getRow(l.loc % BLKSIZE, BLKSIZE, 
+			       &LU[getIndex(col, 0)]);
+		}
+	    }
 	}
     };
 

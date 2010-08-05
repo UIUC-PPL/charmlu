@@ -71,7 +71,31 @@ ComlibInstanceHandle multicastStats[4];
 //#define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
 #define DEBUG_PRINT(...) 
 
+struct locval {
+  double val;
+  int loc;
+};
 
+CkReductionMsg *maxLocVal(int nMsg, CkReductionMsg **msgs)
+{
+  CkAssert(nMsg > 0);
+
+  locval l;
+  l.val = (locval *)(msgs[0]->getData())->val;
+  l.loc = (locval *)(msgs[0]->getData())->loc;
+
+  for (int i = 1; i < nMsg; ++i) {
+    loc = (locval *)(msgs[i]->getData())->loc;
+    val = (locval *)(msgs[i]->getData())->val;
+
+    if (val > l.val) {
+      l.val = val;
+      l.loc = loc;
+    }
+  }
+
+  return CkReductionMsg::buildNew(sizeof(locval), &l);
+}
 
 enum continueWithTask {
   NO_CONTINUE = 0,
@@ -1122,6 +1146,25 @@ public:
     CmiFree(UsrToEnv(L));
     
     DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
+  }
+
+  void pivot() {
+    for (int col = 0; col < BLKSIZE; ++col) {
+      double maxval = LU[getIndex(0, col)];
+      int maxrow = 0;
+      for (int row = 1; row < BLKSIZE; ++row) {
+	if (LU[getIndex(row, col)] > maxval) {
+	  maxrow = row;
+	  maxval = LU[getIndex(row, col)];
+	}
+      }
+		    
+      locval l;
+      l.val = maxval;
+      l.loc = maxrow + BLKSIZE * thisIndex.y;
+      CkGetSectionInfo();
+      colSection->contribute(sizeof(locval), &l, maxLocVal, red);
+    }
   }
   
   void processComputeL(int ignoredParam) {
