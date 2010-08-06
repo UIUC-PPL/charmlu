@@ -1505,8 +1505,9 @@ public:
   }
 
   //Performs data exchange
-  void applySwap(int loc, double* data) {
-
+  void applySwap(int row, int offset, double *data) {
+    for (int col = offset; col < BLKSIZE; ++col)
+      LU[getIndex(row, col)] = data[col - offset];
   }
 
   //Should exchange local data (called by applySwap?)
