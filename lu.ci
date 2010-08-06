@@ -136,8 +136,9 @@ mainmodule lu {
             }
           }
           when sendUSegment(int size, double usegment[size]) atomic {
-            // Just the first column
-            computeMultipliers();
+            // computer the multipliers using the diagonal element
+            //usegment[0] should contain the diagonal element
+            computeMultipliers(usegment[0], 0, activeCol);
 
             // Options: this SDAG code (or something like it)
             // Somehow this needs to be overlapped with the maxCol sends
@@ -151,7 +152,7 @@ mainmodule lu {
             //}
 
             // Or: DGEMM
-            updateAllCols();
+            updateAllCols(activeCol, usegment);
           }
         }
         atomic {
@@ -190,7 +191,7 @@ mainmodule lu {
           CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
           oneCol.sendUSegment(BLKSIZE - activeCol, &LU[getIndex(activeCol, activeCol)]);
 
-          localRowDecompose();
+          diagonalUpdate(activeCol);
         }
       }
       atomic {
