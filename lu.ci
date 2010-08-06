@@ -45,7 +45,35 @@ mainmodule lu {
            internalStep++) {
         for (int i = 0; i < BLKSIZE; i++) {
           when doPivot[internalStep](int step, int row1, int row2) atomic {
-            swap(row1, row2);
+            row1Index = row1 / BLKSIZE;
+            row2Index = row2 / BLKSIZE;
+            localRow1 = row1 % BLKSIZE;
+            localRow2 = row2 % BLKSIZE;
+            remoteSwap = false;
+
+            if (row1Index == thisIndex.x &&
+                row2Index == thisIndex.y) {
+              localSwap(localRow1, localRow2);
+            } else if (row1Index == thisIndex.x) {
+              thisRowIndex = row2Index;
+              thisLocalRow = localRow1;
+              otherRowIndex = row1Index;
+              remoteSwap = true;
+            } else if (row2Index == thisIndex.x) {
+              thisRowIndex = row1Index;
+              thisLocalRow = localRow2;
+              otherRowIndex = row2Index;
+              remoteSwap = true;
+            }
+          }
+          if (remoteSwap) {
+            atomic {
+              thisProxy(otherRowIndex, thisIndex.y)
+                        .sendPivotData(BLKSIZE, &LU[getIndex(thisLocalRow, 0)]);
+            }
+            when sendPivotData[thisRowIndex](int size, double* data) atomic {
+              applySwap(thisLocalRow, data);
+            }
           }
         }
         overlap {
@@ -73,12 +101,12 @@ mainmodule lu {
           CmiReference(UsrToEnv(mL)); L = mL;
           thisProxy(thisIndex.x, thisIndex.y).processComputeU(0);
       } else {
-        for (int col = 0; col < BLKSIZE; col++) {
+        for (activeCol = 0; activeCol < BLKSIZE; activeCol++) {
           atomic "computeMax" {
-            double maxval = LU[getIndex(0, col)];
+            double maxval = LU[getIndex(0, activeCol)];
             int maxrow = 0;
 
-            locval l = findLocVal(1, col, maxval, maxrow);
+            locval l = findLocVal(1, activeCol, maxval, maxrow);
 
             // Contribute to a reduction along the pivot section
             // The pivot section includes the diagonal and all sub-diagonal
@@ -128,10 +156,10 @@ mainmodule lu {
     };
 
     entry void processLU() {
-      for (int col = 0; col < BLKSIZE; ++col) {
+      for (activeCol = 0; activeCol < BLKSIZE; ++activeCol) {
         when colMax(CkReductionMsg *m) atomic {
           locval &remoteL = *(locval *)(m->getData());
-          locval l = findLocVal(col, col, remoteL.val, remoteL.loc);
+          locval l = findLocVal(activeCol, activeCol, remoteL.val, remoteL.loc);
         }
         atomic {
           // Needs to be tagged with this internalStep
@@ -147,17 +175,17 @@ mainmodule lu {
           when doPivot[internalStep](int step, int row1, int row2) atomic {
             // Data must be row-major for marshalling to work
             thisProxy(l.loc / BLKSIZE, thisIndex.y).
-            sendPivotData(BLKSIZE, &LU[getIndex(col, 0)]);
+            sendPivotData(BLKSIZE, &LU[getIndex(activeCol, 0)]);
           }
           when sendPivotData(int size, double* data) atomic {
-            applySwap(col, data);
+            applySwap(activeCol, data);
           }
         } else atomic {
-          swapLocal(l.loc, col);
+          swapLocal(l.loc, activeCol);
         }
         atomic {
           CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
-          oneCol.sendUSegment(BLKSIZE, &LU[getIndex(col, 0)]);
+          oneCol.sendUSegment(BLKSIZE, &LU[getIndex(activeCol, 0)]);
 
           localRowDecompose();
         }

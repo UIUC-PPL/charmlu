@@ -676,7 +676,7 @@ class LUBlk: public CBase_LUBlk {
   double *A;
   int BLKSIZE, numBlks;
   blkMsg *L, *U;
-  int internalStep;
+  int internalStep, activeCol;
 
   /// Variables used only during solution
   double *bvec;
@@ -690,6 +690,12 @@ class LUBlk: public CBase_LUBlk {
 
   //VALIDATION: count of the number of point-to-point messages rcvd in a row
   int msgsRecvd;
+
+  //Variables for pivoting SDAG code
+
+  int row1Index, row2Index, localRow1, localRow2,
+    thisRowIndex, otherRowIndex, thisLocalRow;
+  bool remoteSwap;
 
   LUBlk_SDAG_CODE
 
