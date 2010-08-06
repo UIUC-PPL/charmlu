@@ -1504,12 +1504,12 @@ public:
     }
   }
 
-  //Performs data exchange
+  // Moves new data into position
   void applySwap(int loc, double* data) {
 
   }
 
-  //Should exchange local data (called by applySwap?)
+  // Exchange local data
   void swapLocal(int row1, int row2) {
     double buf;
     for (int col = 0; col < BLKSIZE; col++) {
@@ -1519,7 +1519,7 @@ public:
     }
   }
 
-  //Does the local multiplier computation after U is sent to the blocks below??
+  // Local multiplier computation and update after U is sent to the blocks below
   void localRowDecompose() {
 
   }
