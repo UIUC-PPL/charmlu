@@ -104,15 +104,15 @@ mainmodule lu {
           thisProxy(thisIndex.x, thisIndex.y).processComputeU(0);
       } else {
         for (activeCol = 0; activeCol < BLKSIZE; activeCol++) {
-          atomic {
+          atomic "computeMax" {
             double maxval = LU[getIndex(0, activeCol)];
             int maxrow = 0;
 
             locval l = findLocVal(1, activeCol, maxval, maxrow);
 
             // Contribute to a reduction along the pivot section
-            // The pivot section includes the diagonal and all sub-diagonal
-            // chares along the active column of the chare array
+            // The pivot section includes all sub-diagonal chares
+            // along the active column of the chare array
 
 	    CkCallback maxcb(CkIndex_LUBlk::colMax(0),
 			     thisProxy(activeCol, activeCol));
