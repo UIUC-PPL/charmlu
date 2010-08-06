@@ -11,6 +11,9 @@ mainmodule lu {
   readonly int doPrioritize;
 //  readonly int memThreshold;
 
+  // Register the reducer function that handles reductions of locval
+  initproc void registerLocValReducer();
+
   message blkMsg {
     double data[];
   };
@@ -116,7 +119,7 @@ mainmodule lu {
             // Contribute to a reduction along the pivot section
             // The pivot section includes all sub-diagonal chares
             // along the active column of the chare array
-            pivotSection->contribute(sizeof(locval), &l, maxLocVal);
+            mcastMgr->contribute(sizeof(locval), &l, LocValReducer, rednCookie);
           }
           when doPivot[internalStep](int step, int row1, int row2) {
             // Assume that row2 is always the non-diagonal row

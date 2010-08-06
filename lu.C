@@ -97,6 +97,14 @@ CkReductionMsg *maxLocVal(int nMsg, CkReductionMsg **msgs)
   return CkReductionMsg::buildNew(sizeof(locval), &l);
 }
 
+/// Global that holds the reducer type for locval
+CkReduction::reducerType LocValReducer;
+
+/// Function that registers this reducer type on every processor
+void registerLocValReducer()
+{ LocValReducer = CkReduction::addReducer(maxLocVal); }
+
+
 enum continueWithTask {
   NO_CONTINUE = 0,
   CONTINUE_LU,
@@ -153,6 +161,9 @@ struct blkMsg: public CMessage_blkMsg {
 
 class rednSetupMsg: public CkMcastBaseMsg, public CMessage_rednSetupMsg
 {
+    public:
+        CkGroupID rednMgrGID;
+        rednSetupMsg(CkGroupID _gid): rednMgrGID(_gid) {}
 };
 
 
@@ -709,6 +720,8 @@ class LUBlk: public CBase_LUBlk {
   CProxySection_LUBlk pivotSection;
   /// All pivot sections members will save a cookie to their section
   CkSectionInfo rednCookie;
+  /// A pointer to the local branch of the multicast manager group that handles the pivot section comm
+  CkMulticastMgr *mcastMgr;
 
   LUBlk_SDAG_CODE
 
@@ -1005,7 +1018,7 @@ public:
         mcastMgr->setReductionClient( pivotSection, new CkCallback( CkIndex_LUBlk::colMax(0), thisProxy(activeCol, activeCol) ) );
 
         // Invoke a dummy mcast so that all the section members know which section to reduce along
-        rednSetupMsg *msg = new rednSetupMsg();
+        rednSetupMsg *msg = new rednSetupMsg(mcastMgrGID);
         pivotSection.prepareForPivotRedn(msg);
     }
 
@@ -1042,6 +1055,8 @@ public:
    */
   void prepareForPivotRedn(rednSetupMsg *msg)
   {
+      // Get a handle on the mcastMgr
+      mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
       // Save the section cookie
       CkGetSectionInfo(rednCookie, msg);
       // Now, even members of pivot sections are done with init
