@@ -80,13 +80,13 @@ CkReductionMsg *maxLocVal(int nMsg, CkReductionMsg **msgs)
 {
   CkAssert(nMsg > 0);
 
-  locval l;
-  l.val = (locval *)(msgs[0]->getData())->val;
-  l.loc = (locval *)(msgs[0]->getData())->loc;
+  double val;
+  int loc;
+  locval l = *((locval *)(msgs[0]->getData()));
 
   for (int i = 1; i < nMsg; ++i) {
-    loc = (locval *)(msgs[i]->getData())->loc;
-    val = (locval *)(msgs[i]->getData())->val;
+    loc = ((locval *)(msgs[i]->getData()))->loc;
+    val = ((locval *)(msgs[i]->getData()))->val;
 
     if (val > l.val) {
       l.val = val;
@@ -95,19 +95,6 @@ CkReductionMsg *maxLocVal(int nMsg, CkReductionMsg **msgs)
   }
 
   return CkReductionMsg::buildNew(sizeof(locval), &l);
-}
-
-locval findLocVal(int startRow, int col, double curMax, int curRowMax) {
-  locval l;
-  l.val = curMax;
-  l.loc = curRowMax;
-  for (int row = startRow; row < BLKSIZE; row++) {
-    if (LU[getIndex(row, col)] > l.val) {
-      l.val = LU[getIndex(row, col)];
-      l.loc = row + BLKSIZE * thisIndex.y;
-    }
-  }
-  return locval;
 }
 
 enum continueWithTask {
@@ -1532,6 +1519,20 @@ private:
 
     return msg;
   }
+
+  locval findLocVal(int startRow, int col, double curMax, int curRowMax) {
+    locval l;
+    l.val = curMax;
+    l.loc = curRowMax;
+    for (int row = startRow; row < BLKSIZE; row++) {
+      if (LU[getIndex(row, col)] > l.val) {
+	l.val = LU[getIndex(row, col)];
+	l.loc = row + BLKSIZE * thisIndex.y;
+      }
+    }
+    return l;
+  }
+
 };
 
 #include "lu.def.h"
