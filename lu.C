@@ -676,7 +676,7 @@ class LUBlk: public CBase_LUBlk {
   double *A;
   int BLKSIZE, numBlks;
   blkMsg *L, *U;
-  int internalStep;
+  int internalStep, activeCol;
 
   /// Variables used only during solution
   double *bvec;
