@@ -36,7 +36,7 @@ mainmodule lu {
 
     entry void colMax(CkReductionMsg *m);
     entry void doPivot(int row1, int row2);
-    entry void sendPivotData(int size, double *data);
+    entry void sendPivotData(int rowIndex, int size, double *data);
     entry void sendUSegment(int size, double *usegment);
 
     entry void factor() {
@@ -69,9 +69,9 @@ mainmodule lu {
           if (remoteSwap) {
             atomic {
               thisProxy(otherRowIndex, thisIndex.y)
-                        .sendPivotData(BLKSIZE, &LU[getIndex(thisLocalRow, 0)]);
+                        .sendPivotData(otherRowIndex, BLKSIZE, &LU[getIndex(thisLocalRow, 0)]);
             }
-            when sendPivotData[thisRowIndex](size, double* data) atomic {
+            when sendPivotData[thisRowIndex](int index, int size, double* data) atomic {
               applySwap(thisLocalRow, data);
             }
           }
@@ -122,11 +122,11 @@ mainmodule lu {
             // and that LU is row-major
             if (row2 / BLKSIZE == thisIndex.x) {
               atomic {
-                thisProxy(thisIndex.y, thisIndex.y).
-                sendPivotData(BLKSIZE, &LU[getIndex(row2 % BLKSIZE, 0)]);
+                thisProxy(thisIndex.y, thisIndex.y)
+                          .sendPivotData(thisIndex.y, BLKSIZE, &LU[getIndex(row2 % BLKSIZE, 0)]);
               }
-              when sendPivotData(int size, double* data) atomic {
-                applySwap(row1 % BLKSIZE, data);
+              when sendPivotData[thisIndex.x](int rowIndex, int size, double* data) atomic {
+                applySwap(row2 % BLKSIZE, data);
               }
             }
           }
@@ -164,16 +164,16 @@ mainmodule lu {
         atomic {
           // Needs to be tagged with this internalStep
           // Should just be a section in the array
-          thisProxy.doPivot(l.loc, col + BLKSIZE * thisIndex.y);
+          thisProxy.doPivot(col + BLKSIZE * thisIndex.y, l.loc);
         }
         if (l.loc / BLKSIZE != thisIndex.x) {
           when doPivot(int row1, int row2) atomic {
             // Data must be row-major for marshalling to work
-            thisProxy(l.loc / BLKSIZE, thisIndex.y).
-            sendPivotData(BLKSIZE, &LU[getIndex(col, 0)]);
+            thisProxy(l.loc / BLKSIZE, thisIndex.y)
+                      .sendPivotData(l.loc / BLKSIZE, BLKSIZE, &LU[getIndex(col, 0)]);
           }
-          when sendPivotData(int size, double* data) atomic {
-            applySwap(col, data);
+          when sendPivotData[thisIndex.x](int rowIndex, int size, double* data) atomic {
+            applySwap(l.loc % BLKSIZE, data);
           }
         } else atomic {
           swapLocal(l.loc, col);
