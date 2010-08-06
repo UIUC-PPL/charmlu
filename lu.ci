@@ -73,7 +73,7 @@ mainmodule lu {
               thisProxy(otherRowIndex, thisIndex.y)
                         .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)]);
             }
-            when sendPivotData[globalThisRow](int index, int size, double* data) atomic {
+            when sendPivotData[globalThisRow](int index, int size, double data[size]) atomic {
               applySwap(thisLocalRow, data);
             }
           }
@@ -130,12 +130,12 @@ mainmodule lu {
                 thisProxy(thisIndex.y, thisIndex.y)
                           .sendPivotData(row2, BLKSIZE, &LU[getIndex(row2 % BLKSIZE, 0)]);
               }
-              when sendPivotData[row1](int rowIndex, int size, double* data) atomic {
+              when sendPivotData[row1](int rowIndex, int size, double data[size]) atomic {
                 applySwap(row2 % BLKSIZE, data);
               }
             }
           }
-          when sendUSegment(int size, double* usegment) atomic {
+          when sendUSegment(int size, double usegment[size]) atomic {
             // Just the first column
             computeMultipliers();
 
@@ -179,7 +179,7 @@ mainmodule lu {
             thisProxy(row1 / BLKSIZE, thisIndex.y)
                       .sendPivotData(row1, BLKSIZE, &LU[getIndex(row1 % BLKSIZE, 0)]);
           }
-          when sendPivotData[row2](int rowIndex, int size, double* data) atomic {
+          when sendPivotData[row2](int rowIndex, int size, double data[size]) atomic {
             applySwap(row1 % BLKSIZE, data);
           }
         } else atomic {
