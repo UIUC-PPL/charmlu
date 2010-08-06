@@ -188,7 +188,7 @@ mainmodule lu {
         }
         atomic {
           CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
-          oneCol.sendUSegment(BLKSIZE, &LU[getIndex(activeCol, 0)]);
+          oneCol.sendUSegment(BLKSIZE - activeCol, &LU[getIndex(activeCol, activeCol)]);
 
           localRowDecompose();
         }
