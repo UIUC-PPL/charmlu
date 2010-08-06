@@ -114,8 +114,8 @@ mainmodule lu {
             // The pivot section includes all sub-diagonal chares
             // along the active column of the chare array
 
-	    CkCallback maxcb(CkIndex_LUBlk::colMax(0),
-			     thisProxy(activeCol, activeCol));
+            CkCallback maxcb(CkIndex_LUBlk::colMax(0),
+        		     thisProxy(activeCol, activeCol));
 
             // TODO: compute colSection for the section reduction
             // should be from [thisIndex.x, numBlks], needs to call colMax
