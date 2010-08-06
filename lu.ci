@@ -130,11 +130,12 @@ mainmodule lu {
 	    when colMax(CkReductionMsg *m) atomic {
 		locval &remoteL = *(locval *)(m->getData());
                 locval l = findLocVal(col, col, remoteL.val, remoteL.loc);
+                atomic {
+                  // Needs to be tagged with this internalStep
+                  // Should just be a section in the array
+                  thisProxy.doPivot(l.loc, col + BLKSIZE * thisIndex.y);
+                }
 		if (l.loc / BLKSIZE != thisIndex.x) {
-                    atomic {
-                      // Needs to be tagged with this internalStep
-                      thisProxy.doPivot(l.loc, col + BLKSIZE * thisIndex.y);
-                    }
                     when doPivot(int row1, int row2) atomic {
                       // Data must be row-major for marshalling to work
                       thisProxy(l.loc / BLKSIZE, thisIndex.y).
