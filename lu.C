@@ -704,6 +704,12 @@ class LUBlk: public CBase_LUBlk {
   //VALIDATION: count of the number of point-to-point messages rcvd in a row
   int msgsRecvd;
 
+  //Variables for pivoting SDAG code
+
+  int row1Index, row2Index, localRow1, localRow2,
+    thisRowIndex, otherRowIndex, thisLocalRow;
+  bool remoteSwap;
+
   LUBlk_SDAG_CODE
 
   // The following declarations are used for optimization and
