@@ -694,8 +694,9 @@ class LUBlk: public CBase_LUBlk {
   //Variables for pivoting SDAG code
 
   int row1Index, row2Index, localRow1, localRow2,
-    thisRowIndex, otherRowIndex, thisLocalRow;
+    otherRowIndex, thisLocalRow, globalThisRow, globalOtherRow;
   bool remoteSwap;
+  locval l;
 
   LUBlk_SDAG_CODE
 
