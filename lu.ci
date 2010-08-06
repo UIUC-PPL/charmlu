@@ -35,9 +35,9 @@ mainmodule lu {
     entry void sumBvec(int size, double partial_b[size]);
 
     entry void colMax(CkReductionMsg *m);
-    entry void sendPivotData(int rowIndex, int size, double *data);
+    entry void sendPivotData(int rowIndex, int size, double data[size]);
     entry void doPivot(int internalStep, int row1, int row2);
-    entry void sendUSegment(int size, double *usegment);
+    entry void sendUSegment(int size, double usegment[size]);
 
     entry void factor() {
       for (internalStep = 0;
@@ -171,7 +171,7 @@ mainmodule lu {
           // diagonal element's row
           CProxySection_LUBlk below = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, numBlks-1, 1, 0, numBlks-1, 1);
           
-          below.doPivot(internalStep, l.loc, col + BLKSIZE * thisIndex.y);
+          below.doPivot(internalStep, l.loc, activeCol + BLKSIZE * thisIndex.y);
         }
         if (l.loc / BLKSIZE != thisIndex.x) {
           when doPivot[internalStep](int step, int row1, int row2) atomic {
@@ -179,8 +179,9 @@ mainmodule lu {
             thisProxy(row1 / BLKSIZE, thisIndex.y)
                       .sendPivotData(row1, BLKSIZE, &LU[getIndex(row1 % BLKSIZE, 0)]);
           }
-          when sendPivotData[row2](int rowIndex, int size, double data[size]) atomic {
-            applySwap(row1 % BLKSIZE, data);
+          when sendPivotData[activeCol + BLKSIZE * thisIndex.y](int rowIndex, int size, 
+                                                                double data[size]) atomic {
+            applySwap(activeCol, data);
           }
         } else atomic {
           swapLocal(l.loc, activeCol);
