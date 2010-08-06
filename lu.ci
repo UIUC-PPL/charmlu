@@ -112,10 +112,13 @@ mainmodule lu {
             // The pivot section includes the diagonal and all sub-diagonal
             // chares along the active column of the chare array
 
+	    CkCallback maxcb(CkIndex_LUBlk::colMax(0),
+			     thisProxy(activeCol, activeCol));
+
             // TODO: compute colSection for the section reduction
             // should be from [thisIndex.x, numBlks], needs to call colMax
             // CkGetSectionInfo();
-            // colSection->contribute(sizeof(locval), &l, maxLocVal, colMax);
+            colSection->contribute(sizeof(locval), &l, maxLocVal, maxcb);
           }
           when doPivot[internalStep](int step, int row1, int row2) {
             // Assume that row2 is always the non-diagonal row
