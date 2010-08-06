@@ -1504,6 +1504,8 @@ public:
     }
   }
 
+private:
+
   // Copy received pivot data into its place in this block
   void applySwap(int row, int offset, double *data) {
     for (int col = offset; col < BLKSIZE; ++col)
@@ -1525,7 +1527,6 @@ public:
 
   }
 
-private:
   //internal functions for creating messages to encapsulate the priority
   inline blkMsg* createABlkMsg() {
     blkMsg *msg;
