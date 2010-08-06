@@ -1510,8 +1510,13 @@ public:
   }
 
   //Should exchange local data (called by applySwap?)
-  void swapLocal(int loc, int col) {
-
+  void swapLocal(int row1, int row2) {
+    double buf;
+    for (int col = 0; col < BLKSIZE; col++) {
+      buf = LU[getIndex(row1, col)];
+      LU[getIndex(row1, col)] = LU[getIndex(row2, col)];
+      LU[getIndex(row2, col)] = buf;
+    }
   }
 
   //Does the local multiplier computation after U is sent to the blocks below??
