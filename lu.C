@@ -97,19 +97,6 @@ CkReductionMsg *maxLocVal(int nMsg, CkReductionMsg **msgs)
   return CkReductionMsg::buildNew(sizeof(locval), &l);
 }
 
-locval findLocVal(int startRow, int col, double curMax, int curRowMax) {
-  locval l;
-  l.val = curMax;
-  l.loc = curRowMax;
-  for (int row = startRow; row < BLKSIZE; row++) {
-    if (LU[getIndex(row, col)] > l.val) {
-      l.val = LU[getIndex(row, col)];
-      l.loc = row + BLKSIZE * thisIndex.y;
-    }
-  }
-  return locval;
-}
-
 enum continueWithTask {
   NO_CONTINUE = 0,
   CONTINUE_LU,
@@ -1526,6 +1513,20 @@ private:
 
     return msg;
   }
+
+  locval findLocVal(int startRow, int col, double curMax, int curRowMax) {
+    locval l;
+    l.val = curMax;
+    l.loc = curRowMax;
+    for (int row = startRow; row < BLKSIZE; row++) {
+      if (LU[getIndex(row, col)] > l.val) {
+	l.val = LU[getIndex(row, col)];
+	l.loc = row + BLKSIZE * thisIndex.y;
+      }
+    }
+    return l;
+  }
+
 };
 
 #include "lu.def.h"
