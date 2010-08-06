@@ -77,7 +77,7 @@ CHARMC ?= ../charm/bin/charmc
 #CHARMC=charm/bin/charmc
 
 
-MODULES=  -module ControlPoints   -module comlib -tracemode controlPoints 
+MODULES=   -module comlib -module CkMulticast
 
 CC  := $(CHARMC) $(OPTS)
 CXX := $(CHARMC) $(OPTS)
