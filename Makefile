@@ -3,8 +3,8 @@ OPTS=-g -O0
 
 #------------------------------------------------
 # To compile on order or faith(Ubuntu):
-#BLAS_INC =  -DUSE_CBLAS_H=1
-#BLAS_LD = -lcblas
+BLAS_INC =  -DUSE_CBLAS_H=1
+BLAS_LD = -lcblas
 
 # To compile on hope (OSX):
 #BLAS_INC = -DUSE_ACCELERATE_BLAS=1
@@ -34,15 +34,15 @@ OPTS=-g -O0
 
 
 # To compile on BG/P with ESSL:
-BGP_ESSL = /soft/apps/ESSL-4.4.1-0
-BLAS_INC = -DUSE_ESSL=1 -I$(BGP_ESSL)/include -DUSE_MEMALIGN=1
-BGP_LIBS = -L$(BGP_ESSL)/lib \
+#BGP_ESSL = /soft/apps/ESSL-4.4.1-0
+#BLAS_INC = -DUSE_ESSL=1 -I$(BGP_ESSL)/include -DUSE_MEMALIGN=1
+#BGP_LIBS = -L$(BGP_ESSL)/lib \
 	-L/bgsys/ibm_compilers/sles10/prod/opt/ibmcmp/xlf/bg/11.1/bglib/ \
 	-L/soft/apps/ibmcmp/xlsmp/bg/1.7/bglib \
 	-L/soft/apps/ibmcmp/xlf/bg/11.1/bglib \
 	 -lesslbg -lmass   -lxlfmath -lxlf90_r -lxlsmp -lxlomp_ser -lpthread
 
-BLAS_LD =  $(BGP_LIBS)
+#BLAS_LD =  $(BGP_LIBS)
 
 
 # A test program for getting essl working on BG/P
@@ -66,7 +66,7 @@ BLAS_LD =  $(BGP_LIBS)
 PROJ = -tracemode projections
 #MULTICAST = -module CkMulticast
 
-CHARMC=../charm/bin/charmc $(OPTS) 
+CHARMC=$(HOME)/charm/bin/charmc $(OPTS) 
 #CHARMC=${HOME}/current/charm/net-linux/bin/charmc $(OPTS) -g
 #CHARMC=${HOME}/current/lastestfromcvs/charm/net-linux-amd64/bin/charmc $(OPTS)
 #CHARMC=${HOME}/charm/bin/charmc $(FLAGS)
