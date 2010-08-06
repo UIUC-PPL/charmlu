@@ -108,6 +108,9 @@ mainmodule lu {
                     
                     // Options: this SDAG code (or something like it)
 
+                    /*
+                    // Somehow this needs to be overlapped with the maxCol sends
+
                     for (int innercol = 1; innercol < BLKSIZE; innercol++) {
                       thisProxy(thisIndex.x, thisIndex.y).updateRemCols(innercol);
                     }
@@ -115,6 +118,7 @@ mainmodule lu {
                     when updateRemCols(int icol) atomic {
                       doUpdate();
                     }
+                    */
                     
                     // Or: DGEMM
                     updateAllCols();
@@ -125,6 +129,8 @@ mainmodule lu {
 		thisProxy(thisIndex.x, thisIndex.y).processComputeL(0);
 	    }*/
 	}
+
+        multicastRecvL();
     };
 
     entry void processLU()
@@ -155,6 +161,8 @@ mainmodule lu {
                 localRowDecompose();
 	    }
 	}
+
+        multicastRecvL();
     };
 
     // These entry methods are the targets of the row- and column-wise
