@@ -132,6 +132,7 @@ mainmodule lu {
                 locval l = findLocVal(col, col, remoteL.val, remoteL.loc);
 		if (l.loc / BLKSIZE != thisIndex.x) {
                     atomic {
+                      // Needs to be tagged with this internalStep
                       thisProxy.doPivot(l.loc, col + BLKSIZE * thisIndex.y);
                     }
                     when doPivot(int row1, int row2) atomic {
