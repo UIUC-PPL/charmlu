@@ -1504,7 +1504,7 @@ public:
     }
   }
 
-  // Moves new data into position
+  // Copy received pivot data into its place in this block
   void applySwap(int row, int offset, double *data) {
     for (int col = offset; col < BLKSIZE; ++col)
       LU[getIndex(row, col)] = data[col - offset];
