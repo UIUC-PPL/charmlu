@@ -43,7 +43,7 @@ mainmodule lu {
       for (internalStep = 0;
            internalStep < min(thisIndex.x, thisIndex.y);
            internalStep++) {
-        for (int i = 0; i < BLKSIZE; i++) {
+        for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
           when doPivot[internalStep](int step, int row1, int row2) atomic {
             row1Index = row1 / BLKSIZE;
             row2Index = row2 / BLKSIZE;
@@ -53,7 +53,7 @@ mainmodule lu {
 
             if (row1Index == thisIndex.x &&
                 row2Index == thisIndex.y) {
-              localSwap(localRow1, localRow2);
+              swapLocal(localRow1, localRow2);
             } else if (row1Index == thisIndex.x) {
               thisLocalRow = localRow1;
               otherRowIndex = row1Index;
@@ -104,7 +104,7 @@ mainmodule lu {
           thisProxy(thisIndex.x, thisIndex.y).processComputeU(0);
       } else {
         for (activeCol = 0; activeCol < BLKSIZE; activeCol++) {
-          atomic "computeMax" {
+          atomic {
             double maxval = LU[getIndex(0, activeCol)];
             int maxrow = 0;
 

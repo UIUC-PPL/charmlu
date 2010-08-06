@@ -697,6 +697,7 @@ class LUBlk: public CBase_LUBlk {
     otherRowIndex, thisLocalRow, globalThisRow, globalOtherRow;
   bool remoteSwap;
   locval l;
+  int pivotBlk;
 
   LUBlk_SDAG_CODE
 
