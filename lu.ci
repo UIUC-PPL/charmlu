@@ -104,7 +104,7 @@ mainmodule lu {
           thisProxy(thisIndex.x, thisIndex.y).processComputeU(0);
       } else {
         for (activeCol = 0; activeCol < BLKSIZE; activeCol++) {
-          atomic "computeMax" {
+          atomic {
             double maxval = LU[getIndex(0, activeCol)];
             int maxrow = 0;
 
