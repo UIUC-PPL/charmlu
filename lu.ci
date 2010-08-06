@@ -34,133 +34,132 @@ mainmodule lu {
     entry [nokeep] void recvXvec(int size, double xvec[size]);
     entry void sumBvec(int size, double partial_b[size]);
 
-    entry void factor()
-    {
-	for (internalStep = 0;
-	     internalStep < min(thisIndex.x, thisIndex.y);
-	     internalStep++) {
-            for (int i = 0; i < BLKSIZE; i++) {
-              when doPivot[internalStep](int row1, int row2) atomic {  
-                swap(row1, row2);
+    entry void colMax(CkReductionMsg *m);
+    entry void doPivot(int row1, int row2);
+    entry void sendPivotData(int size, double *data);
+    entry void sendUSegment(int size, double *usegment);
+
+    entry void factor() {
+      for (internalStep = 0;
+           internalStep < min(thisIndex.x, thisIndex.y);
+	   internalStep++) {
+        for (int i = 0; i < BLKSIZE; i++) {
+          when doPivot[internalStep](int row1, int row2) atomic {
+            swap(row1, row2);
+          }
+        }
+        overlap {
+          when recvL[internalStep](blkMsg *mL) atomic
+	    { CmiReference(UsrToEnv(mL)); L = mL; }
+          when recvU[internalStep](blkMsg *mU) atomic
+	    { CmiReference(UsrToEnv(mU)); U = mU; }
+	}
+        atomic {
+          // Schedule the trailing update for sometime later
+          thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep);
+	}
+        when processTrailingUpdate[internalStep](int step) atomic {
+          updateMatrix(L, U);
+          CmiFree(UsrToEnv(L)); CmiFree(UsrToEnv(U));
+	}
+      }
+
+      if (thisIndex.x == thisIndex.y) atomic {
+        ckout << "Block " << thisIndex.x << " queueing local LU" << endl;
+        //thisProxy(thisIndex.x, thisIndex.y).processLocalLU(0);
+        thisProxy(thisIndex.x, thisIndex.y).processLU();
+      } else if (thisIndex.x < thisIndex.y)
+        when recvL[internalStep](blkMsg *mL) atomic {
+          CmiReference(UsrToEnv(mL)); L = mL;
+          thisProxy(thisIndex.x, thisIndex.y).processComputeU(0);
+      } else {
+        for (int col = 0; col < BLKSIZE; col++) {
+          atomic "computeMax" {
+            double maxval = LU[getIndex(0, col)];
+            int maxrow = 0;
+
+            locval l = findLocVal(1, col, maxval, maxrow);
+
+            // Contribute to a reduction along the pivot section
+            // The pivot section includes the diagonal and all sub-diagonal
+            // chares along the active column of the chare array
+
+            // TODO: compute colSection for the section reduction
+            // should be from [thisIndex.x, numBlks], needs to call colMax
+            // CkGetSectionInfo();
+            // colSection->contribute(sizeof(locval), &l, maxLocVal, colMax);
+          }
+          when doPivot(int row1, int row2) {
+            // Assume that row2 is always the non-diagonal row
+            // and that LU is row-major
+            if (row2 / BLKSIZE == thisIndex.x) {
+              atomic {
+                thisProxy(thisIndex.y, thisIndex.y).
+                sendPivotData(BLKSIZE, &LU[getIndex(row2 % BLKSIZE, 0)]);
+              }
+              when sendPivotData(int size, double* data) atomic {
+                applySwap(row1 % BLKSIZE, data);
               }
             }
-	    overlap {
-		when recvL[internalStep](blkMsg *mL) atomic
-		{ CmiReference(UsrToEnv(mL)); L = mL; }
-		when recvU[internalStep](blkMsg *mU) atomic
-		{ CmiReference(UsrToEnv(mU)); U = mU; }
-	    }
-	    atomic {
-		// Schedule the trailing update for sometime later
-		thisProxy(thisIndex.x, thisIndex.y)
-		    .processTrailingUpdate(internalStep);
-	    }
-	    when processTrailingUpdate[internalStep](int step) atomic {
-		updateMatrix(L, U);
-		CmiFree(UsrToEnv(L)); CmiFree(UsrToEnv(U));
-	    }
+          }
+          when sendUSegment(int size, double* usegment) atomic {
+            // Just the first column
+            computeMultipliers();
+
+            // Options: this SDAG code (or something like it)
+            // Somehow this needs to be overlapped with the maxCol sends
+
+            //for (int innercol = 1; innercol < BLKSIZE; innercol++) {
+            //thisProxy(thisIndex.x, thisIndex.y).updateRemCols(innercol);
+            //}
+
+            //when updateRemCols(int icol) atomic {
+            //doUpdate();
+            //}
+
+            // Or: DGEMM
+            updateAllCols();
+          }
 	}
-
-	if (thisIndex.x == thisIndex.y) atomic {
-		ckout << "Block " << thisIndex.x << " queueing local LU" << endl;
-		//thisProxy(thisIndex.x, thisIndex.y).processLocalLU(0);
-                thisProxy(thisIndex.x, thisIndex.y).processLU();
-	} else if (thisIndex.x < thisIndex.y)
-	    when recvL[internalStep](blkMsg *mL) atomic {
-		CmiReference(UsrToEnv(mL)); L = mL;
-		thisProxy(thisIndex.x, thisIndex.y).processComputeU(0);
-        } else {
-                for (int col = 0; col < BLKSIZE; col++) {
-                  atomic "computeMax" {
-                    double maxval = LU[getIndex(0, col)];
-                    int maxrow = 0;
-                    
-                    locval l = findLocVal(1, col, maxval, maxrow);
-
-                    // Contribute to a reduction along the pivot section
-                    // The pivot section includes the diagonal and all sub-diagonal
-                    // chares along the active column of the chare array
-
-                    // TODO: compute colSection for the section reduction
-                    // should be from [thisIndex.x, numBlks], needs to call colMax
-                    // CkGetSectionInfo();
-                    // colSection->contribute(sizeof(locval), &l, maxLocVal, colMax);
-                  }
-                  when doPivot(int row1, int row2) atomic {
-                    // Assume that row2 is always the non-diagonal row
-                    // and that LU is row-major
-                    if (row2 / BLKSIZE == thisIndex.x) {
-                      thisProxy(thisIndex.y, thisIndex.y).
-                                sendPivotData(BLKSIZE, &LU[getIndex(row2 % BLKSIZE, 0)]);
-                      when sendPivotData(int size, double* data) atomic {
-                        applySwap(row1 % BLKSIZE, data);
-                      }
-                    }
-                  }
-                  when sendUSegment(int size, double* usegment) {
-                    // Just the first column
-                    computeMultipliers();
-                    
-                    // Options: this SDAG code (or something like it)
-
-                    /*
-                    // Somehow this needs to be overlapped with the maxCol sends
-
-                    for (int innercol = 1; innercol < BLKSIZE; innercol++) {
-                      thisProxy(thisIndex.x, thisIndex.y).updateRemCols(innercol);
-                    }
-                    
-                    when updateRemCols(int icol) atomic {
-                      doUpdate();
-                    }
-                    */
-                    
-                    // Or: DGEMM
-                    updateAllCols();
-                  }
-
-	    /*when recvU[internalStep](blkMsg *mU) atomic {
-		CmiReference(UsrToEnv(mU)); U = mU;
-		thisProxy(thisIndex.x, thisIndex.y).processComputeL(0);
-	    }*/
-	}
-
-        multicastRecvL();
-    }
+        atomic {
+          multicastRecvL();
+        }
+      }
     };
 
-    entry void processLU()
-    {
-	for (int col = 0; col < BLKSIZE; ++col) {
-	    when colMax(CkReductionMsg *m) atomic {
-		locval &remoteL = *(locval *)(m->getData());
-                locval l = findLocVal(col, col, remoteL.val, remoteL.loc);
-                atomic {
-                  // Needs to be tagged with this internalStep
-                  // Should just be a section in the array
-                  thisProxy.doPivot(l.loc, col + BLKSIZE * thisIndex.y);
-                }
-		if (l.loc / BLKSIZE != thisIndex.x) {
-                    when doPivot(int row1, int row2) atomic {
-                      // Data must be row-major for marshalling to work
-                      thisProxy(l.loc / BLKSIZE, thisIndex.y).
-                                sendPivotData(BLKSIZE, &LU[getIndex(col, 0)]);
-                    }
-                    when sendPivotData(int size, double* data) atomic {
-                      applySwap(col, data);
-                    }
-		} else {
-                  swapLocal(l.loc, col);
-                }
-                
-                CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
-                oneCol.sendUSegment(BLKSIZE, &LU[getIndex(col, 0)]);
-                
-                localRowDecompose();
-	    }
-	}
+    entry void processLU() {
+      for (int col = 0; col < BLKSIZE; ++col) {
+        when colMax(CkReductionMsg *m) atomic {
+          locval &remoteL = *(locval *)(m->getData());
+          locval l = findLocVal(col, col, remoteL.val, remoteL.loc);
+        }
+        atomic {
+          // Needs to be tagged with this internalStep
+          // Should just be a section in the array
+          thisProxy.doPivot(l.loc, col + BLKSIZE * thisIndex.y);
+        }
+        if (l.loc / BLKSIZE != thisIndex.x) {
+          when doPivot(int row1, int row2) atomic {
+            // Data must be row-major for marshalling to work
+            thisProxy(l.loc / BLKSIZE, thisIndex.y).
+            sendPivotData(BLKSIZE, &LU[getIndex(col, 0)]);
+          }
+          when sendPivotData(int size, double* data) atomic {
+            applySwap(col, data);
+          }
+	} else atomic {
+          swapLocal(l.loc, col);
+        }
+        atomic {
+          CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
+          oneCol.sendUSegment(BLKSIZE, &LU[getIndex(col, 0)]);
 
+          localRowDecompose();
+        }
+      }
+      atomic {
         multicastRecvL();
+      }
     };
 
     // These entry methods are the targets of the row- and column-wise
