@@ -70,10 +70,10 @@ mainmodule lu {
 	thisProxy(thisIndex.x, thisIndex.y).processLU();
       } else if (thisIndex.x < thisIndex.y)
 	when recvL[internalStep](blkMsg *mL) atomic {
-	  CmiReference(UsrToEnv(mL)); L = mL;
-	  thisProxy(thisIndex.x, thisIndex.y).processComputeU(0);
+          CmiReference(UsrToEnv(mL)); L = mL;
+          thisProxy(thisIndex.x, thisIndex.y).processComputeU(0);
       } else {
-	for (int col = 0; col < BLKSIZE; col++) {
+        for (int col = 0; col < BLKSIZE; col++) {
           atomic "computeMax" {
             double maxval = LU[getIndex(0, col)];
             int maxrow = 0;
