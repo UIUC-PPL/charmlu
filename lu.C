@@ -694,8 +694,10 @@ class LUBlk: public CBase_LUBlk {
   //Variables for pivoting SDAG code
 
   int row1Index, row2Index, localRow1, localRow2,
-    thisRowIndex, otherRowIndex, thisLocalRow;
+    otherRowIndex, thisLocalRow, globalThisRow, globalOtherRow;
   bool remoteSwap;
+  locval l;
+  int pivotBlk;
 
   LUBlk_SDAG_CODE
 
@@ -1502,6 +1504,21 @@ public:
     }
   }
 
+  //Performs data exchange
+  void applySwap(int loc, double* data) {
+
+  }
+
+  //Should exchange local data (called by applySwap?)
+  void swapLocal(int loc, int col) {
+
+  }
+
+  //Does the local multiplier computation after U is sent to the blocks below??
+  void localRowDecompose() {
+
+  }
+
 private:
   //internal functions for creating messages to encapsulate the priority
   inline blkMsg* createABlkMsg() {
@@ -1531,6 +1548,15 @@ private:
       }
     }
     return l;
+  }
+
+
+  /// Compute the multipliers base on the pivot value from the diagonal chare in the same chare array column
+  void computeMultipliers() {
+  }
+
+  /// Update the values in the columns trailing the active column within the pivot section based on the Usegment and the multipliers
+  void updateAllCols() {
   }
 
 };

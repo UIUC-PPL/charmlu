@@ -43,7 +43,7 @@ mainmodule lu {
       for (internalStep = 0;
            internalStep < min(thisIndex.x, thisIndex.y);
            internalStep++) {
-        for (int i = 0; i < BLKSIZE; i++) {
+        for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
           when doPivot[internalStep](int step, int row1, int row2) atomic {
             row1Index = row1 / BLKSIZE;
             row2Index = row2 / BLKSIZE;
@@ -53,25 +53,27 @@ mainmodule lu {
 
             if (row1Index == thisIndex.x &&
                 row2Index == thisIndex.y) {
-              localSwap(localRow1, localRow2);
+              swapLocal(localRow1, localRow2);
             } else if (row1Index == thisIndex.x) {
-              thisRowIndex = row2Index;
               thisLocalRow = localRow1;
               otherRowIndex = row1Index;
+              globalThisRow = row2;
+              globalOtherRow = row1;
               remoteSwap = true;
             } else if (row2Index == thisIndex.x) {
-              thisRowIndex = row1Index;
               thisLocalRow = localRow2;
               otherRowIndex = row2Index;
+              globalThisRow = row1;
+              globalOtherRow = row2;
               remoteSwap = true;
             }
           }
           if (remoteSwap) {
             atomic {
               thisProxy(otherRowIndex, thisIndex.y)
-                        .sendPivotData(otherRowIndex, BLKSIZE, &LU[getIndex(thisLocalRow, 0)]);
+                        .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)]);
             }
-            when sendPivotData[thisRowIndex](int index, int size, double* data) atomic {
+            when sendPivotData[globalThisRow](int index, int size, double* data) atomic {
               applySwap(thisLocalRow, data);
             }
           }
@@ -102,7 +104,7 @@ mainmodule lu {
           thisProxy(thisIndex.x, thisIndex.y).processComputeU(0);
       } else {
         for (activeCol = 0; activeCol < BLKSIZE; activeCol++) {
-          atomic "computeMax" {
+          atomic {
             double maxval = LU[getIndex(0, activeCol)];
             int maxrow = 0;
 
@@ -126,9 +128,9 @@ mainmodule lu {
             if (row2 / BLKSIZE == thisIndex.x) {
               atomic {
                 thisProxy(thisIndex.y, thisIndex.y)
-                          .sendPivotData(thisIndex.y, BLKSIZE, &LU[getIndex(row2 % BLKSIZE, 0)]);
+                          .sendPivotData(row2, BLKSIZE, &LU[getIndex(row2 % BLKSIZE, 0)]);
               }
-              when sendPivotData[thisIndex.x](int rowIndex, int size, double* data) atomic {
+              when sendPivotData[row1](int rowIndex, int size, double* data) atomic {
                 applySwap(row2 % BLKSIZE, data);
               }
             }
@@ -162,7 +164,7 @@ mainmodule lu {
       for (activeCol = 0; activeCol < BLKSIZE; ++activeCol) {
         when colMax(CkReductionMsg *m) atomic {
           locval &remoteL = *(locval *)(m->getData());
-          locval l = findLocVal(activeCol, activeCol, remoteL.val, remoteL.loc);
+          l = findLocVal(activeCol, activeCol, remoteL.val, remoteL.loc);
         }
         atomic {
           // Builds a section that addresses every block on and below the current
@@ -174,11 +176,11 @@ mainmodule lu {
         if (l.loc / BLKSIZE != thisIndex.x) {
           when doPivot[internalStep](int step, int row1, int row2) atomic {
             // Data must be row-major for marshalling to work
-            thisProxy(l.loc / BLKSIZE, thisIndex.y)
-                      .sendPivotData(l.loc / BLKSIZE, BLKSIZE, &LU[getIndex(col, 0)]);
+            thisProxy(row1 / BLKSIZE, thisIndex.y)
+                      .sendPivotData(row1, BLKSIZE, &LU[getIndex(row1 % BLKSIZE, 0)]);
           }
-          when sendPivotData[thisIndex.x](int rowIndex, int size, double* data) atomic {
-            applySwap(l.loc % BLKSIZE, data);
+          when sendPivotData[row2](int rowIndex, int size, double* data) atomic {
+            applySwap(row1 % BLKSIZE, data);
           }
         } else atomic {
           swapLocal(l.loc, activeCol);
