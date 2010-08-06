@@ -41,39 +41,39 @@ mainmodule lu {
 
     entry void factor() {
       for (internalStep = 0;
-           internalStep < min(thisIndex.x, thisIndex.y);
+	   internalStep < min(thisIndex.x, thisIndex.y);
 	   internalStep++) {
-        for (int i = 0; i < BLKSIZE; i++) {
-          when doPivot[internalStep](int row1, int row2) atomic {
-            swap(row1, row2);
-          }
-        }
-        overlap {
-          when recvL[internalStep](blkMsg *mL) atomic
+	for (int i = 0; i < BLKSIZE; i++) {
+	  when doPivot[internalStep](int row1, int row2) atomic {
+	    swap(row1, row2);
+	  }
+	}
+	overlap {
+	  when recvL[internalStep](blkMsg *mL) atomic
 	    { CmiReference(UsrToEnv(mL)); L = mL; }
-          when recvU[internalStep](blkMsg *mU) atomic
+	  when recvU[internalStep](blkMsg *mU) atomic
 	    { CmiReference(UsrToEnv(mU)); U = mU; }
 	}
-        atomic {
-          // Schedule the trailing update for sometime later
-          thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep);
+	atomic {
+	  // Schedule the trailing update for sometime later
+	  thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep);
 	}
-        when processTrailingUpdate[internalStep](int step) atomic {
-          updateMatrix(L, U);
-          CmiFree(UsrToEnv(L)); CmiFree(UsrToEnv(U));
+	when processTrailingUpdate[internalStep](int step) atomic {
+	  updateMatrix(L, U);
+	  CmiFree(UsrToEnv(L)); CmiFree(UsrToEnv(U));
 	}
       }
 
       if (thisIndex.x == thisIndex.y) atomic {
-        ckout << "Block " << thisIndex.x << " queueing local LU" << endl;
-        //thisProxy(thisIndex.x, thisIndex.y).processLocalLU(0);
-        thisProxy(thisIndex.x, thisIndex.y).processLU();
+	ckout << "Block " << thisIndex.x << " queueing local LU" << endl;
+	//thisProxy(thisIndex.x, thisIndex.y).processLocalLU(0);
+	thisProxy(thisIndex.x, thisIndex.y).processLU();
       } else if (thisIndex.x < thisIndex.y)
-        when recvL[internalStep](blkMsg *mL) atomic {
-          CmiReference(UsrToEnv(mL)); L = mL;
-          thisProxy(thisIndex.x, thisIndex.y).processComputeU(0);
+	when recvL[internalStep](blkMsg *mL) atomic {
+	  CmiReference(UsrToEnv(mL)); L = mL;
+	  thisProxy(thisIndex.x, thisIndex.y).processComputeU(0);
       } else {
-        for (int col = 0; col < BLKSIZE; col++) {
+	for (int col = 0; col < BLKSIZE; col++) {
           atomic "computeMax" {
             double maxval = LU[getIndex(0, col)];
             int maxrow = 0;
