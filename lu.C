@@ -54,7 +54,7 @@ extern "C" {
 #include <controlPoints.h> // must come before user decl.h if they are using the pathInformationMsg
 #include "lu.decl.h"
 #include <trace-projections.h>
-
+#include <ckmulticast.h>
 #include <queueing.h> // for access to memory threshold setting
 
 /* readonly: */
@@ -150,6 +150,11 @@ struct blkMsg: public CMessage_blkMsg {
     CkSetRefNum(this, step);
   }
 };
+
+class rednSetupMsg: public CkMcastBaseMsg, public CMessage_rednSetupMsg
+{
+};
+
 
 /** do a space filling curve style allocation from the bottom right to the upper left. */
 class LUSnakeMap: public CkArrayMap {
@@ -699,6 +704,12 @@ class LUBlk: public CBase_LUBlk {
   locval l;
   int pivotBlk;
 
+  /// The sub-diagaonal chare array section that will participate in pivot selection
+  /// @note: Only the diagonal chares will create and mcast along this section
+  CProxySection_LUBlk pivotSection;
+  /// All pivot sections members will save a cookie to their section
+  CkSectionInfo rednCookie;
+
   LUBlk_SDAG_CODE
 
   // The following declarations are used for optimization and
@@ -949,7 +960,7 @@ public:
     traceUserSuppliedData(-1);	
     traceMemoryUsage();	 
      
-    //MatGen rnd(thisIndex.x * numBlks + thisIndex.y);
+    //MatGen rnd(thisIndex.x * >=umBlks + thisIndex.y);
 
     double b = thisIndex.x * BLKSIZE + 1, c = thisIndex.y * BLKSIZE + 1;
     for (int i = 0; i<BLKSIZE*BLKSIZE; i++) {
@@ -980,7 +991,27 @@ public:
 
     testdgemm();
 
-    contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
+    /// Chares on the array diagonal will now create pivot sections that they will talk to
+    if (thisIndex.x == thisIndex.y)
+    {
+        // Create the pivot section
+        pivotSection = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1,numBlks-1,1,thisIndex.y,thisIndex.y,1);
+        // Create a multicast manager group
+        CkGroupID mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
+        CkMulticastMgr *mcastMgr = CProxy_CkMulticastMgr(mcastMgrGID).ckLocalBranch();
+        // Delegate pivot section to the manager
+        pivotSection.ckSectionDelegate(mcastMgr);
+        // Set the reduction client for this pivot section
+        mcastMgr->setReductionClient( pivotSection, new CkCallback( CkIndex_LUBlk::colMax(0), thisProxy(activeCol, activeCol) ) );
+
+        // Invoke a dummy mcast so that all the section members know which section to reduce along
+        rednSetupMsg *msg = new rednSetupMsg();
+        pivotSection.prepareForPivotRedn(msg);
+    }
+
+    // All chares except members of pivot sections are done with init
+    if (thisIndex.x >= thisIndex.y)
+        contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
   }
 
   ~LUBlk() {
@@ -1005,6 +1036,21 @@ public:
 //     traceMemoryUsage();
 //     thisProxy(0,0).processLocalLU(0);
 //   }
+
+  /** Entry method. Invoked on each pivot section by their diagonal chare
+   * so that they know where to reduce pivot info
+   */
+  void prepareForPivotRedn(rednSetupMsg *msg)
+  {
+      // Save the section cookie
+      CkGetSectionInfo(rednCookie, msg);
+      // Now, even members of pivot sections are done with init
+      contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
+      delete msg;
+  }
+
+
+
 
 
   /* Computation functions that should be called localy related with each

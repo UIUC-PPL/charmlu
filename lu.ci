@@ -15,6 +15,8 @@ mainmodule lu {
     double data[];
   };
 
+  message rednSetupMsg;
+
   mainchare Main {
     entry Main(CkArgMsg *m);
     entry void finishInit();
@@ -28,6 +30,7 @@ mainmodule lu {
 
   array [2D] LUBlk {
     entry LUBlk(void);
+    entry void prepareForPivotRedn(rednSetupMsg *);
     entry void init(int whichMulticastStrategy, int, int, int memThreshold);
     entry void initVec(int size, double bvec[size]);
     entry void startValidation();
@@ -113,14 +116,7 @@ mainmodule lu {
             // Contribute to a reduction along the pivot section
             // The pivot section includes all sub-diagonal chares
             // along the active column of the chare array
-
-            CkCallback maxcb(CkIndex_LUBlk::colMax(0),
-        		     thisProxy(activeCol, activeCol));
-
-            // TODO: compute colSection for the section reduction
-            // should be from [thisIndex.x, numBlks], needs to call colMax
-            // CkGetSectionInfo();
-            colSection->contribute(sizeof(locval), &l, maxLocVal, maxcb);
+            pivotSection->contribute(sizeof(locval), &l, maxLocVal);
           }
           when doPivot[internalStep](int step, int row1, int row2) {
             // Assume that row2 is always the non-diagonal row
