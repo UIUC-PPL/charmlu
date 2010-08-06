@@ -71,7 +71,7 @@ mainmodule lu {
               thisProxy(otherRowIndex, thisIndex.y)
                         .sendPivotData(BLKSIZE, &LU[getIndex(thisLocalRow, 0)]);
             }
-            when sendPivotData[thisRowIndex](size, double* data) atomic {
+            when sendPivotData[thisRowIndex](int size, double* data) atomic {
               applySwap(thisLocalRow, data);
             }
           }
