@@ -77,6 +77,10 @@ mainmodule lu {
                     
                     locval l = findLocVal(1, col, maxval, maxrow);
 
+                    // Contribute to a reduction along the pivot section
+                    // The pivot section includes the diagonal and all sub-diagonal
+                    // chares along the active column of the chare array
+
                     // TODO: compute colSection for the section reduction
                     // should be from [thisIndex.x, numBlks], needs to call colMax
                     // CkGetSectionInfo();
