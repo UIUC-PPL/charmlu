@@ -37,10 +37,10 @@ BLAS_LD = -lcblas
 #BGP_ESSL = /soft/apps/ESSL-4.4.1-0
 #BLAS_INC = -DUSE_ESSL=1 -I$(BGP_ESSL)/include -DUSE_MEMALIGN=1
 #BGP_LIBS = -L$(BGP_ESSL)/lib \
-	-L/bgsys/ibm_compilers/sles10/prod/opt/ibmcmp/xlf/bg/11.1/bglib/ \
-	-L/soft/apps/ibmcmp/xlsmp/bg/1.7/bglib \
-	-L/soft/apps/ibmcmp/xlf/bg/11.1/bglib \
-	 -lesslbg -lmass   -lxlfmath -lxlf90_r -lxlsmp -lxlomp_ser -lpthread
+#	-L/bgsys/ibm_compilers/sles10/prod/opt/ibmcmp/xlf/bg/11.1/bglib/ \
+#	-L/soft/apps/ibmcmp/xlsmp/bg/1.7/bglib \
+#	-L/soft/apps/ibmcmp/xlf/bg/11.1/bglib \
+#	 -lesslbg -lmass   -lxlfmath -lxlf90_r -lxlsmp -lxlomp_ser -lpthread
 
 #BLAS_LD =  $(BGP_LIBS)
 
@@ -66,27 +66,28 @@ BLAS_LD = -lcblas
 PROJ = -tracemode projections
 #MULTICAST = -module CkMulticast
 
-CHARMC=$(HOME)/charm/bin/charmc $(OPTS) 
-#CHARMC=${HOME}/current/charm/net-linux/bin/charmc $(OPTS) -g
-#CHARMC=${HOME}/current/lastestfromcvs/charm/net-linux-amd64/bin/charmc $(OPTS)
+CHARMC ?= ../charm/bin/charmc
+#CHARMC=${HOME}/current/charm/net-linux/bin/charmc
+#CHARMC=${HOME}/current/lastestfromcvs/charm/net-linux-amd64/bin/charmc
 #CHARMC=${HOME}/charm/bin/charmc $(FLAGS)
-#CHARMC=${HOME}/current/new/charm/mpi-linux-amd64-vmi-mpicxx/bin/charmc $(OPTS)
-#CHARMC=${HOME}/current/new/charm/mpi-linux-amd64-smp-vmi-mpicxx/bin/charmc $(OPTS)
-#CHARMC=${HOME}/current/new/charm/net-linux-amd64-smp-icc10/bin/charmc $(OPTS)
-#CHARMC=${HOME}/current/new/charm/net-linux-amd64-icc10/bin/charmc $(OPTS)
-#CHARMC=charm/bin/charmc $(OPTS)
+#CHARMC=${HOME}/current/new/charm/mpi-linux-amd64-vmi-mpicxx/bin/charmc
+#CHARMC=${HOME}/current/new/charm/mpi-linux-amd64-smp-vmi-mpicxx/bin/charmc
+#CHARMC=${HOME}/current/new/charm/net-linux-amd64-smp-icc10/bin/charmc
+#CHARMC=${HOME}/current/new/charm/net-linux-amd64-icc10/bin/charmc
+#CHARMC=charm/bin/charmc
 
 
 MODULES=  -module ControlPoints   -module comlib -tracemode controlPoints 
 
+CC  := $(CHARMC) $(OPTS)
+CXX := $(CHARMC) $(OPTS)
+LD := $(CHARMC) $(OPTS)
 
+CFLAGS := $(BLAS_INC)  -DADAPT_SCHED_MEM
+CXXFLAGS := $(BLAS_INC)  -DADAPT_SCHED_MEM
+LDFLAGS := $(MODULES) $(MULTICAST) $(PROJ) $(BLAS_LD)
 
-all: lu-proj
-
-
-
-lu: lu.o
-	$(CHARMC) -language charm++ -o lu lu.o  $(BLAS_LD) $(MULTICAST)  $(MODULES)
+all: lu
 
 lu-proj: lu.o 
 	$(CHARMC) -language charm++ -o lu-proj lu.o $(BLAS_LD) $(PROJ) $(MULTICAST)  $(MODULES) -DADAPT_SCHED_MEM
@@ -97,8 +98,7 @@ lu.decl.h: lu.ci
 clean:
 	rm -f *.decl.h *.def.h conv-host *.o charmrun *~ lu lu-blas lu-mem lu-blas-proj.*.log lu-blas-proj.*.sum lu-blas-proj.*.sts lu-blas-proj.sts lu-blas-proj.projrc lu-blas-proj lu-proj controlPointData.txt lu*.log lu*.sum lu*.sts lu*.projrc SummaryDump.out *.output *.error *.cobaltlog traces/* core.* perfCounterBGP.o job-lu-* moduleinit* moduleInit*
 
-lu.o: lu.C lu.decl.h
-	$(CHARMC) -c lu.C -o lu.o $(BLAS_INC) $(OPTS) -DADAPT_SCHED_MEM
+lu.o: lu.decl.h
 
 
  # run for up to 15 minutes on 16 nodes * 4 pe/node. Matrix size 8192*8192
