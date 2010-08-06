@@ -1502,6 +1502,21 @@ public:
     }
   }
 
+  //Performs data exchange
+  void applySwap(int loc, double* data) {
+
+  }
+
+  //Should exchange local data (called by applySwap?)
+  void swapLocal(int loc, int col) {
+
+  }
+
+  //Does the local multiplier computation after U is sent to the blocks below??
+  void localRowDecompose() {
+
+  }
+
 private:
   //internal functions for creating messages to encapsulate the priority
   inline blkMsg* createABlkMsg() {
