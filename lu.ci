@@ -45,7 +45,35 @@ mainmodule lu {
            internalStep++) {
         for (int i = 0; i < BLKSIZE; i++) {
           when doPivot[internalStep](int row1, int row2) atomic {
-            swap(row1, row2);
+            row1Index = row1 / BLKSIZE;
+            row2Index = row2 / BLKSIZE;
+            localRow1 = row1 % BLKSIZE;
+            localRow2 = row2 % BLKSIZE;
+            remoteSwap = false;
+
+            if (row1Index == thisIndex.x &&
+                row2Index == thisIndex.y) {
+              localSwap(localRow1, localRow2);
+            } else if (row1Index == thisIndex.x) {
+              thisRowIndex = row2Index;
+              thisLocalRow = localRow1;
+              otherRowIndex = row1Index;
+              remoteSwap = true;
+            } else if (row2Index == thisIndex.x) {
+              thisRowIndex = row1Index;
+              thisLocalRow = localRow2;
+              otherRowIndex = row2Index;
+              remoteSwap = true;
+            }
+          }
+          if (remoteSwap) {
+            atomic {
+              thisProxy(otherRowIndex, thisIndex.y)
+                        .sendPivotData(BLKSIZE, &LU[getIndex(thisLocalRow, 0)]);
+            }
+            when sendPivotData[thisRowIndex](size, double* data) atomic {
+              applySwap(thisLocalRow, data);
+            }
           }
         }
         overlap {
