@@ -1550,6 +1550,15 @@ private:
     return l;
   }
 
+
+  /// Compute the multipliers base on the pivot value from the diagonal chare in the same chare array column
+  void computeMultipliers() {
+  }
+
+  /// Update the values in the columns trailing the active column within the pivot section based on the Usegment and the multipliers
+  void updateAllCols() {
+  }
+
 };
 
 #include "lu.def.h"
