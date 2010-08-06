@@ -76,16 +76,9 @@ mainmodule lu {
                   atomic "computeMax" {
                     double maxval = LU[getIndex(0, col)];
                     int maxrow = 0;
-                    for (int row = 1; row < BLKSIZE; row++) {
-                      if (LU[getIndex(row, col)] > maxval) {
-                        maxrow = row;
-                        maxval = LU[getIndex(row, col)];
-	              }
-                    }
                     
-                    locval l;
-                    l.val = maxval;
-                    l.loc = maxrow + BLKSIZE * thisIndex.y;
+                    locval l = findLocVal(1, col, maxval, maxrow);
+
                     // TODO: compute colSection for the section reduction
                     // should be from [thisIndex.x, numBlks], needs to call colMax
                     // CkGetSectionInfo();
@@ -137,13 +130,8 @@ mainmodule lu {
     {
 	for (int col = 0; col < BLKSIZE; ++col) {
 	    when colMax(CkReductionMsg *m) atomic {
-		locval &l = *(locval *)(m->getData());
-		for (int row = col; row < BLKSIZE; ++row) {
-		    if (LU[getIndex(row, col)] > l.val) {
-			l.val = LU[getIndex(row, col)];
-			l.loc = row + BLKSIZE * thisIndex.y;
-		    }
-		}
+		locval &remoteL = *(locval *)(m->getData());
+                locval l = findLocVal(col, col, remoteL.val, remoteL.loc);
 		if (l.loc / BLKSIZE != thisIndex.x) {
                     atomic {
                       thisProxy.doPivot(l.loc, col + BLKSIZE * thisIndex.y);
