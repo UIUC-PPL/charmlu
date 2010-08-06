@@ -1504,20 +1504,27 @@ public:
     }
   }
 
-  //Performs data exchange
-  void applySwap(int loc, double* data) {
+private:
 
+  // Copy received pivot data into its place in this block
+  void applySwap(int row, int offset, double *data) {
+    for (int col = offset; col < BLKSIZE; ++col)
+      LU[getIndex(row, col)] = data[col - offset];
   }
 
-  //Should exchange local data (called by applySwap?)
-  void swapLocal(int loc, int col) {
-
+  // Exchange local data
+  void swapLocal(int row1, int row2) {
+    double buf;
+    for (int col = 0; col < BLKSIZE; col++) {
+      buf = LU[getIndex(row1, col)];
+      LU[getIndex(row1, col)] = LU[getIndex(row2, col)];
+      LU[getIndex(row2, col)] = buf;
+    }
   }
 
-  //Does the local multiplier computation after U is sent to the blocks below??
+  // Local multiplier computation and update after U is sent to the blocks below
   void diagonalUpdate(int col) {
 	  computeMultipliers(LU[getIndex(col,col)],col,col);
-
 	  for(int k=col+1;k<BLKSIZE;k++) {
 		  for(int j=k; j<BLKSIZE; j++) {
 			  //U[k] might need to be U[j]?
@@ -1526,7 +1533,6 @@ public:
 	  }
   }
 
-private:
   //internal functions for creating messages to encapsulate the priority
   inline blkMsg* createABlkMsg() {
     blkMsg *msg;

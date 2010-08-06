@@ -74,7 +74,7 @@ mainmodule lu {
                         .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)]);
             }
             when sendPivotData[globalThisRow](int index, int size, double data[size]) atomic {
-              applySwap(thisLocalRow, data);
+		applySwap(thisLocalRow, 0, data);
             }
           }
         }
@@ -131,7 +131,7 @@ mainmodule lu {
                           .sendPivotData(row2, BLKSIZE, &LU[getIndex(row2 % BLKSIZE, 0)]);
               }
               when sendPivotData[row1](int rowIndex, int size, double data[size]) atomic {
-                applySwap(row2 % BLKSIZE, data);
+		  applySwap(row2 % BLKSIZE, 0, data);
               }
             }
           }
@@ -182,14 +182,14 @@ mainmodule lu {
           }
           when sendPivotData[activeCol + BLKSIZE * thisIndex.y](int rowIndex, int size, 
                                                                 double data[size]) atomic {
-            applySwap(activeCol, data);
+	      applySwap(activeCol, 0, data);
           }
         } else atomic {
           swapLocal(l.loc, activeCol);
         }
         atomic {
           CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
-          oneCol.sendUSegment(BLKSIZE, &LU[getIndex(activeCol, 0)]);
+          oneCol.sendUSegment(BLKSIZE - activeCol, &LU[getIndex(activeCol, activeCol)]);
 
           diagonalUpdate(activeCol);
         }
