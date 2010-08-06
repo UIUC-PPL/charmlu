@@ -69,7 +69,7 @@ mainmodule lu {
 	    when recvL[internalStep](blkMsg *mL) atomic {
 		CmiReference(UsrToEnv(mL)); L = mL;
 		thisProxy(thisIndex.x, thisIndex.y).processComputeU(0);
-	} else {
+        } else {
                 for (int col = 0; col < BLKSIZE; col++) {
                   atomic "computeMax" {
                     double maxval = LU[getIndex(0, col)];
@@ -122,6 +122,7 @@ mainmodule lu {
 	}
 
         multicastRecvL();
+    }
     };
 
     entry void processLU()
