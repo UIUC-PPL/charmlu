@@ -1515,8 +1515,15 @@ public:
   }
 
   //Does the local multiplier computation after U is sent to the blocks below??
-  void localRowDecompose() {
+  void diagonalUpdate(int col) {
+	  computeMultipliers(LU[getIndex(col,col)],col,col);
 
+	  for(int k=col+1;k<BLKSIZE;k++) {
+		  for(int j=k; j<BLKSIZE; j++) {
+			  //U[k] might need to be U[j]?
+			  LU[getIndex(j,k)] =  LU[getIndex(j,k)] - LU[getIndex(j,col)]*U[k];
+		  }
+	  }
   }
 
 private:
@@ -1551,12 +1558,24 @@ private:
   }
 
 
-  /// Compute the multipliers base on the pivot value from the diagonal chare in the same chare array column
-  void computeMultipliers() {
+  /// Compute the multipliers based on the pivot value from the diagonal chare
+  //  starting at [row, col]
+  void computeMultipliers(double a_kk, int row, int col) {
+	  for(int i = row; i<BLKSIZE;i++)
+		  LU[getIndex(i,col)] = LU[getIndex(i,col)]/a_kk;
   }
 
-  /// Update the values in the columns trailing the active column within the pivot section based on the Usegment and the multipliers
-  void updateAllCols() {
+  /// Update the values in the columns ahead of the active column within the
+  // pivot section based on the Usegment and the multipliers
+  void updateAllCols(int col, double* U) {
+
+	  //TODO: Replace with DGEMM
+	  for(int k=col+1;k<BLKSIZE;k++) {
+		  for(int j=0; j<BLKSIZE; j++) {
+			  //U[k] might need to be U[j]?
+			  LU[getIndex(j,k)] =  LU[getIndex(j,k)] - LU[getIndex(j,col)]*U[k];
+		  }
+	  }
   }
 
 };
