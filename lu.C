@@ -1528,7 +1528,7 @@ private:
     for(int k=col+1;k<BLKSIZE;k++) {
       for(int j=k; j<BLKSIZE; j++) {
         //U[k] might need to be U[j]?
-        LU[getIndex(j,k)] = LU[getIndex(j,k)] - LU[getIndex(j,col)]*U[k];
+        LU[getIndex(j,k)] = LU[getIndex(j,k)] - LU[getIndex(j,col)] * LU[getIndex(col, k)];
       }
     }
   }
