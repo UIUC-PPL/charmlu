@@ -145,9 +145,14 @@ mainmodule lu {
 		    }
 		}
 		if (l.loc / BLKSIZE != thisIndex.x) {
-		    // Data must be row-major for marshalling to work
-		    thisProxy(l.loc / BLKSIZE, thisIndex.y).
-                              sendPivotData(BLKSIZE, &LU[getIndex(col, 0)]);
+                    atomic {
+                      thisProxy.doPivot(l.loc, col + BLKSIZE * thisIndex.y);
+                    }
+                    when doPivot(int row1, int row2) atomic {
+                      // Data must be row-major for marshalling to work
+                      thisProxy(l.loc / BLKSIZE, thisIndex.y).
+                                sendPivotData(BLKSIZE, &LU[getIndex(col, 0)]);
+                    }
                     when sendPivotData(int size, double* data) atomic {
                       applySwap(col, data);
                     }
