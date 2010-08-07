@@ -1023,7 +1023,7 @@ public:
     }
 
     // All chares except members of pivot sections are done with init
-    if (thisIndex.x >= thisIndex.y)
+    if (thisIndex.x <= thisIndex.y)
         contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
   }
 
