@@ -1015,7 +1015,7 @@ public:
         // Delegate pivot section to the manager
         pivotSection.ckSectionDelegate(mcastMgr);
         // Set the reduction client for this pivot section
-        mcastMgr->setReductionClient( pivotSection, new CkCallback( CkIndex_LUBlk::colMax(0), thisProxy(activeCol, activeCol) ) );
+        mcastMgr->setReductionClient( pivotSection, new CkCallback( CkIndex_LUBlk::colMax(0), thisProxy(thisIndex.y, thisIndex.y) ) );
 
         // Invoke a dummy mcast so that all the section members know which section to reduce along
         rednSetupMsg *msg = new rednSetupMsg(mcastMgrGID);
