@@ -198,7 +198,14 @@ mainmodule lu {
         }
       }
       atomic {
-        multicastRecvL();
+        if (thisIndex.x == numBlks-1 && thisIndex.y == numBlks-1) {
+          DEBUG_PRINT("[%d] chare %d,%d calling mainProxy.iterationCompleted\n", CkMyPe(), thisIndex.x, thisIndex.y);
+          mainProxy.iterationCompleted();
+        } else {
+          DEBUG_PRINT("[%d] chare %d,%d is top,left block this step, multicast U & L\n", CkMyPe(), thisIndex.x, thisIndex.y);
+          multicastRecvL();             //broadcast the L rightwards to the blocks in the same row
+        }
+
       }
     };
 
