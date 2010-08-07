@@ -41,7 +41,7 @@ mainmodule lu {
     entry void sumBvec(int size, double partial_b[size]);
 
     entry void colMax(CkReductionMsg *m);
-    entry void sendPivotData(int rowIndex, int size, double data[size]);
+    entry void sendPivotData(int rowIndex, int size, double data[size], double b);
     entry void doPivot(int internalStep, int row1, int row2);
     entry void sendUSegment(int size, double usegment[size]);
 
@@ -77,10 +77,10 @@ mainmodule lu {
           if (remoteSwap) {
             atomic {
               thisProxy(otherRowIndex, thisIndex.y)
-                        .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)]);
+		.sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow]);
             }
-            when sendPivotData[globalThisRow](int index, int size, double data[size]) atomic {
-		applySwap(thisLocalRow, 0, data);
+            when sendPivotData[globalThisRow](int index, int size, double data[size], double b) atomic {
+	      applySwap(thisLocalRow, 0, data, b);
             }
           }
         }
@@ -127,10 +127,10 @@ mainmodule lu {
             if (row2 / BLKSIZE == thisIndex.x) {
               atomic {
                 thisProxy(thisIndex.y, thisIndex.y)
-                          .sendPivotData(row2, BLKSIZE, &LU[getIndex(row2 % BLKSIZE, 0)]);
+		  .sendPivotData(row2, BLKSIZE, &LU[getIndex(row2 % BLKSIZE, 0)], bvec[row2 % BLKSIZE]);
               }
-              when sendPivotData[row1](int rowIndex, int size, double data[size]) atomic {
-		  applySwap(row2 % BLKSIZE, 0, data);
+              when sendPivotData[row1](int rowIndex, int size, double data[size], double b) atomic {
+		applySwap(row2 % BLKSIZE, 0, data, b);
               }
             }
           }
@@ -181,11 +181,11 @@ mainmodule lu {
           when doPivot[internalStep](int step, int row1, int row2) atomic {
             // Data must be row-major for marshalling to work
             thisProxy(row1 / BLKSIZE, thisIndex.y)
-                      .sendPivotData(row1, BLKSIZE, &LU[getIndex(row1 % BLKSIZE, 0)]);
+	      .sendPivotData(row1, BLKSIZE, &LU[getIndex(row1 % BLKSIZE, 0)], bvec[row1 % BLKSIZE]);
           }
           when sendPivotData[activeCol + BLKSIZE * thisIndex.y](int rowIndex, int size, 
-                                                                double data[size]) atomic {
-	      applySwap(activeCol, 0, data);
+                                                                double data[size], double b) atomic {
+	    applySwap(activeCol, 0, data, b);
           }
         } else atomic {
           swapLocal(l.loc - BLKSIZE * thisIndex.y, activeCol);

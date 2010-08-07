@@ -1568,7 +1568,7 @@ public:
 private:
 
   // Copy received pivot data into its place in this block
-  void applySwap(int row, int offset, double *data) {
+    void applySwap(int row, int offset, double *data, double b) {
     for (int col = offset; col < BLKSIZE; ++col)
       LU[getIndex(row, col)] = data[col - offset];
   }
@@ -1576,6 +1576,9 @@ private:
   // Exchange local data
   void swapLocal(int row1, int row2) {
     double buf;
+    buf = bvec[row1];
+    bvec[row1] = bvec[row2];
+    bvec[row2] = buf;
     for (int col = 0; col < BLKSIZE; col++) {
       buf = LU[getIndex(row1, col)];
       LU[getIndex(row1, col)] = LU[getIndex(row2, col)];
