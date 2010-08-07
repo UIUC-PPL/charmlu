@@ -162,9 +162,13 @@ mainmodule lu {
 
     entry void processLU() {
       for (activeCol = 0; activeCol < BLKSIZE; ++activeCol) {
-        when colMax(CkReductionMsg *m) atomic {
-          locval &remoteL = *(locval *)(m->getData());
-          l = findLocVal(activeCol, activeCol, remoteL.val, remoteL.loc);
+        if (thisIndex.x < numBlks - 1) {
+          when colMax(CkReductionMsg *m) atomic {
+            locval &remoteL = *(locval *)(m->getData());
+            l = findLocVal(activeCol, activeCol, remoteL.val, remoteL.loc);
+          }
+        } else atomic {
+          l = findLocVal(activeCol, activeCol, 0.0, -1);
         }
         atomic {
           // Builds a section that addresses every block on and below the current

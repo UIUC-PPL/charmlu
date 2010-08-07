@@ -1613,8 +1613,13 @@ private:
 
   locval findLocVal(int startRow, int col, double curMax, int curRowMax) {
     locval l;
-    l.val = curMax;
-    l.loc = curRowMax;
+    if (curRowMax == -1) {
+        l.val = LU[getIndex(startRow, col)];
+        l.loc = startRow;
+    } else {
+        l.val = curMax;
+        l.loc = curRowMax;
+    }
     for (int row = startRow; row < BLKSIZE; row++) {
       if (LU[getIndex(row, col)] > l.val) {
 	l.val = LU[getIndex(row, col)];
