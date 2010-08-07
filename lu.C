@@ -1615,7 +1615,7 @@ private:
     locval l;
     if (curRowMax == -1) {
         l.val = LU[getIndex(startRow, col)];
-        l.loc = startRow;
+        l.loc = startRow + BLKSIZE * thisIndex.y;
     } else {
         l.val = curMax;
         l.loc = curRowMax;

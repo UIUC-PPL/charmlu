@@ -112,7 +112,7 @@ mainmodule lu {
         for (activeCol = 0; activeCol < BLKSIZE; activeCol++) {
           atomic {
             double maxval = LU[getIndex(0, activeCol)];
-            int maxrow = 0;
+            int maxrow = BLKSIZE * thisIndex.y;
 
             locval l = findLocVal(1, activeCol, maxval, maxrow);
 
