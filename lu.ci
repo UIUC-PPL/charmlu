@@ -188,7 +188,7 @@ mainmodule lu {
 	      applySwap(activeCol, 0, data);
           }
         } else atomic {
-          swapLocal(l.loc, activeCol);
+          swapLocal(l.loc - BLKSIZE * thisIndex.y, activeCol);
         }
         atomic {
           CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
