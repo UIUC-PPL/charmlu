@@ -1575,7 +1575,7 @@ private:
 
   // Exchange local data
   void swapLocal(int row1, int row2) {
-    /*double buf;
+    double buf;
     buf = bvec[row1];
     bvec[row1] = bvec[row2];
     bvec[row2] = buf;
@@ -1583,7 +1583,7 @@ private:
       buf = LU[getIndex(row1, col)];
       LU[getIndex(row1, col)] = LU[getIndex(row2, col)];
       LU[getIndex(row2, col)] = buf;
-    }*/
+    }
   }
 
   //internal functions for creating messages to encapsulate the priority
