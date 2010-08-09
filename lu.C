@@ -1613,7 +1613,7 @@ private:
         l.loc = curRowMax;
     }
     for (int row = startRow; row < BLKSIZE; row++) {
-      if (LU[getIndex(row, col)] > l.val) {
+      if ( abs(LU[getIndex(row, col)]) > abs(l.val) ) {
 	l.val = LU[getIndex(row, col)];
 	l.loc = row + BLKSIZE * thisIndex.y;
       }
