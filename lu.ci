@@ -60,15 +60,15 @@ mainmodule lu {
               swapLocal(localRow1, localRow2);
             } else if (row1Index == thisIndex.x) {
               thisLocalRow = localRow1;
-              otherRowIndex = row1Index;
-              globalThisRow = row2;
-              globalOtherRow = row1;
-              remoteSwap = true;
-            } else if (row2Index == thisIndex.x) {
-              thisLocalRow = localRow2;
               otherRowIndex = row2Index;
               globalThisRow = row1;
               globalOtherRow = row2;
+              remoteSwap = true;
+            } else if (row2Index == thisIndex.x) {
+              thisLocalRow = localRow2;
+              otherRowIndex = row1Index;
+              globalThisRow = row2;
+              globalOtherRow = row1;
               remoteSwap = true;
             }
           }
