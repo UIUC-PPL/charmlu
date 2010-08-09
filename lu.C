@@ -824,7 +824,7 @@ public:
 	  //diagonal elements that received sum-reduction perform b - A*x
 	  for (int i = 0; i < BLKSIZE; i++) {
 		  residuals[i] = b[i] - bvec[i];
-		  if(fabs(residuals[i]) > 1e-10)
+		  if(fabs(residuals[i]) > 1e-14 || isnan(residuals[i]))
 			  CkPrintf("WARNING: RESIDUAL VALUE = %e\n",residuals[i]);
 		  //CkPrintf("res[%d] = %f - %f = %e\n",i,b[i],bvec[i],residuals[i]);
 	  }
@@ -1575,7 +1575,7 @@ private:
 
   // Exchange local data
   void swapLocal(int row1, int row2) {
-    double buf;
+    /*double buf;
     buf = bvec[row1];
     bvec[row1] = bvec[row2];
     bvec[row2] = buf;
@@ -1583,18 +1583,7 @@ private:
       buf = LU[getIndex(row1, col)];
       LU[getIndex(row1, col)] = LU[getIndex(row2, col)];
       LU[getIndex(row2, col)] = buf;
-    }
-  }
-
-  // Local multiplier computation and update after U is sent to the blocks below
-  void diagonalUpdate(int col) {
-    computeMultipliers(LU[getIndex(col,col)],col,col);
-    for(int k=col+1;k<BLKSIZE;k++) {
-      for(int j=k; j<BLKSIZE; j++) {
-        //U[k] might need to be U[j]?
-        LU[getIndex(j,k)] = LU[getIndex(j,k)] - LU[getIndex(j,col)] * LU[getIndex(col, k)];
-      }
-    }
+    }*/
   }
 
   //internal functions for creating messages to encapsulate the priority
@@ -1632,6 +1621,15 @@ private:
     return l;
   }
 
+  // Local multiplier computation and update after U is sent to the blocks below
+  void diagonalUpdate(int col) {
+    computeMultipliers(LU[getIndex(col,col)],col+1,col);
+    for(int k=col+1;k<BLKSIZE;k++) {
+      for(int j=col+1; j<BLKSIZE; j++) {
+        LU[getIndex(j,k)] = LU[getIndex(j,k)] - LU[getIndex(j,col)] * LU[getIndex(col, k)];
+      }
+    }
+  }
 
   /// Compute the multipliers based on the pivot value from the diagonal chare
   //  starting at [row, col]
