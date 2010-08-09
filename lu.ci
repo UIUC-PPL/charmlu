@@ -214,7 +214,9 @@ mainmodule lu {
 
 
     entry void processLU() {
+      // Process matrix column-by-column
       for (activeCol = 0; activeCol < BLKSIZE; ++activeCol) {
+
         // Find the pivot row
         if (thisIndex.x < numBlks - 1) {
           when colMax(CkReductionMsg *m) atomic {
@@ -224,39 +226,53 @@ mainmodule lu {
         } else atomic {
           l = findLocVal(activeCol, activeCol, 0.0, -1);
         }
+
+        // Share the pivot info with the appropriate array section
         atomic {
           // Builds a section including all chares on and below the current diagonal element's row
           CProxySection_LUBlk below = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, numBlks-1, 1, 0, numBlks-1, 1);
           // Send pivot info to all chares that will care (below section)
           below.doPivot(internalStep, l.loc, activeCol + BLKSIZE * thisIndex.y);
         }
+
+        // If required chunk of pivot row is not with me (but in a chare below me)
         if (l.loc / BLKSIZE != thisIndex.x) {
           when doPivot[internalStep](int step, int row1, int row2) atomic {
-            // Data must be row-major for marshalling to work
+            // Trigger swap of data
             thisProxy(row1 / BLKSIZE, thisIndex.y)
             .sendPivotData(row1, BLKSIZE, &LU[getIndex(row1 % BLKSIZE, 0)], bvec[row1 % BLKSIZE]);
           }
+          // Accept incoming pivot row data
           when sendPivotData[activeCol + BLKSIZE * thisIndex.y](int rowIndex, int size, 
                                                                 double data[size], double b) atomic {
             applySwap(activeCol, 0, data, b);
           }
-        } else atomic {
+        }
+        // else, current row and pivot row chunks are both with me (yippee, no comm)
+        else atomic {
           swapLocal(l.loc - BLKSIZE * thisIndex.y, activeCol);
         }
+
+        // Now, send the post-diagonal portion of the matrix block (a segment of U)
         atomic {
           CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
           oneCol.sendUSegment(BLKSIZE - activeCol, &LU[getIndex(activeCol, activeCol)]);
-
           diagonalUpdate(activeCol);
         }
       }
+
+
       atomic {
+        // The last diagonal chare finishes the factorization
         if (thisIndex.x == numBlks-1 && thisIndex.y == numBlks-1) {
           DEBUG_PRINT("[%d] chare %d,%d calling mainProxy.iterationCompleted\n", CkMyPe(), thisIndex.x, thisIndex.y);
           mainProxy.iterationCompleted();
-        } else {
+        }
+        // All other diagonal chares must continue the computations
+        else {
           DEBUG_PRINT("[%d] chare %d,%d is top,left block this step, multicast U & L\n", CkMyPe(), thisIndex.x, thisIndex.y);
-          multicastRecvL();             //broadcast the L rightwards to the blocks in the same row
+          // Multicast the local block of L rightwards to the blocks in the same row
+          multicastRecvL();
         }
 
       }
