@@ -66,7 +66,7 @@ BLAS_LD = -framework Accelerate
 PROJ = -tracemode projections
 #MULTICAST = -module CkMulticast
 
-CHARMC ?= ../charm/bin/charmc
+CHARMC ?= $(HOME)/charm/bin/charmc
 #CHARMC=${HOME}/current/charm/net-linux/bin/charmc
 #CHARMC=${HOME}/current/lastestfromcvs/charm/net-linux-amd64/bin/charmc
 #CHARMC=${HOME}/charm/bin/charmc $(FLAGS)
@@ -113,3 +113,4 @@ run: lu-proj
 	mkdir traces
 	charmrun +p2 ./lu-proj 8 1000 1 
 #+CPSaveData +traceroot traces +logsize 10000000
+
