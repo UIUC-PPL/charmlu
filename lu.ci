@@ -45,10 +45,9 @@ mainmodule lu {
     entry void doPivot(int internalStep, int row1, int row2);
     entry void sendUSegment(int size, double usegment[size]);
 
+    // Describes the control flow for all (super, sub and on diagonal) LU chares
     entry void factor() {
-      for (internalStep = 0;
-           internalStep < min(thisIndex.x, thisIndex.y);
-           internalStep++) {
+      for (internalStep = 0; internalStep < min(thisIndex.x, thisIndex.y); internalStep++) {
         for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
           when doPivot[internalStep](int step, int row1, int row2) atomic {
             row1Index = row1 / BLKSIZE;
@@ -57,8 +56,7 @@ mainmodule lu {
             localRow2 = row2 % BLKSIZE;
             remoteSwap = false;
 
-            if (row1Index == thisIndex.x &&
-                row2Index == thisIndex.y) {
+            if (row1Index == thisIndex.x && row2Index == thisIndex.y) {
               swapLocal(localRow1, localRow2);
             } else if (row1Index == thisIndex.x) {
               thisLocalRow = localRow1;
@@ -77,10 +75,10 @@ mainmodule lu {
           if (remoteSwap) {
             atomic {
               thisProxy(otherRowIndex, thisIndex.y)
-		.sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow]);
+              .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow]);
             }
             when sendPivotData[globalThisRow](int index, int size, double data[size], double b) atomic {
-	      applySwap(thisLocalRow, 0, data, b);
+              applySwap(thisLocalRow, 0, data, b);
             }
           }
         }
