@@ -781,7 +781,7 @@ public:
 
 	  //Perform local dgemv
 #if USE_ESSL
-    dgemv("T", BLKSIZE, BLKSIZE, 1.0, A, BLKSIZE, x, 1, 0.0, partial_b, 1);
+    dgemv("T", BLKSIZE, BLKSIZE, 1.0, A, BLKSIZE, xvec, 1, 0.0, partial_b, 1);
 #else
     cblas_dgemv( CblasColMajor, CblasTrans,
     		  BLKSIZE, BLKSIZE, 1.0, A,
