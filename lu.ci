@@ -56,7 +56,7 @@ mainmodule lu {
             localRow2 = row2 % BLKSIZE;
             remoteSwap = false;
 
-            if (row1Index == thisIndex.x && row2Index == thisIndex.y) {
+            if (row1Index == thisIndex.x && row2Index == thisIndex.x) {
               swapLocal(localRow1, localRow2);
             } else if (row1Index == thisIndex.x) {
               thisLocalRow = localRow1;
