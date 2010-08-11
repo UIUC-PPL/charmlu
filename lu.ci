@@ -154,6 +154,15 @@ mainmodule lu {
             }
             // else, I dont have any data affected by this pivot op
           }
+          if (remoteSwap) {
+            atomic {
+              thisProxy(otherRowIndex, thisIndex.y)
+              .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow]);
+            }
+            when sendPivotData[globalThisRow](int index, int size, double data[size], double b) atomic {
+              applySwap(thisLocalRow, 0, data, b);
+            }
+          }
         }
         // Once all pivot info is processed, perform the row update
         when recvL[internalStep](blkMsg *mL) atomic {
