@@ -1402,7 +1402,7 @@ public:
   }
 
   void solve(bool backward, int size, double* preVec) {
-    CkPrintf("solved called on: (%d, %d)\n", thisIndex.x, thisIndex.y);
+    DEBUG_PRINT("solved called on: (%d, %d)\n", thisIndex.x, thisIndex.y);
 
     bool forward = !backward;
 
@@ -1412,10 +1412,8 @@ public:
     }
 #endif
 
-    CkPrintf("allocate x\n");
     x = new double[BLKSIZE];
 
-    CkPrintf("Calling local solver - diag = true\n");
     localSolve(x, (size == BLKSIZE) ? preVec : NULL, true, forward);
 
     if (forward) {
@@ -1485,7 +1483,7 @@ public:
       storedVec[i] += vec[i];
     }
     
-    CkPrintf("FORWARD: expected %d, received %d\n", thisIndex.y, diagRec+1);
+    DEBUG_PRINT("FORWARD: expected %d, received %d\n", thisIndex.y, diagRec+1);
 
     if (++diagRec == thisIndex.y)
       thisProxy(thisIndex.x, thisIndex.y).solve(false, BLKSIZE, storedVec);
@@ -1505,7 +1503,7 @@ public:
     
     int expected = numBlks-1-thisIndex.y;
     
-    CkPrintf("BACKWARD: expected %d, received %d\n", expected, diagRec+1);
+    DEBUG_PRINT("BACKWARD: expected %d, received %d\n", expected, diagRec+1);
 
     if (++diagRec == expected)
       thisProxy(thisIndex.x, thisIndex.y).solve(true, BLKSIZE, storedVec);
@@ -1516,7 +1514,7 @@ public:
     
     localSolve(xvec, preVec, false, true);
     
-    CkPrintf("diagForwardSolve called from: (%d, %d), on: (%d, %d)\n", 
+    DEBUG_PRINT("diagForwardSolve called from: (%d, %d), on: (%d, %d)\n", 
              thisIndex.x, thisIndex.y, thisIndex.x, thisIndex.x);
     
     thisProxy(thisIndex.x, thisIndex.x).diagForwardSolve(size, xvec);
@@ -1527,7 +1525,7 @@ public:
     
     localSolve(xvec, preVec, false, false);
     
-    CkPrintf("diagBackwardSolve called from: (%d, %d), on: (%d, %d)\n", 
+    DEBUG_PRINT("diagBackwardSolve called from: (%d, %d), on: (%d, %d)\n", 
              thisIndex.x, thisIndex.y, thisIndex.x, thisIndex.x);
     
     thisProxy(thisIndex.x, thisIndex.x).diagBackwardSolve(size, xvec);
