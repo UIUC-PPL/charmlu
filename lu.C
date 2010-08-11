@@ -828,8 +828,7 @@ public:
 	  for (int i = 0; i < BLKSIZE; i++) {
 		  residuals[i] = b[i] - bvec[i];
 		  if(fabs(residuals[i]) > 1e-14 || isnan(residuals[i]))
-			  CkPrintf("WARNING: RESIDUAL VALUE = %e\n",residuals[i]);
-		  //CkPrintf("res[%d] = %f - %f = %e\n",i,b[i],bvec[i],residuals[i]);
+			  CkPrintf("WARNING: Large Residual for x[%d]: %f - %f = %e\n", thisIndex.x*BLKSIZE+i, b[i], bvec[i], residuals[i]);
 	  }
 
 	  //Diagonal elements signal finish
