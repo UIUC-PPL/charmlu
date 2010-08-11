@@ -145,9 +145,18 @@ public:
     return (double)rndInt/MAXINT - 0.5;
   }
 
+  double nextRndDouble() {
+    return toRndDouble(nextRndInt());
+  }
+
   void getNRndInts(int num, int *d) {
     for (int i=0; i<num; i++)
       d[i] = nextRndInt();
+  }
+
+  void getNRndDoubles(int num, double *d) {
+    for (int i=0; i<num; i++)
+      d[i] = nextRndDouble();
   }
 };
 
@@ -537,8 +546,9 @@ public:
       // Generate vector data
       double* vec = new double[BLKSIZE*numBlks];
     
-      for (int i = 0; i < BLKSIZE*numBlks; i++)
-	vec[i] = i;
+      MatGen rnd(9934834);
+
+      rnd.getNRndDoubles(BLKSIZE * numBlks, vec);
       
       for (int i = 0; i < numBlks; i++)
         for (int j = 0; j < numBlks; j++)
@@ -859,12 +869,11 @@ public:
 #endif
 
       MatGen rnd(0); 
-      for (int i=0; i<blocksize*blocksize; i++) { 
-	m1[i] = rnd.toRndDouble(rnd.nextRndInt()); 
-	m2[i] = rnd.toRndDouble(rnd.nextRndInt()); 
-	m3[i] = rnd.toRndDouble(rnd.nextRndInt()); 
-      } 
-      
+
+      rnd.getNRndDoubles(blocksize * blocksize, m1);
+      rnd.getNRndDoubles(blocksize * blocksize, m2);
+      rnd.getNRndDoubles(blocksize * blocksize, m3);
+
       double startTest = CmiWallTimer(); 
       
 #if USE_ESSL
@@ -977,9 +986,7 @@ public:
      
     MatGen rnd(thisIndex.x * numBlks + thisIndex.y + 2998388);
 
-    for (int i = 0; i < BLKSIZE*BLKSIZE; i++) {
-      LU[i] = rnd.toRndDouble(rnd.nextRndInt());
-    }
+    rnd.getNRndDoubles(BLKSIZE * BLKSIZE, LU);
 
 #if 0
     double b = thisIndex.x * BLKSIZE + 1, c = thisIndex.y * BLKSIZE + 1;
