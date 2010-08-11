@@ -56,6 +56,9 @@ mainmodule lu {
         // Receive and process each pivot selection sent out by the current diagonal block
         for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
           when doPivot[internalStep*BLKSIZE + pivotBlk](int step, int row1, int row2) atomic {
+            if (row1 != row2) {
+              DEBUG_PIVOT("(%d, %d): TRAILING received doPivot for %d and %d, step = %d, tag = %d\n", thisIndex.x, thisIndex.y, row1, row2, internalStep, step);
+            }
             doPivotLocal(row1, row2);
           }
           if (remoteSwap) {
@@ -102,6 +105,9 @@ mainmodule lu {
         // Receive and process each pivot selection sent out by the current diagonal block
         for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
           when doPivot[internalStep*BLKSIZE + pivotBlk](int step, int row1, int row2) atomic {
+            if (row1 != row2) {
+              DEBUG_PIVOT("(%d, %d): BEFOREL received doPivot for %d and %d, step = %d, tag = %d\n", thisIndex.x, thisIndex.y, row1, row2, internalStep, step);
+            }
             doPivotLocal(row1, row2);
           }
           if (remoteSwap) {
@@ -137,6 +143,11 @@ mainmodule lu {
           }
           // Once pivot is identified, and diagonal chare sends out the pivot update
           when doPivot[internalStep*BLKSIZE + activeCol](int step, int row1, int row2) {
+            atomic {
+              if (row1 != row2) {
+                DEBUG_PIVOT("(%d, %d): BELOW received doPivot for %d and %d, step = %d, tag = %d\n", thisIndex.x, thisIndex.y, row1, row2, internalStep, step);
+              }
+            }
             // Assume that row2 is always the non-diagonal row and that LU is row-major
             if (row2 / BLKSIZE == thisIndex.x) {
               atomic {
@@ -172,22 +183,24 @@ mainmodule lu {
         // Wait for pivot messages, and handle appropriately
         // Receive and process each pivot selection sent out by the current diagonal block
         atomic {
-          //DEBUG_PRINT("(%d, %d): through code is = %d\n", thisIndex.x, thisIndex.y, internalStep);
+          DEBUG_PRINT("(%d, %d): through code is = %d\n", thisIndex.x, thisIndex.y, internalStep);
         }
         if (thisIndex.x != thisIndex.y && thisIndex.x > thisIndex.y) {
           atomic {
-            //DEBUG_PRINT("(%d, %d): waiting on is = %d\n", thisIndex.x, thisIndex.y, internalStep);
+            DEBUG_PRINT("(%d, %d): waiting on is = %d\n", thisIndex.x, thisIndex.y, internalStep);
           }
           atomic {
             currentStep = internalStep+1;
           }
           for (ind = 0;  ind < thisIndex.x - thisIndex.y; ind++) {
             atomic {
-              //DEBUG_PRINT("(%d, %d): incrementing step, times = %d\n", thisIndex.x, thisIndex.y, ind);
+              DEBUG_PRINT("(%d, %d): incrementing step, times = %d\n", thisIndex.x, thisIndex.y, ind);
             }
             for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
               when doPivot[currentStep*BLKSIZE + pivotBlk](int step, int row1, int row2) atomic {
-                DEBUG_PRINT("(%d, %d): LATER received doPivot for %d and %d, step = %d\n", thisIndex.x, thisIndex.y, row1, row2, step);
+                if (row1 != row2) {
+                  DEBUG_PIVOT("(%d, %d): LATER received doPivot for %d and %d, step = %d, tag = %d\n", thisIndex.x, thisIndex.y, row1, row2, currentStep, step);
+                }
                 doPivotLocal(row1, row2);
               }
               if (remoteSwap) {
@@ -205,10 +218,12 @@ mainmodule lu {
             }
           }
           atomic {
+            DEBUG_PIVOT("[%d] chare %d,%d contributing\n", CkMyPe(), thisIndex.x, thisIndex.y);
             contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
           }
         } else if (thisIndex.x != thisIndex.y) {
           atomic {
+            DEBUG_PIVOT("[%d] chare %d,%d contributing\n", CkMyPe(), thisIndex.x, thisIndex.y);
             contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
           }
         }
@@ -235,6 +250,8 @@ mainmodule lu {
           CProxySection_LUBlk below = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, numBlks-1, 1, 0, numBlks-1, 1);
           // Send pivot info to all chares that will care (below section)
           below.doPivot(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
+          DEBUG_PIVOT("(%d, %d): diagonal sending doPivot tag = %d to pivot %d and %d\n",
+          thisIndex.x, thisIndex.y, internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
         }
 
         // If required chunk of pivot row is not with me (but in a chare below me)
@@ -249,7 +266,12 @@ mainmodule lu {
             applySwap(activeCol, 0, data, b);
           }
         } else {
+          atomic {
+            DEBUG_PIVOT("(%d, %d): diagonal waiting on doPivot tag = %d\n", thisIndex.x, thisIndex.y,
+            internalStep*BLKSIZE + activeCol);
+          }
           when doPivot[internalStep*BLKSIZE + activeCol](int step, int row1, int row2) atomic {
+            //DEBUG_PIVOT("swapLocal being called\n");
             swapLocal(l.loc - BLKSIZE * thisIndex.x, activeCol);
           }
         }
@@ -266,7 +288,7 @@ mainmodule lu {
       atomic {
         // The last diagonal chare finishes the factorization
         if (thisIndex.x == numBlks-1 && thisIndex.y == numBlks-1) {
-          DEBUG_PRINT("[%d] chare %d,%d calling mainProxy.iterationCompleted\n", CkMyPe(), thisIndex.x, thisIndex.y);
+          DEBUG_PIVOT("[%d] chare %d,%d contributing\n", CkMyPe(), thisIndex.x, thisIndex.y);
           contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
         } 
         // All other diagonal chares must continue the computations
@@ -274,6 +296,7 @@ mainmodule lu {
           DEBUG_PRINT("[%d] chare %d,%d is top,left block this step, multicast U & L\n", CkMyPe(), thisIndex.x, thisIndex.y);
           // Multicast the local block of L rightwards to the blocks in the same row
           multicastRecvL();
+          DEBUG_PIVOT("[%d] chare %d,%d contributing\n", CkMyPe(), thisIndex.x, thisIndex.y);
           contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
         }
 
