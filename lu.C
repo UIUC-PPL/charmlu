@@ -682,7 +682,7 @@ public:
   void done(pathInformationMsg *m){
     // CkPrintf("Main::done() After critical path has been determined\n");
     //	  m->printme();
-    gotoNextPhase(); // <<< Make sure we get timings for the phase that just finished.
+    gotoNextPhase(); // Make sure we get timings for the phase that just finished.
     CkExit();
   }
 
