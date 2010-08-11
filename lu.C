@@ -975,8 +975,13 @@ public:
     traceUserSuppliedData(-1);	
     traceMemoryUsage();	 
      
-    //MatGen rnd(thisIndex.x * >=umBlks + thisIndex.y);
+    MatGen rnd(thisIndex.x * numBlks + thisIndex.y + 2998388);
 
+    for (int i = 0; i < BLKSIZE*BLKSIZE; i++) {
+      LU[i] = rnd.toRndDouble(rnd.nextRndInt());
+    }
+
+#if 0
     double b = thisIndex.x * BLKSIZE + 1, c = thisIndex.y * BLKSIZE + 1;
     for (int i = 0; i<BLKSIZE*BLKSIZE; i++) {
       if (i % BLKSIZE == 0 && thisIndex.y == 0) {
@@ -998,6 +1003,7 @@ public:
 	b += 1.0;
       }
     }
+#endif
 
     //VALIDATION: Make a copy for validation
     memcpy(A, LU, BLKSIZE*BLKSIZE*sizeof(double));
