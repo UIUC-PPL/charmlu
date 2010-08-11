@@ -1593,6 +1593,35 @@ private:
     }
   }
 
+  void doPivotLocal(int row1, int row2) {
+    // The chare indices where the two rows are located
+    row1Index = row1 / BLKSIZE;
+    row2Index = row2 / BLKSIZE;
+    // The local indices of the two rows within their blocks
+    localRow1 = row1 % BLKSIZE;
+    localRow2 = row2 % BLKSIZE;
+    remoteSwap = false;
+
+    // If I hold portions of both the current row and pivot row, its a local swap
+    if (row1Index == thisIndex.x && row2Index == thisIndex.x) {
+      swapLocal(localRow1, localRow2);
+      // else if I hold portions of at just one row, its a remote swap
+    } else if (row1Index == thisIndex.x) {
+      thisLocalRow = localRow1;
+      otherRowIndex = row2Index;
+      globalThisRow = row1;
+      globalOtherRow = row2;
+      remoteSwap = true;
+    } else if (row2Index == thisIndex.x) {
+      thisLocalRow = localRow2;
+      otherRowIndex = row1Index;
+      globalThisRow = row2;
+      globalOtherRow = row1;
+      remoteSwap = true;
+    }
+    // else, I dont have any data affected by this pivot op
+  }
+
   //internal functions for creating messages to encapsulate the priority
   inline blkMsg* createABlkMsg() {
     blkMsg *msg;
