@@ -695,7 +695,7 @@ class LUBlk: public CBase_LUBlk {
   double *A;
   int BLKSIZE, numBlks;
   blkMsg *L, *U;
-  int internalStep, activeCol;
+  int internalStep, activeCol, currentStep, ind;
 
   /// Variables used only during solution
   double *bvec;
@@ -1577,6 +1577,7 @@ private:
 
   // Copy received pivot data into its place in this block
     void applySwap(int row, int offset, double *data, double b) {
+      bvec[row] = b;
     for (int col = offset; col < BLKSIZE; ++col)
       LU[getIndex(row, col)] = data[col - offset];
   }
@@ -1615,7 +1616,7 @@ private:
     locval l;
     if (curRowMax == -1) {
         l.val = LU[getIndex(startRow, col)];
-        l.loc = startRow + BLKSIZE * thisIndex.y;
+        l.loc = startRow + BLKSIZE * thisIndex.x;
     } else {
         l.val = curMax;
         l.loc = curRowMax;
@@ -1623,7 +1624,7 @@ private:
     for (int row = startRow; row < BLKSIZE; row++) {
       if ( fabs(LU[getIndex(row, col)]) > fabs(l.val) ) {
 	l.val = LU[getIndex(row, col)];
-	l.loc = row + BLKSIZE * thisIndex.y;
+	l.loc = row + BLKSIZE * thisIndex.x;
       }
     }
     return l;

@@ -178,7 +178,7 @@ mainmodule lu {
           atomic {
             // Find the local maximum in the active column
             double maxval = LU[getIndex(0, activeCol)];
-            int maxrow = BLKSIZE * thisIndex.y;
+            int maxrow = BLKSIZE * thisIndex.x;
             locval l = findLocVal(1, activeCol, maxval, maxrow);
 
             // Contribute to a reduction along the pivot section to identify the pivot row
@@ -219,6 +219,76 @@ mainmodule lu {
           multicastRecvL();
         }
       }
+        // Wait for pivot messages, and handle appropriately
+        // Receive and process each pivot selection sent out by the current diagonal block
+        atomic {
+          //DEBUG_PRINT("(%d, %d): through code is = %d\n", thisIndex.x, thisIndex.y, internalStep);
+        }
+        if (thisIndex.x != thisIndex.y && thisIndex.x > thisIndex.y) {
+          atomic {
+            //DEBUG_PRINT("(%d, %d): waiting on is = %d\n", thisIndex.x, thisIndex.y, internalStep);
+          }
+          atomic {
+            currentStep = internalStep+1;
+          }
+          for (ind = 0;  ind < thisIndex.x - thisIndex.y; ind++) {
+            atomic {
+              //DEBUG_PRINT("(%d, %d): incrementing step, times = %d\n", thisIndex.x, thisIndex.y, ind);
+            }
+            for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
+              when doPivot[currentStep](int step, int row1, int row2) atomic {
+                //if (thisIndex.x == 2 && thisIndex.y == 0) {
+                  DEBUG_PRINT("(%d, %d): LATER received doPivot for %d and %d, step = %d\n", thisIndex.x, thisIndex.y, row1, row2, step);
+                //}
+                // The chare indices where the two rows are located
+                row1Index = row1 / BLKSIZE;
+                row2Index = row2 / BLKSIZE;
+                // The local indices of the two rows within their blocks
+                localRow1 = row1 % BLKSIZE;
+                localRow2 = row2 % BLKSIZE;
+                remoteSwap = false;
+
+                // If I hold portions of both the current row and pivot row, its a local swap
+                if (row1Index == thisIndex.x && row2Index == thisIndex.x) {
+                  swapLocal(localRow1, localRow2);
+                  // else if I hold portions of at just one row, its a remote swap
+                } else if (row1Index == thisIndex.x) {
+                  thisLocalRow = localRow1;
+                  otherRowIndex = row2Index;
+                  globalThisRow = row1;
+                  globalOtherRow = row2;
+                  remoteSwap = true;
+                } else if (row2Index == thisIndex.x) {
+                  thisLocalRow = localRow2;
+                  otherRowIndex = row1Index;
+                  globalThisRow = row2;
+                  globalOtherRow = row1;
+                  remoteSwap = true;
+                }
+                // else, I dont have any data affected by this pivot op
+              }
+              if (remoteSwap) {
+                atomic {
+                  thisProxy(otherRowIndex, thisIndex.y)
+                  .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow]);
+                }
+                when sendPivotData[globalThisRow](int index, int size, double data[size], double b) atomic {
+                  applySwap(thisLocalRow, 0, data, b);
+                }
+              }
+            }
+            atomic {
+              currentStep++;
+            }
+          }
+          atomic {
+            contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
+          }
+        } else if (thisIndex.x != thisIndex.y) {
+          atomic {
+            contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
+          }
+        }
     };
 
 
@@ -247,19 +317,18 @@ mainmodule lu {
         // If required chunk of pivot row is not with me (but in a chare below me)
         if (l.loc / BLKSIZE != thisIndex.x) {
           when doPivot[internalStep](int step, int row1, int row2) atomic {
-            // Trigger swap of data
-            thisProxy(row1 / BLKSIZE, thisIndex.y)
+            // Data must be row-major for marshalling to work
+            thisProxy(row2 / BLKSIZE, thisIndex.y)
             .sendPivotData(row1, BLKSIZE, &LU[getIndex(row1 % BLKSIZE, 0)], bvec[row1 % BLKSIZE]);
           }
-          // Accept incoming pivot row data
-          when sendPivotData[activeCol + BLKSIZE * thisIndex.y](int rowIndex, int size, 
-                                                                double data[size], double b) atomic {
+          when sendPivotData[l.loc](int rowIndex, int size, 
+                                    double data[size], double b) atomic {
             applySwap(activeCol, 0, data, b);
           }
-        }
-        // else, current row and pivot row chunks are both with me (yippee, no comm)
-        else atomic {
-          swapLocal(l.loc - BLKSIZE * thisIndex.y, activeCol);
+        } else {
+          when doPivot[internalStep](int step, int row1, int row2) atomic {
+            swapLocal(l.loc - BLKSIZE * thisIndex.x, activeCol);
+          }
         }
 
         // Now, send the post-diagonal portion of the matrix block (a segment of U)
@@ -275,13 +344,14 @@ mainmodule lu {
         // The last diagonal chare finishes the factorization
         if (thisIndex.x == numBlks-1 && thisIndex.y == numBlks-1) {
           DEBUG_PRINT("[%d] chare %d,%d calling mainProxy.iterationCompleted\n", CkMyPe(), thisIndex.x, thisIndex.y);
-          mainProxy.iterationCompleted();
-        }
+          contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
+        } 
         // All other diagonal chares must continue the computations
         else {
           DEBUG_PRINT("[%d] chare %d,%d is top,left block this step, multicast U & L\n", CkMyPe(), thisIndex.x, thisIndex.y);
           // Multicast the local block of L rightwards to the blocks in the same row
           multicastRecvL();
+          contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
         }
 
       }
