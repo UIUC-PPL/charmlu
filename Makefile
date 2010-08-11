@@ -1,5 +1,6 @@
 ##OPTS=-O3 -Q -qhot -qarch=450d -qtune=450
 OPTS=-g -O0
+OPTS+= -DCHARMLU_DEBUG
 
 #------------------------------------------------
 # To compile on order or faith(Ubuntu):

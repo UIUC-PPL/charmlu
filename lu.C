@@ -68,8 +68,11 @@ int traceSolveLocalLU;
 int doPrioritize;
 ComlibInstanceHandle multicastStats[4];
  
-//#define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
-#define DEBUG_PRINT(...) 
+#ifdef CHARMLU_DEBUG
+    #define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
+#else
+    #define DEBUG_PRINT(...)
+#endif
 
 struct locval {
   double val;
