@@ -42,7 +42,7 @@ mainmodule lu {
 
     entry void colMax(CkReductionMsg *m);
     entry void sendPivotData(int rowIndex, int size, double data[size], double b);
-    entry void doPivot(int internalStep, int row1, int row2);
+    entry void doPivot(int activeRow, int row1, int row2);
     entry void sendUSegment(int size, double usegment[size]);
 
     // Describes the control flow for all (super, sub and on diagonal) LU chares
@@ -55,7 +55,7 @@ mainmodule lu {
 
         // Receive and process each pivot selection sent out by the current diagonal block
         for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
-          when doPivot[internalStep](int step, int row1, int row2) atomic {
+          when doPivot[internalStep*BLKSIZE + pivotBlk](int step, int row1, int row2) atomic {
             doPivotLocal(row1, row2);
           }
           if (remoteSwap) {
@@ -94,14 +94,14 @@ mainmodule lu {
 
       // On chare array diagonal
       if (thisIndex.x == thisIndex.y) atomic {
-        ckout << "Block " << thisIndex.x << " queueing local LU" << endl;
+        ckout << "Block " << thisIndex.x << " queueing local LU at internalStep " << internalStep<<endl;
         thisProxy(thisIndex.x, thisIndex.y).processLU();
       }
       // Above diagonal
       else if (thisIndex.x < thisIndex.y) {
         // Receive and process each pivot selection sent out by the current diagonal block
         for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
-          when doPivot[internalStep](int step, int row1, int row2) atomic {
+          when doPivot[internalStep*BLKSIZE + pivotBlk](int step, int row1, int row2) atomic {
             doPivotLocal(row1, row2);
           }
           if (remoteSwap) {
@@ -136,7 +136,7 @@ mainmodule lu {
             mcastMgr->contribute(sizeof(locval), &l, LocValReducer, rednCookie);
           }
           // Once pivot is identified, and diagonal chare sends out the pivot update
-          when doPivot[internalStep](int step, int row1, int row2) {
+          when doPivot[internalStep*BLKSIZE + activeCol](int step, int row1, int row2) {
             // Assume that row2 is always the non-diagonal row and that LU is row-major
             if (row2 / BLKSIZE == thisIndex.x) {
               atomic {
@@ -186,7 +186,7 @@ mainmodule lu {
               //DEBUG_PRINT("(%d, %d): incrementing step, times = %d\n", thisIndex.x, thisIndex.y, ind);
             }
             for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
-              when doPivot[currentStep](int step, int row1, int row2) atomic {
+              when doPivot[currentStep*BLKSIZE + activeCol](int step, int row1, int row2) atomic {
                 DEBUG_PRINT("(%d, %d): LATER received doPivot for %d and %d, step = %d\n", thisIndex.x, thisIndex.y, row1, row2, step);
                 doPivotLocal(row1, row2);
               }
@@ -234,13 +234,13 @@ mainmodule lu {
           // Builds a section including all chares on and below the current diagonal element's row
           CProxySection_LUBlk below = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, numBlks-1, 1, 0, numBlks-1, 1);
           // Send pivot info to all chares that will care (below section)
-          below.doPivot(internalStep, l.loc, activeCol + BLKSIZE * thisIndex.y);
+          below.doPivot(internalStep*BLKSIZE + activeCol, l.loc, activeCol + BLKSIZE * thisIndex.y);
         }
 
         // If required chunk of pivot row is not with me (but in a chare below me)
         if (l.loc / BLKSIZE != thisIndex.x) {
-          when doPivot[internalStep](int step, int row1, int row2) atomic {
-            // Data must be row-major for marshalling to work
+          when doPivot[internalStep*BLKSIZE + activeCol](int step, int row1, int row2) atomic {
+            // Trigger swap of data
             thisProxy(row2 / BLKSIZE, thisIndex.y)
             .sendPivotData(row1, BLKSIZE, &LU[getIndex(row1 % BLKSIZE, 0)], bvec[row1 % BLKSIZE]);
           }
@@ -249,7 +249,7 @@ mainmodule lu {
             applySwap(activeCol, 0, data, b);
           }
         } else {
-          when doPivot[internalStep](int step, int row1, int row2) atomic {
+          when doPivot[internalStep*BLKSIZE + activeCol](int step, int row1, int row2) atomic {
             swapLocal(l.loc - BLKSIZE * thisIndex.x, activeCol);
           }
         }
