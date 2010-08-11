@@ -54,7 +54,7 @@ extern "C" {
 #include <controlPoints.h> // must come before user decl.h if they are using the pathInformationMsg
 #include "lu.decl.h"
 #include <trace-projections.h>
-
+#include <ckmulticast.h>
 #include <queueing.h> // for access to memory threshold setting
 
 /* readonly: */
@@ -68,9 +68,46 @@ int traceSolveLocalLU;
 int doPrioritize;
 ComlibInstanceHandle multicastStats[4];
  
-//#define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
-#define DEBUG_PRINT(...) 
+#ifdef CHARMLU_DEBUG
+    #define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
+    #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
+#else
+    #define DEBUG_PRINT(...)
+    #define DEBUG_PIVOT(...)
+#endif
 
+struct locval {
+  double val;
+  int loc;
+};
+
+CkReductionMsg *maxLocVal(int nMsg, CkReductionMsg **msgs)
+{
+  CkAssert(nMsg > 0);
+
+  double val;
+  int loc;
+  locval l = *((locval *)(msgs[0]->getData()));
+
+  for (int i = 1; i < nMsg; ++i) {
+    loc = ((locval *)(msgs[i]->getData()))->loc;
+    val = ((locval *)(msgs[i]->getData()))->val;
+
+    if (val > l.val) {
+      l.val = val;
+      l.loc = loc;
+    }
+  }
+
+  return CkReductionMsg::buildNew(sizeof(locval), &l);
+}
+
+/// Global that holds the reducer type for locval
+CkReduction::reducerType LocValReducer;
+
+/// Function that registers this reducer type on every processor
+void registerLocValReducer()
+{ LocValReducer = CkReduction::addReducer(maxLocVal); }
 
 
 enum continueWithTask {
@@ -110,9 +147,18 @@ public:
     return (double)rndInt/MAXINT - 0.5;
   }
 
+  double nextRndDouble() {
+    return toRndDouble(nextRndInt());
+  }
+
   void getNRndInts(int num, int *d) {
     for (int i=0; i<num; i++)
       d[i] = nextRndInt();
+  }
+
+  void getNRndDoubles(int num, double *d) {
+    for (int i=0; i<num; i++)
+      d[i] = nextRndDouble();
   }
 };
 
@@ -126,6 +172,14 @@ struct blkMsg: public CMessage_blkMsg {
     CkSetRefNum(this, step);
   }
 };
+
+class rednSetupMsg: public CkMcastBaseMsg, public CMessage_rednSetupMsg
+{
+    public:
+        CkGroupID rednMgrGID;
+        rednSetupMsg(CkGroupID _gid): rednMgrGID(_gid) {}
+};
+
 
 /** do a space filling curve style allocation from the bottom right to the upper left. */
 class LUSnakeMap: public CkArrayMap {
@@ -494,8 +548,9 @@ public:
       // Generate vector data
       double* vec = new double[BLKSIZE*numBlks];
     
-      for (int i = 0; i < BLKSIZE*numBlks; i++)
-	vec[i] = i;
+      MatGen rnd(9934834);
+
+      rnd.getNRndDoubles(BLKSIZE * numBlks, vec);
       
       for (int i = 0; i < numBlks; i++)
         for (int j = 0; j < numBlks; j++)
@@ -639,7 +694,7 @@ public:
   void done(pathInformationMsg *m){
     // CkPrintf("Main::done() After critical path has been determined\n");
     //	  m->printme();
-    gotoNextPhase(); // <<< Make sure we get timings for the phase that just finished.
+    gotoNextPhase(); // Make sure we get timings for the phase that just finished.
     CkExit();
   }
 
@@ -652,7 +707,7 @@ class LUBlk: public CBase_LUBlk {
   double *A;
   int BLKSIZE, numBlks;
   blkMsg *L, *U;
-  int internalStep;
+  int internalStep, activeCol, currentStep, ind;
 
   /// Variables used only during solution
   double *bvec;
@@ -666,6 +721,22 @@ class LUBlk: public CBase_LUBlk {
 
   //VALIDATION: count of the number of point-to-point messages rcvd in a row
   int msgsRecvd;
+
+  //Variables for pivoting SDAG code
+
+  int row1Index, row2Index, localRow1, localRow2,
+    otherRowIndex, thisLocalRow, globalThisRow, globalOtherRow;
+  bool remoteSwap;
+  locval l;
+  int pivotBlk;
+
+  /// The sub-diagaonal chare array section that will participate in pivot selection
+  /// @note: Only the diagonal chares will create and mcast along this section
+  CProxySection_LUBlk pivotSection;
+  /// All pivot sections members will save a cookie to their section
+  CkSectionInfo rednCookie;
+  /// A pointer to the local branch of the multicast manager group that handles the pivot section comm
+  CkMulticastMgr *mcastMgr;
 
   LUBlk_SDAG_CODE
 
@@ -725,7 +796,7 @@ public:
 
 	  //Perform local dgemv
 #if USE_ESSL
-    dgemv("T", BLKSIZE, BLKSIZE, 1.0, A, BLKSIZE, x, 1, 0.0, partial_b, 1);
+    dgemv("T", BLKSIZE, BLKSIZE, 1.0, A, BLKSIZE, xvec, 1, 0.0, partial_b, 1);
 #else
     cblas_dgemv( CblasColMajor, CblasTrans,
     		  BLKSIZE, BLKSIZE, 1.0, A,
@@ -768,9 +839,8 @@ public:
 	  //diagonal elements that received sum-reduction perform b - A*x
 	  for (int i = 0; i < BLKSIZE; i++) {
 		  residuals[i] = b[i] - bvec[i];
-		  if(fabs(residuals[i]) > 1e-10)
-			  CkPrintf("WARNING: RESIDUAL VALUE = %e\n",residuals[i]);
-		  //CkPrintf("res[%d] = %f - %f = %e\n",i,b[i],bvec[i],residuals[i]);
+		  if(fabs(residuals[i]) > 1e-14 || isnan(residuals[i]))
+			  CkPrintf("WARNING: Large Residual for x[%d]: %f - %f = %e\n", thisIndex.x*BLKSIZE+i, b[i], bvec[i], residuals[i]);
 	  }
 
 	  //Diagonal elements signal finish
@@ -801,12 +871,11 @@ public:
 #endif
 
       MatGen rnd(0); 
-      for (int i=0; i<blocksize*blocksize; i++) { 
-	m1[i] = rnd.toRndDouble(rnd.nextRndInt()); 
-	m2[i] = rnd.toRndDouble(rnd.nextRndInt()); 
-	m3[i] = rnd.toRndDouble(rnd.nextRndInt()); 
-      } 
-      
+
+      rnd.getNRndDoubles(blocksize * blocksize, m1);
+      rnd.getNRndDoubles(blocksize * blocksize, m2);
+      rnd.getNRndDoubles(blocksize * blocksize, m3);
+
       double startTest = CmiWallTimer(); 
       
 #if USE_ESSL
@@ -917,8 +986,11 @@ public:
     traceUserSuppliedData(-1);	
     traceMemoryUsage();	 
      
-    //MatGen rnd(thisIndex.x * numBlks + thisIndex.y);
+    MatGen rnd(thisIndex.x * numBlks + thisIndex.y + 2998388);
 
+    rnd.getNRndDoubles(BLKSIZE * BLKSIZE, LU);
+
+#if 0
     double b = thisIndex.x * BLKSIZE + 1, c = thisIndex.y * BLKSIZE + 1;
     for (int i = 0; i<BLKSIZE*BLKSIZE; i++) {
       if (i % BLKSIZE == 0 && thisIndex.y == 0) {
@@ -940,6 +1012,7 @@ public:
 	b += 1.0;
       }
     }
+#endif
 
     //VALIDATION: Make a copy for validation
     memcpy(A, LU, BLKSIZE*BLKSIZE*sizeof(double));
@@ -948,7 +1021,27 @@ public:
 
     testdgemm();
 
-    contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
+    /// Chares on the array diagonal will now create pivot sections that they will talk to
+    if (thisIndex.x == thisIndex.y)
+    {
+        // Create the pivot section
+        pivotSection = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1,numBlks-1,1,thisIndex.y,thisIndex.y,1);
+        // Create a multicast manager group
+        CkGroupID mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
+        CkMulticastMgr *mcastMgr = CProxy_CkMulticastMgr(mcastMgrGID).ckLocalBranch();
+        // Delegate pivot section to the manager
+        pivotSection.ckSectionDelegate(mcastMgr);
+        // Set the reduction client for this pivot section
+        mcastMgr->setReductionClient( pivotSection, new CkCallback( CkIndex_LUBlk::colMax(0), thisProxy(thisIndex.y, thisIndex.y) ) );
+
+        // Invoke a dummy mcast so that all the section members know which section to reduce along
+        rednSetupMsg *msg = new rednSetupMsg(mcastMgrGID);
+        pivotSection.prepareForPivotRedn(msg);
+    }
+
+    // All chares except members of pivot sections are done with init
+    if (thisIndex.x <= thisIndex.y)
+        contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
   }
 
   ~LUBlk() {
@@ -973,6 +1066,23 @@ public:
 //     traceMemoryUsage();
 //     thisProxy(0,0).processLocalLU(0);
 //   }
+
+  /** Entry method. Invoked on each pivot section by their diagonal chare
+   * so that they know where to reduce pivot info
+   */
+  void prepareForPivotRedn(rednSetupMsg *msg)
+  {
+      // Get a handle on the mcastMgr
+      mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
+      // Save the section cookie
+      CkGetSectionInfo(rednCookie, msg);
+      // Now, even members of pivot sections are done with init
+      contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
+      delete msg;
+  }
+
+
+
 
 
   /* Computation functions that should be called localy related with each
@@ -1123,7 +1233,7 @@ public:
     
     DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
   }
-  
+
   void processComputeL(int ignoredParam) {
     DEBUG_PRINT("processComputeL() called on block %d,%d\n", thisIndex.x, thisIndex.y);
     CkAssert(internalStep==thisIndex.y && U);
@@ -1301,7 +1411,7 @@ public:
   }
 
   void solve(bool backward, int size, double* preVec) {
-    CkPrintf("solved called on: (%d, %d)\n", thisIndex.x, thisIndex.y);
+    DEBUG_PRINT("solved called on: (%d, %d)\n", thisIndex.x, thisIndex.y);
 
     bool forward = !backward;
 
@@ -1311,10 +1421,8 @@ public:
     }
 #endif
 
-    CkPrintf("allocate x\n");
     x = new double[BLKSIZE];
 
-    CkPrintf("Calling local solver - diag = true\n");
     localSolve(x, (size == BLKSIZE) ? preVec : NULL, true, forward);
 
     if (forward) {
@@ -1384,7 +1492,7 @@ public:
       storedVec[i] += vec[i];
     }
     
-    CkPrintf("FORWARD: expected %d, received %d\n", thisIndex.y, diagRec+1);
+    DEBUG_PRINT("FORWARD: expected %d, received %d\n", thisIndex.y, diagRec+1);
 
     if (++diagRec == thisIndex.y)
       thisProxy(thisIndex.x, thisIndex.y).solve(false, BLKSIZE, storedVec);
@@ -1404,7 +1512,7 @@ public:
     
     int expected = numBlks-1-thisIndex.y;
     
-    CkPrintf("BACKWARD: expected %d, received %d\n", expected, diagRec+1);
+    DEBUG_PRINT("BACKWARD: expected %d, received %d\n", expected, diagRec+1);
 
     if (++diagRec == expected)
       thisProxy(thisIndex.x, thisIndex.y).solve(true, BLKSIZE, storedVec);
@@ -1415,7 +1523,7 @@ public:
     
     localSolve(xvec, preVec, false, true);
     
-    CkPrintf("diagForwardSolve called from: (%d, %d), on: (%d, %d)\n", 
+    DEBUG_PRINT("diagForwardSolve called from: (%d, %d), on: (%d, %d)\n", 
              thisIndex.x, thisIndex.y, thisIndex.x, thisIndex.x);
     
     thisProxy(thisIndex.x, thisIndex.x).diagForwardSolve(size, xvec);
@@ -1426,7 +1534,7 @@ public:
     
     localSolve(xvec, preVec, false, false);
     
-    CkPrintf("diagBackwardSolve called from: (%d, %d), on: (%d, %d)\n", 
+    DEBUG_PRINT("diagBackwardSolve called from: (%d, %d), on: (%d, %d)\n", 
              thisIndex.x, thisIndex.y, thisIndex.x, thisIndex.x);
     
     thisProxy(thisIndex.x, thisIndex.x).diagBackwardSolve(size, xvec);
@@ -1473,6 +1581,57 @@ public:
   }
 
 private:
+
+  // Copy received pivot data into its place in this block
+    void applySwap(int row, int offset, double *data, double b) {
+      DEBUG_PIVOT("(%d, %d): remote pivot inserted at %d\n", thisIndex.x, thisIndex.y, row);
+      bvec[row] = b;
+    for (int col = offset; col < BLKSIZE; ++col)
+      LU[getIndex(row, col)] = data[col - offset];
+  }
+
+  // Exchange local data
+  void swapLocal(int row1, int row2) {
+    double buf;
+    buf = bvec[row1];
+    bvec[row1] = bvec[row2];
+    bvec[row2] = buf;
+    for (int col = 0; col < BLKSIZE; col++) {
+      buf = LU[getIndex(row1, col)];
+      LU[getIndex(row1, col)] = LU[getIndex(row2, col)];
+      LU[getIndex(row2, col)] = buf;
+    }
+  }
+
+  void doPivotLocal(int row1, int row2) {
+    // The chare indices where the two rows are located
+    row1Index = row1 / BLKSIZE;
+    row2Index = row2 / BLKSIZE;
+    // The local indices of the two rows within their blocks
+    localRow1 = row1 % BLKSIZE;
+    localRow2 = row2 % BLKSIZE;
+    remoteSwap = false;
+
+    // If I hold portions of both the current row and pivot row, its a local swap
+    if (row1Index == thisIndex.x && row2Index == thisIndex.x) {
+      swapLocal(localRow1, localRow2);
+      // else if I hold portions of at just one row, its a remote swap
+    } else if (row1Index == thisIndex.x) {
+      thisLocalRow = localRow1;
+      otherRowIndex = row2Index;
+      globalThisRow = row1;
+      globalOtherRow = row2;
+      remoteSwap = true;
+    } else if (row2Index == thisIndex.x) {
+      thisLocalRow = localRow2;
+      otherRowIndex = row1Index;
+      globalThisRow = row2;
+      globalOtherRow = row1;
+      remoteSwap = true;
+    }
+    // else, I dont have any data affected by this pivot op
+  }
+
   //internal functions for creating messages to encapsulate the priority
   inline blkMsg* createABlkMsg() {
     blkMsg *msg;
@@ -1489,6 +1648,54 @@ private:
 
     return msg;
   }
+
+  locval findLocVal(int startRow, int col, double curMax, int curRowMax) {
+    locval l;
+    if (curRowMax == -1) {
+        l.val = LU[getIndex(startRow, col)];
+        l.loc = startRow + BLKSIZE * thisIndex.x;
+    } else {
+        l.val = curMax;
+        l.loc = curRowMax;
+    }
+    for (int row = startRow; row < BLKSIZE; row++) {
+      if ( fabs(LU[getIndex(row, col)]) > fabs(l.val) ) {
+	l.val = LU[getIndex(row, col)];
+	l.loc = row + BLKSIZE * thisIndex.x;
+      }
+    }
+    return l;
+  }
+
+  // Local multiplier computation and update after U is sent to the blocks below
+  void diagonalUpdate(int col) {
+    computeMultipliers(LU[getIndex(col,col)],col+1,col);
+    for(int k=col+1;k<BLKSIZE;k++) {
+      for(int j=col+1; j<BLKSIZE; j++) {
+        LU[getIndex(j,k)] = LU[getIndex(j,k)] - LU[getIndex(j,col)] * LU[getIndex(col, k)];
+      }
+    }
+  }
+
+  /// Compute the multipliers based on the pivot value from the diagonal chare
+  //  starting at [row, col]
+  void computeMultipliers(double a_kk, int row, int col) {
+    for(int i = row; i<BLKSIZE;i++)
+      LU[getIndex(i,col)] = LU[getIndex(i,col)]/a_kk;
+  }
+
+  /// Update the values in the columns ahead of the active column within the
+  // pivot section based on the Usegment and the multipliers
+  void updateAllCols(int col, double* U) {
+    //TODO: Replace with DGEMM
+    for(int k=col+1;k<BLKSIZE;k++) {
+      for(int j=0; j<BLKSIZE; j++) {
+        //U[k] might need to be U[j]?
+        LU[getIndex(j,k)] =  LU[getIndex(j,k)] - LU[getIndex(j,col)]*U[k-col];
+      }
+    }
+  }
+
 };
 
 #include "lu.def.h"
