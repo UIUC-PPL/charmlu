@@ -186,7 +186,7 @@ mainmodule lu {
               //DEBUG_PRINT("(%d, %d): incrementing step, times = %d\n", thisIndex.x, thisIndex.y, ind);
             }
             for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
-              when doPivot[currentStep*BLKSIZE + activeCol](int step, int row1, int row2) atomic {
+              when doPivot[currentStep*BLKSIZE + pivotBlk](int step, int row1, int row2) atomic {
                 DEBUG_PRINT("(%d, %d): LATER received doPivot for %d and %d, step = %d\n", thisIndex.x, thisIndex.y, row1, row2, step);
                 doPivotLocal(row1, row2);
               }
@@ -234,7 +234,7 @@ mainmodule lu {
           // Builds a section including all chares on and below the current diagonal element's row
           CProxySection_LUBlk below = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, numBlks-1, 1, 0, numBlks-1, 1);
           // Send pivot info to all chares that will care (below section)
-          below.doPivot(internalStep*BLKSIZE + activeCol, l.loc, activeCol + BLKSIZE * thisIndex.y);
+          below.doPivot(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
         }
 
         // If required chunk of pivot row is not with me (but in a chare below me)
