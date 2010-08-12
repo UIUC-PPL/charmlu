@@ -1,9 +1,9 @@
 charmrun
 lu
 lu-proj
-lu-proj.*.log
-lu-proj.projrc
-lu-proj.sts
+*.log
+*.projrc
+*.sts
 *.decl.h
 *.def.h
 *.o
