@@ -1,15 +1,15 @@
 ##OPTS=-O3 -Q -qhot -qarch=450d -qtune=450
 OPTS=-g -O0
-OPTS+= -DCHARMLU_DEBUG
+#OPTS+= -DCHARMLU_DEBUG
 
 #------------------------------------------------
 # To compile on order or faith(Ubuntu):
-#BLAS_INC =  -DUSE_CBLAS_H=1
-#BLAS_LD = -lcblas
+BLAS_INC =  -DUSE_CBLAS_H=1
+BLAS_LD = -lcblas
 
 # To compile on hope (OSX):
-BLAS_INC = -DUSE_ACCELERATE_BLAS=1
-BLAS_LD = -framework Accelerate
+#BLAS_INC = -DUSE_ACCELERATE_BLAS=1
+#BLAS_LD = -framework Accelerate
 
 # To compile against a custom atlas install on linux:
 #BLAS_INC = -I/scratch/idooley2/atlas-install/include  -DUSE_CBLAS_H=1

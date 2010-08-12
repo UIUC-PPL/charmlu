@@ -62,7 +62,7 @@ int traceTrailingUpdate;
 int traceComputeU;
 int traceComputeL;
 int traceSolveLocalLU;
-int doPrioritize;
+bool doPrioritize;
 ComlibInstanceHandle multicastStats[4];
  
 #ifdef CHARMLU_DEBUG
@@ -516,6 +516,7 @@ public:
     numBlks = gMatSize / BLKSIZE;
 
     mainProxy = thisProxy;
+    doPrioritize = false;
       
     DEBUG_PRINT("Registering user events\n");
     traceTrailingUpdate = traceRegisterUserEvent("Trailing Update");
