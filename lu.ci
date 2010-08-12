@@ -2,7 +2,6 @@ mainmodule lu {
   readonly CProxy_Main mainProxy;
   readonly CProxy_LUBlk luArrProxy;
 
-  readonly int gMatSize;
   readonly ComlibInstanceHandle multicastStats[4];
   readonly int traceTrailingUpdate;
   readonly int traceComputeU;

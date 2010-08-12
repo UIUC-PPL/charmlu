@@ -59,7 +59,6 @@ extern "C" {
 /* readonly: */
 CProxy_Main mainProxy;
 CProxy_LUBlk luArrProxy;
-int gMatSize;
 int traceTrailingUpdate;
 int traceComputeU;
 int traceComputeL;
@@ -475,6 +474,7 @@ public:
   int numIterations;
   int numBlks;
 
+  int gMatSize;
   int BLKSIZE;
   int whichMulticastStrategy;
   int mapping;
