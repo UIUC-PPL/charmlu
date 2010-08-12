@@ -468,7 +468,6 @@ struct traceLU {
 };
 
 class Main : public CBase_Main {
-public:
   double startTime;
   int iteration;
   int numIterations;
@@ -482,6 +481,7 @@ public:
   bool solved, LUcomplete, workStarted;
   bool sentVectorData;
 
+public:
   Main(CkArgMsg* m) : numIterations(1), solved(false), LUcomplete(false), workStarted(false), sentVectorData(false) {
     iteration = 0;
 
