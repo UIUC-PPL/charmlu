@@ -120,14 +120,6 @@ double infNorm(int size, double * array)
 	  return fabs(maxval);
 }
 
-enum continueWithTask {
-  NO_CONTINUE = 0,
-  CONTINUE_LU,
-  CONTINUE_U,
-  CONTINUE_L,
-  CONTINUE_TRAIL
-};
-
 //A class for randomly generating matrix elements' value
 #define MAXINT (~(1<<31))
 class MatGen {
@@ -182,6 +174,8 @@ struct blkMsg: public CMessage_blkMsg {
     CkSetRefNum(this, step);
   }
 };
+
+#include "manager.h"
 
 class rednSetupMsg: public CkMcastBaseMsg, public CMessage_rednSetupMsg
 {
@@ -376,11 +370,13 @@ public:
 	opts.setMap(CProxy_BlockCyclicMap::ckNew());
 	break;
       }
+      CProxy_LUMgr mgr = CProxy_PrioLU::ckNew(BLKSIZE, gMatSize);
+
       luArrProxy = CProxy_LUBlk::ckNew(opts);
 
       workStarted = true;
     
-      luArrProxy.init(0, BLKSIZE, numBlks, memThreshold);
+      luArrProxy.init(0, BLKSIZE, numBlks, memThreshold, mgr);
     }
   }
   
@@ -459,6 +455,8 @@ class LUBlk: public CBase_LUBlk {
   int BLKSIZE, numBlks;
   blkMsg *L, *U;
   int internalStep, activeCol, currentStep, ind;
+
+  LUMgr *mgr;
 
   /// Variables used only during solution
   double *bvec;
@@ -742,10 +740,12 @@ public:
     contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
   }
 
-  void init(int _whichMulticastStrategy, int _BLKSIZE, int _numBlks, int memThreshold) {
+    void init(int _whichMulticastStrategy, int _BLKSIZE, int _numBlks,
+	      int memThreshold, CProxy_LUMgr _mgr) {
     whichMulticastStrategy = _whichMulticastStrategy;
     BLKSIZE = _BLKSIZE;
     numBlks = _numBlks;
+    mgr = _mgr.ckLocalBranch();
     
     // Set the schedulers memory usage threshold to the one based upon a control point
     schedAdaptMemThresholdMB = memThreshold;
@@ -1017,94 +1017,6 @@ public:
     DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
   }
 
-#if 0
-  /// Call progress on myself, possibly using priorities 
-  inline void selfContinue(){
-    int integerPrio;
-    
-    //	  CkPrintf("continuing %d,%d  internalStep=%d \n", thisIndex.x,thisIndex.y, internalStep);
-
-
-    double c1 = 1.0;
-    double c2 = 1.0;
-    double c3 = 1.0;
-    double c4 = 1.0;
-
-#if 1
-    // Low priority trailing updates
-    // High priorities for critical path (solve local LUs)
-    if(thisIndex.x == thisIndex.y && thisIndex.x == internalStep){
-      integerPrio = -1000; // highest priority
-    } else if(thisIndex.x == internalStep || thisIndex.y == internalStep){
-      integerPrio = c1*(-1*(BLKSIZE-internalStep) -5) + c2;
-    } else {
-      // Trailing updates have lower priorities that increase from top left to bottom right
-      integerPrio = (internalStep+1)*c3 + (thisIndex.x+thisIndex.y)*c4;
-    }
-#elif 0
-    // Low priority trailing updates
-    // High priorities for critical path (solve local LUs)
-    if(thisIndex.x == thisIndex.y && thisIndex.x == internalStep){
-      integerPrio = -10*c1; // highest priority
-    } else if(thisIndex.x == internalStep || thisIndex.y == internalStep){
-      integerPrio = -5; 
-    } else if(thisIndex.x == thisIndex.y){
-      integerPrio = -1; // high priority
-    } else {
-      // Trailing updates have lower priorities that increase from top left to bottom right
-      integerPrio = (internalStep+1)*c3 + (thisIndex.x+thisIndex.y)*c4;
-    }
-#elif 0
-    // High priorities for trailing updates
-    if(thisIndex.x == thisIndex.y && thisIndex.x == internalStep){
-      integerPrio = 10; // corners
-    } else if(thisIndex.x == internalStep || thisIndex.y == internalStep){
-      integerPrio = 9; // edges
-    } else {
-      // Trailing updates
-      integerPrio = -100;
-    }
-#else
-    // High priorities for early trailing updates
-    if(thisIndex.x == thisIndex.y && thisIndex.x == internalStep){
-      integerPrio = -10000; // highest priority
-    } else if(thisIndex.x == internalStep || thisIndex.y == internalStep){
-      integerPrio = c1*(internalStep-BLKSIZE -5) + c2;
-    } else {
-      // Trailing updates have lower priorities that increase from top left to bottom right
-      integerPrio = (internalStep+1)*c3 + (thisIndex.x+thisIndex.y)*c4;
-      if(internalStep < 5){
-	  integerPrio -= (5-internalStep)*(BLKSIZE*3);
-      }
-
-    }
-
-#endif	  
-
-    CkEntryOptions eOpts; 
-    eOpts.setPriority (integerPrio); // setPriority sets the queuing type internally
-    
-    
-    switch(canContinue()) {
-    case NO_CONTINUE:
-      break;
-    case CONTINUE_LU:
-      thisProxy(thisIndex.x,thisIndex.y).processLocalLU(0, &eOpts);
-      break;
-    case CONTINUE_U:
-      thisProxy(thisIndex.x,thisIndex.y).processComputeU(0, &eOpts);
-      break;
-    case CONTINUE_L:
-      thisProxy(thisIndex.x,thisIndex.y).processComputeL(0, &eOpts);
-      break;
-    case CONTINUE_TRAIL:
-      thisProxy(thisIndex.x,thisIndex.y).processTrailingUpdate(0, &eOpts);
-      break;  
-    }
-
-  }
-#endif
-
   int getIndex(int i, int j) {
     return i * BLKSIZE + j;
   }
@@ -1373,18 +1285,9 @@ private:
 
   //internal functions for creating messages to encapsulate the priority
   inline blkMsg* createABlkMsg() {
-    blkMsg *msg;
-    
-    if(doPrioritize) {
-      msg = new(BLKSIZE*BLKSIZE, 8*sizeof(int)) blkMsg;
-      DEBUG_PRINT("setting priority to internalStep=%d\n", internalStep);
-      *((int*)CkPriorityPtr(msg)) = (int)internalStep;
-      CkSetQueueing(msg, CK_QUEUEING_IFIFO);
-    } else {
-      msg = new(BLKSIZE*BLKSIZE) blkMsg;
-    }
+    blkMsg *msg = mgr->createBlockMessage(thisIndex.x, thisIndex.y,
+                                          internalStep);
     msg->setMsgData(LU, internalStep, BLKSIZE);
-
     return msg;
   }
 
