@@ -29,10 +29,16 @@ mainmodule lu {
     entry void iterationCompleted();
   };
 
+  group LUMgr { };
+
+  group PrioLU {
+    entry PrioLU(int BLKSIZE, int matSize);
+  };
+
   array [2D] LUBlk {
     entry LUBlk(void);
     entry void prepareForPivotRedn(rednSetupMsg *);
-    entry void init(int whichMulticastStrategy, int, int, int memThreshold);
+    entry void init(int whichMulticastStrategy, int, int, int memThreshold, CProxy_LUMgr);
     entry void initVec();
     entry void startValidation();
     entry [nokeep] void recvXvec(int size, double xvec[size]);
