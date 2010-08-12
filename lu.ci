@@ -6,7 +6,7 @@ mainmodule lu {
   readonly int traceComputeU;
   readonly int traceComputeL;
   readonly int traceSolveLocalLU;
-  readonly int doPrioritize;
+  readonly bool doPrioritize;
 //  readonly int memThreshold;
 
   // Register the reducer function that handles reductions of locval
