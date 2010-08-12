@@ -482,8 +482,7 @@ class Main : public CBase_Main {
   bool sentVectorData;
 
 public:
-  Main(CkArgMsg* m) : numIterations(1), solved(false), LUcomplete(false), workStarted(false), sentVectorData(false) {
-    iteration = 0;
+    Main(CkArgMsg* m) : iteration(0), numIterations(1), solved(false), LUcomplete(false), workStarted(false), sentVectorData(false) {
 
     if (m->argc<3) {
       CkPrintf("Usage: %s <matrix size> <mem threshold> <iterations>\n", m->argv[0]);
