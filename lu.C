@@ -1311,6 +1311,10 @@ private:
 
   // Local multiplier computation and update after U is sent to the blocks below
   void diagonalUpdate(int col) {
+    // Pivoting is done, so the diagonal entry better not be zero; else the matrix is singular
+    if (fabs(LU[getIndex(col,col)]) > 1.0e-14)
+        CkAbort("Diagonal element very small despite pivoting. Is the matrix singular??");
+
     computeMultipliers(LU[getIndex(col,col)],col+1,col);
     for(int k=col+1;k<BLKSIZE;k++) {
       for(int j=col+1; j<BLKSIZE; j++) {
