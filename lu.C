@@ -17,6 +17,7 @@
 #include <algorithm>
 using std::min;
 //#include <pthread.h>
+#include <limits>
 
 #if USE_CBLAS_H
 extern "C" {
@@ -108,6 +109,16 @@ CkReduction::reducerType LocValReducer;
 void registerLocValReducer()
 { LocValReducer = CkReduction::addReducer(maxLocVal); }
 
+double infNorm(int size, double * array)
+{
+	  double maxval = fabs(array[0]);
+	  for(int i = 1; i < size; i++) {
+		  if(fabs(array[i]) > maxval)
+			  maxval = array[i];
+	  }
+
+	  return fabs(maxval);
+}
 
 enum continueWithTask {
   NO_CONTINUE = 0,
@@ -412,7 +423,22 @@ public:
     }
   }
 
-  void terminateProg(CkReductionMsg *msg) {
+  void calcScaledResidual(CkReductionMsg *msg) {
+	int reducedArrSize=msg->getSize() / sizeof(double);
+	double *maxvals=(double *) msg->getData();
+
+	double n = BLKSIZE * numBlks;
+
+	double r = maxvals[3]/((maxvals[0]*maxvals[2]+maxvals[1])*n*std::numeric_limits<double>::epsilon());
+
+	DEBUG_PRINT("|A|inf = %e\n|b|inf = %e\n|x|inf = %e\n|Ax-b|inf = %e\n",maxvals[0],maxvals[1],maxvals[2],maxvals[3]);
+
+	CkPrintf("epsilon = %e\nr = %f\n",std::numeric_limits<double>::epsilon(),r);
+	if(r>16)
+		CkPrintf("=== WARNING: Scaled residual is greater than 16 - OUT OF SPEC ===\n");
+
+	delete msg;
+
     CkCallback cb(CkIndex_Main::done(NULL),thisProxy); 
     traceCriticalPathBack(cb);
   }
@@ -542,9 +568,20 @@ public:
     //sum-reduction of result across row with diagonal element as target
     thisProxy(thisIndex.x,thisIndex.x).sumBvec(BLKSIZE,partial_b);
 
-    //if you are not the diagonal, signal finish
-    if(thisIndex.x != thisIndex.y)
-    	contribute(CkCallback(CkIndex_Main::terminateProg(NULL),mainProxy));
+    //if you are not the diagonal, find your max A value and contribute
+    if(thisIndex.x != thisIndex.y) {
+    	//find local max of A
+    	double A_max = infNorm(BLKSIZE * BLKSIZE, LU);
+    	DEBUG_PRINT("[%d,%d] A_max  = %e\n",thisIndex.x,thisIndex.y,A_max);
+
+    	double maxvals[4];
+    	maxvals[0] = A_max;
+    	maxvals[1] = -1;
+    	maxvals[2] = -1;
+    	maxvals[3] = -1;
+
+    	contribute(sizeof(maxvals), &maxvals, CkReduction::max_double,CkCallback(CkIndex_Main::calcScaledResidual(NULL),mainProxy));
+    }
   }
 
   //VALIDATION
@@ -575,12 +612,27 @@ public:
 	  //diagonal elements that received sum-reduction perform b - A*x
 	  for (int i = 0; i < BLKSIZE; i++) {
 		  residuals[i] = b[i] - bvec[i];
-		  if(fabs(residuals[i]) > 1e-14 || std::isnan(residuals[i]) || std::isinf(residuals[i]))
-			  CkPrintf("WARNING: Large Residual for x[%d]: %f - %f = %e\n", thisIndex.x*BLKSIZE+i, b[i], bvec[i], residuals[i]);
+//		  if(fabs(residuals[i]) > 1e-14 || std::isnan(residuals[i]) || std::isinf(residuals[i]))
+//			  CkPrintf("WARNING: Large Residual for x[%d]: %f - %f = %e\n", thisIndex.x*BLKSIZE+i, b[i], bvec[i], residuals[i]);
 	  }
 
-	  //Diagonal elements signal finish
-	  contribute(CkCallback(CkIndex_Main::terminateProg(NULL),mainProxy));
+	  //find local max values
+	  double A_max = infNorm(BLKSIZE * BLKSIZE, LU);
+	  double b_max = infNorm(BLKSIZE, b);
+	  double x_max = infNorm(BLKSIZE, bvec);
+	  double res_max = infNorm(BLKSIZE, residuals);
+	  DEBUG_PRINT("[%d,%d] A_max  = %e\n",thisIndex.x,thisIndex.y,A_max);
+	  DEBUG_PRINT("[%d,%d] b_max  = %e\n",thisIndex.x,thisIndex.y,b_max);
+	  DEBUG_PRINT("[%d,%d] x_max  = %e\n",thisIndex.x,thisIndex.y,x_max);
+	  DEBUG_PRINT("[%d,%d] res_max  = %e\n",thisIndex.x,thisIndex.y,res_max);
+
+	  double maxvals[4];
+	  maxvals[0] = A_max;
+	  maxvals[1] = b_max;
+	  maxvals[2] = x_max;
+	  maxvals[3] = res_max;
+
+	  contribute(sizeof(maxvals), &maxvals, CkReduction::max_double,CkCallback(CkIndex_Main::calcScaledResidual(NULL),mainProxy));
   }
 
   void flushLogs() {
