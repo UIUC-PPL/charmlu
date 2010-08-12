@@ -329,7 +329,7 @@ public:
       CkPrintf("called solve()\n");
 
       // Perform forward solving
-      luArrProxy(0, 0).solve(false, 0, NULL);
+      luArrProxy.Ssolve(true);
 
       solved = true;
       iteration++;
@@ -487,7 +487,13 @@ class LUBlk: public CBase_LUBlk {
   /// @note: Only the diagonal chares will create and mcast along this section
   CProxySection_LUBlk pivotSection;
   /// All pivot sections members will save a cookie to their section
-  CkSectionInfo rednCookie;
+  CkSectionInfo pivotCookie;
+
+  CProxySection_LUBlk rowBeforeDiag;
+  CProxySection_LUBlk rowAfterDiag;
+  CkSectionInfo rowBeforeCookie;
+  CkSectionInfo rowAfterCookie;
+
   /// A pointer to the local branch of the multicast manager group that handles the pivot section comm
   CkMulticastMgr *mcastMgr;
 
@@ -809,22 +815,33 @@ public:
     {
         // Create the pivot section
         pivotSection = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1,numBlks-1,1,thisIndex.y,thisIndex.y,1);
+        rowBeforeDiag = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,thisIndex.x,1,0,thisIndex.y-1,1);
+        rowAfterDiag = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,thisIndex.x,1,thisIndex.y+1,numBlks-1,1);
         // Create a multicast manager group
         CkGroupID mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
         CkMulticastMgr *mcastMgr = CProxy_CkMulticastMgr(mcastMgrGID).ckLocalBranch();
         // Delegate pivot section to the manager
         pivotSection.ckSectionDelegate(mcastMgr);
+        rowBeforeDiag.ckSectionDelegate(mcastMgr);
+        rowAfterDiag.ckSectionDelegate(mcastMgr);
         // Set the reduction client for this pivot section
         mcastMgr->setReductionClient( pivotSection, new CkCallback( CkIndex_LUBlk::colMax(0), thisProxy(thisIndex.y, thisIndex.y) ) );
 
         // Invoke a dummy mcast so that all the section members know which section to reduce along
-        rednSetupMsg *msg = new rednSetupMsg(mcastMgrGID);
-        pivotSection.prepareForPivotRedn(msg);
+        rednSetupMsg *pivotMsg = new rednSetupMsg(mcastMgrGID);
+        rednSetupMsg *rowBeforeMsg = new rednSetupMsg(mcastMgrGID);
+        rednSetupMsg *rowAfterMsg = new rednSetupMsg(mcastMgrGID);
+
+        pivotSection.prepareForPivotRedn(pivotMsg);
+        rowBeforeDiag.prepareForRowBeforeDiag(rowBeforeMsg);
+        rowAfterDiag.prepareForRowAfterDiag(rowAfterMsg);
+
+        if (thisIndex.x == 0) {
+          thisProxy.multicastRedns();
+        }
     }
 
     // All chares except members of pivot sections are done with init
-    if (thisIndex.x <= thisIndex.y)
-        contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
   }
 
   ~LUBlk() {
@@ -850,28 +867,9 @@ public:
 //     thisProxy(0,0).processLocalLU(0);
 //   }
 
-  /** Entry method. Invoked on each pivot section by their diagonal chare
-   * so that they know where to reduce pivot info
-   */
-  void prepareForPivotRedn(rednSetupMsg *msg)
-  {
-      // Get a handle on the mcastMgr
-      mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
-      // Save the section cookie
-      CkGetSectionInfo(rednCookie, msg);
-      // Now, even members of pivot sections are done with init
-      contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
-      delete msg;
-  }
-
-
-
-
-
   /* Computation functions that should be called localy related with each
    * state of the block
    */
-
 
   //thisIndex.x indicates the internal step it is going to work on
   void solveLocalLU() {
