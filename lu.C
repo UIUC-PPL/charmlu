@@ -484,10 +484,14 @@ class Main : public CBase_Main {
 public:
     Main(CkArgMsg* m) : iteration(0), numIterations(1), solved(false), LUcomplete(false), workStarted(false), sentVectorData(false) {
 
-    if (m->argc<3) {
-      CkPrintf("Usage: %s <matrix size> <mem threshold> <iterations>\n", m->argv[0]);
+    if (m->argc<4) {
+      CkPrintf("Usage: %s <matrix size> <block size> <mem threshold> [<iterations>]\n", m->argv[0]);
       CkExit();
     }
+
+    gMatSize = atoi(m->argv[1]);
+    BLKSIZE = atoi(m->argv[2]);
+    memThreshold = atoi(m->argv[3]);
 
     if (m->argc > 3) {
       /*sscanf( m->argv[2], "%d", &strategy);
@@ -499,10 +503,16 @@ public:
       */
 
 
-      if (m->argc >= 4)
-	numIterations = atoi(m->argv[3]);
+      if (m->argc >= 5)
+	numIterations = atoi(m->argv[4]);
       CkPrintf("CLI: numIterations=%d\n", numIterations);
     }
+
+    if (gMatSize%BLKSIZE!=0) {
+      CkPrintf("The matrix size %d should be a multiple of block size %d!\n", gMatSize, BLKSIZE);
+      CkExit();
+    }
+    numBlks = gMatSize / BLKSIZE;
 
     mainProxy = thisProxy;
       
@@ -515,12 +525,7 @@ public:
     traceRegisterUserEvent("Local Multicast Deliveries", 10000);    
     traceRegisterUserEvent("Remote Multicast Forwarding - preparing", 10001);
     traceRegisterUserEvent("Remote Multicast Forwarding - sends", 10002);
-    
-    gMatSize = atoi(m->argv[1]);
- 
-    /*if (gMatSize%1024!=0) 
-      CkAbort("The matrix size should be a multiple of 1024!\n");*/
-  
+
     CkPrintf("Running LU on %d processors (%d nodes) on matrix %dX%d with control points\n",
 	     CkNumPes(), CmiNumNodes(), gMatSize, gMatSize);
 
@@ -538,9 +543,7 @@ public:
 
     ControlPoint::EffectIncrease::MemoryConsumption("memory_threshold");
 
-
     thisProxy.iterationCompleted();
-
   }
 
   void finishInit() {
@@ -608,6 +611,7 @@ public:
       // Only advance phases after a few factorizations have been performed
       // Prior to the first phase of actual work, iteration=1
       if( 1 || iteration % 2 == 1 || iteration==1){
+#if 0
 	gotoNextPhase();
       
 	whichMulticastStrategy = controlPoint("multicast_strategy", 2, 2);
@@ -620,6 +624,7 @@ public:
 	// fflush(stderr);
       
 	numBlks = gMatSize/BLKSIZE;
+#endif
       }
     
     
