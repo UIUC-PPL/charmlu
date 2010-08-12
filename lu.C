@@ -329,7 +329,7 @@ public:
       CkPrintf("called solve()\n");
 
       // Perform forward solving
-      luArrProxy.Ssolve(true);
+      luArrProxy.solve(true);
 
       solved = true;
       iteration++;

@@ -335,7 +335,7 @@ mainmodule lu {
       }
     };
 
-    entry void Ssolve(bool forward1) {
+    entry void solve(bool forward1) {
       if (thisIndex.x == thisIndex.y) {
         if (thisIndex.x == 0 && thisIndex.y == 0 && forward1) atomic {
           thisProxy(thisIndex.x, thisIndex.y).startSolve(0, NULL);
@@ -361,7 +361,7 @@ mainmodule lu {
 
             if (thisIndex.x == numBlks-1) {
               // Start backward solve
-              thisProxy.Ssolve(false);
+              thisProxy.solve(false);
             }
 
             CProxySection_LUBlk col =
