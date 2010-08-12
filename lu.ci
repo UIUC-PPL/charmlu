@@ -343,7 +343,6 @@ mainmodule lu {
           thisProxy(numBlks-1, numBlks-1).startSolve(0, NULL);
         } else {
           when recvSolveData[thisIndex.x](CkReductionMsg *m) atomic {
-            int num = CkGetRefNum(m);
             double* preVec = (double*)(m->getData());
             thisProxy(thisIndex.x, thisIndex.y).startSolve(BLKSIZE, preVec);
           }
