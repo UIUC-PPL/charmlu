@@ -58,7 +58,6 @@ extern "C" {
 
 /* readonly: */
 CProxy_Main mainProxy;
-CProxy_LUBlk luArrProxy;
 int traceTrailingUpdate;
 int traceComputeU;
 int traceComputeL;
@@ -480,6 +479,8 @@ class Main : public CBase_Main {
   int memThreshold;
   bool solved, LUcomplete, workStarted;
   bool sentVectorData;
+
+  CProxy_LUBlk luArrProxy;
 
 public:
     Main(CkArgMsg* m) : iteration(0), numIterations(1), solved(false), LUcomplete(false), workStarted(false), sentVectorData(false) {
