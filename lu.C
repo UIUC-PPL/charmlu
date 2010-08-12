@@ -108,15 +108,6 @@ CkReduction::reducerType LocValReducer;
 void registerLocValReducer()
 { LocValReducer = CkReduction::addReducer(maxLocVal); }
 
-
-enum continueWithTask {
-  NO_CONTINUE = 0,
-  CONTINUE_LU,
-  CONTINUE_U,
-  CONTINUE_L,
-  CONTINUE_TRAIL
-};
-
 //A class for randomly generating matrix elements' value
 #define MAXINT (~(1<<31))
 class MatGen {
