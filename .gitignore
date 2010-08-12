@@ -1,4 +1,5 @@
 charmrun
+lu
 lu-proj
 lu-proj.*.log
 lu-proj.projrc
@@ -6,5 +7,9 @@ lu-proj.sts
 *.decl.h
 *.def.h
 *.o
+*.d
+*.di
+*.ci.stamp
 input-generated-*
 LU-solution-*
+
