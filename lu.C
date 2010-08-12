@@ -279,17 +279,7 @@ public:
 
   void finishInit() {
     if (!sentVectorData) {
-      // Generate vector data
-      double* vec = new double[BLKSIZE*numBlks];
-    
-      MatGen rnd(9934834);
-
-      rnd.getNRndDoubles(BLKSIZE * numBlks, vec);
-      
-      for (int i = 0; i < numBlks; i++)
-        for (int j = 0; j < numBlks; j++)
-          luArrProxy(i, j).initVec(BLKSIZE, vec+(i*BLKSIZE));
-
+      luArrProxy.initVec();
       sentVectorData = true;
     } else {
       luArrProxy.flushLogs();
@@ -439,15 +429,14 @@ public:
 class LUBlk: public CBase_LUBlk {
   /// Variables used during factorization
   double *LU;
-  //VALIDATION: variable to hold copy of untouched matrix
-  double *A;
+
   int BLKSIZE, numBlks;
   blkMsg *L, *U;
   int internalStep, activeCol, currentStep, ind;
 
   /// Variables used only during solution
   double *bvec;
-  //VALIDATION: variable to hold copy of untouched b vector
+  //VALIDATION: variable to hold copy of untouched b vector (allocated during validation)
   double *b;
   //VALIDATION: variable to hold copy of final x
   double *x;
@@ -457,6 +446,10 @@ class LUBlk: public CBase_LUBlk {
 
   //VALIDATION: count of the number of point-to-point messages rcvd in a row
   int msgsRecvd;
+
+  //VALIDATION: seed value used to regenerate A and b for validation
+  int seed_A;
+  int seed_b;
 
   //Variables for pivoting SDAG code
 
@@ -510,13 +503,20 @@ public:
   //VALIDATION
   void startValidation() {
 	  // Starting state:
-	  // variable A has the original matrix sub-block
 	  // solution sub-vector x is in variable x on the diagonals
 	  // variable b has the original b vector on the diagonals
 
-	  //Diagonals distribute x across entire column
+	  //Regenerate A and place into already allocated LU
+	  MatGen rnd(seed_A);
+	  rnd.getNRndDoubles(BLKSIZE * BLKSIZE, LU);
+
+	  //Diagonals regenerate b and distribute x across entire column
 	  if(thisIndex.x == thisIndex.y)
 	  {
+		  b = new double[BLKSIZE];
+		  MatGen rnd(seed_b);
+		  rnd.getNRndDoubles(BLKSIZE, b);
+
 		  CProxySection_LUBlk col =
 				  CProxySection_LUBlk::ckNew(thisArrayID, 0, numBlks-1,
 						  1, thisIndex.y, thisIndex.y, 1);
@@ -532,10 +532,10 @@ public:
 
 	  //Perform local dgemv
 #if USE_ESSL
-    dgemv("T", BLKSIZE, BLKSIZE, 1.0, A, BLKSIZE, xvec, 1, 0.0, partial_b, 1);
+    dgemv("T", BLKSIZE, BLKSIZE, 1.0, LU, BLKSIZE, xvec, 1, 0.0, partial_b, 1);
 #else
     cblas_dgemv( CblasColMajor, CblasTrans,
-    		  BLKSIZE, BLKSIZE, 1.0, A,
+    		  BLKSIZE, BLKSIZE, 1.0, LU,
     		  BLKSIZE, xvec, 1, 0.0, partial_b, 1);
 #endif
 
@@ -673,16 +673,13 @@ public:
 #endif
   }
 
-  void initVec(int size, double* vec) {
+  void initVec() {
     bvec = new double[BLKSIZE];
-    memcpy(bvec, vec, sizeof(double) * BLKSIZE);
 
-    //VALIDATION: keep a copy of the original b vector on the diagonals
-    if(thisIndex.x == thisIndex.y)
-    {
-    	b = new double[BLKSIZE];
-    	memcpy(b, bvec, sizeof(double) * BLKSIZE);
-    }
+    seed_b = thisIndex.x * numBlks + 9934834;
+    MatGen rnd(seed_b);
+    rnd.getNRndDoubles(BLKSIZE, bvec);
+
 
 #if defined(PRINT_VECTORS)
     for (int i = 0; i < BLKSIZE; i++) {
@@ -707,22 +704,23 @@ public:
 
 #if USE_MEMALIGN
     LU = (double*)memalign(128, BLKSIZE*BLKSIZE*sizeof(double) );
-    //VALIDATION: A is an untouched copy for validation
-    A  = (double*)memalign(128, BLKSIZE*BLKSIZE*sizeof(double) );
     //	 CkPrintf("LU mod 128 = %lu\n", ((unsigned long)LU) % 128);
     CkAssert(LU != NULL);
 #else
     LU = new double[BLKSIZE*BLKSIZE];
-    //VALIDATION: A is an untouched copy for validation
-    A  = new double[BLKSIZE*BLKSIZE];
 #endif
+
+    //Allocated space to hold solution
+    x = new double[BLKSIZE];
 
     internalStep = 0;  
      
     traceUserSuppliedData(-1);	
     traceMemoryUsage();	 
      
-    MatGen rnd(thisIndex.x * numBlks + thisIndex.y + 2998388);
+    //VALIDATION: saved seed value to use for validation
+    seed_A = thisIndex.x * numBlks + thisIndex.y + 2998388;
+    MatGen rnd(seed_A);
 
     rnd.getNRndDoubles(BLKSIZE * BLKSIZE, LU);
 
@@ -749,9 +747,6 @@ public:
       }
     }
 #endif
-
-    //VALIDATION: Make a copy for validation
-    memcpy(A, LU, BLKSIZE*BLKSIZE*sizeof(double));
 
     this->print("input-generated-LU");
 
@@ -1114,8 +1109,6 @@ public:
       CkPrintf("bvec[%d] = %f\n", i, bvec[i]);
     }
 #endif
-
-    x = new double[BLKSIZE];
 
     localSolve(x, (size == BLKSIZE) ? preVec : NULL, true, forward);
 
