@@ -424,13 +424,6 @@ mainmodule lu {
     // way. Hence, it's not marked [memcritical].
     entry void processComputeU(int ignoredParam);
 
-
-    entry void solve(bool backward, int size, double d[size]);
-    entry void forwardSolve(int size, double d[size]);
-    entry void diagForwardSolve(int size, double d[size]);
-    entry void backwardSolve(int size, double d[size]);
-    entry void diagBackwardSolve(int size, double d[size]);
-
     entry void flushLogs();
     entry void print();
   };            
