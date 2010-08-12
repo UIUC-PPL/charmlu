@@ -970,48 +970,6 @@ public:
     DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
   }
 
-  void processComputeL(int ignoredParam) {
-    DEBUG_PRINT("processComputeL() called on block %d,%d\n", thisIndex.x, thisIndex.y);
-    CkAssert(internalStep==thisIndex.y && U);
-    
-    // We are in the left row of active blocks
-      
-    //  CkPrintf("[%d] chare %d,%d internalStep=%d computeL\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep);
-    computeL(U);
-      
-    //broadcast the newly computed L rightwards to the blocks in the same row
-    DEBUG_PRINT("[%d] chare %d,%d is left block this step, multicast L\n", CkMyPe(), thisIndex.x, thisIndex.y);
-    multicastRecvL();
-      
-    CmiFree(UsrToEnv(U));
-
-    DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
-  }
-  
-  void processLocalLU(int ignoredParam) {
-    DEBUG_PRINT("processLocalLU() called on block %d,%d\n", thisIndex.x, thisIndex.y);
-    // We are the top-left-most active block
-    CkAssert(internalStep==thisIndex.x && internalStep==thisIndex.y);
-
-//    double mem = CmiMemoryUsage();
-//    CkPrintf("CmiMemoryUsage() = %lf\n", mem);
-
-    // CkPrintf("[%d] chare %d,%d internalStep=%d solveLocalLU\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep);
-    solveLocalLU(); // compute a local LU
-
-    // If this is the very last bottom rightmost block
-    if (thisIndex.x == numBlks-1 && thisIndex.y == numBlks-1) {
-      DEBUG_PRINT("[%d] chare %d,%d calling mainProxy.iterationCompleted\n", CkMyPe(), thisIndex.x, thisIndex.y);
-      mainProxy.iterationCompleted();
-    } else {
-      DEBUG_PRINT("[%d] chare %d,%d is top,left block this step, multicast U & L\n", CkMyPe(), thisIndex.x, thisIndex.y);
-      multicastRecvU();	//broadcast the U downwards to the blocks in the same column
-      multicastRecvL();		//broadcast the L rightwards to the blocks in the same row
-    }
-      
-    DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
-  }
-
 #if 0
   /// Call progress on myself, possibly using priorities 
   inline void selfContinue(){

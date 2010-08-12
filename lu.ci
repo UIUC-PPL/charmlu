@@ -324,11 +324,9 @@ mainmodule lu {
     // a memory critical (i.e. over threshold) condition, so that
     // retained messages can be freed.
     entry [memcritical] void processTrailingUpdate(int ignoredParam);
-    entry void processLocalLU(int ignoredParam);
-    // These two free buffered messages, but don't really reduce
-    // memory pressure, because they generate multicasts along the
-    // way. Hence, they're not marked [memcritical].
-    entry void processComputeL(int ignoredParam);
+    // This frees a buffered message, but don't really reduce
+    // memory pressure, because it generates multicasts along the
+    // way. Hence, it's not marked [memcritical].
     entry void processComputeU(int ignoredParam);
 
 
