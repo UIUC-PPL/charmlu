@@ -18,7 +18,6 @@
 using std::min;
 //#include <pthread.h>
 
-
 #if USE_CBLAS_H
 extern "C" {
 #include <cblas.h>
@@ -75,6 +74,8 @@ ComlibInstanceHandle multicastStats[4];
     #define DEBUG_PRINT(...)
     #define DEBUG_PIVOT(...)
 #endif
+
+#include <cmath>
 
 struct locval {
   double val;
@@ -839,7 +840,7 @@ public:
 	  //diagonal elements that received sum-reduction perform b - A*x
 	  for (int i = 0; i < BLKSIZE; i++) {
 		  residuals[i] = b[i] - bvec[i];
-		  if(fabs(residuals[i]) > 1e-14 || isnan(residuals[i]))
+		  if(fabs(residuals[i]) > 1e-14 || std::isnan(residuals[i]) || std::isinf(residuals[i]))
 			  CkPrintf("WARNING: Large Residual for x[%d]: %f - %f = %e\n", thisIndex.x*BLKSIZE+i, b[i], bvec[i], residuals[i]);
 	  }
 
