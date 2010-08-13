@@ -76,9 +76,12 @@ ComlibInstanceHandle multicastStats[4];
 
 #include <cmath>
 
-struct locval {
-  double val;
-  int loc;
+class locval {
+    public:
+        locval(): val(0.0), loc(-1) {}
+        locval(double _val, int _loc): val(_val), loc(_loc) {}
+        double val;
+        int loc;
 };
 
 CkReductionMsg *maxLocVal(int nMsg, CkReductionMsg **msgs)
@@ -1152,21 +1155,13 @@ private:
     return msg;
   }
 
-  locval findLocVal(int startRow, int col, double curMax, int curRowMax) {
-    locval l;
-    if (curRowMax == -1) {
-        l.val = LU[getIndex(startRow, col)];
-        l.loc = startRow + BLKSIZE * thisIndex.x;
-    } else {
-        l.val = curMax;
-        l.loc = curRowMax;
-    }
-    for (int row = startRow; row < BLKSIZE; row++) {
+  locval findLocVal(int startRow, int col, locval first = locval()) {
+    locval l = first;
+    for (int row = startRow; row < BLKSIZE; row++)
       if ( fabs(LU[getIndex(row, col)]) > fabs(l.val) ) {
-	l.val = LU[getIndex(row, col)];
-	l.loc = row + BLKSIZE * thisIndex.x;
+        l.val = LU[getIndex(row, col)];
+        l.loc = row + BLKSIZE * thisIndex.x;
       }
-    }
     return l;
   }
 

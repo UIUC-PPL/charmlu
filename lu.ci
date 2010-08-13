@@ -138,9 +138,7 @@ mainmodule lu {
         for (activeCol = 0; activeCol < BLKSIZE; activeCol++) {
           atomic {
             // Find the local maximum in the active column
-            double maxval = LU[getIndex(0, activeCol)];
-            int maxrow = BLKSIZE * thisIndex.x;
-            locval l = findLocVal(1, activeCol, maxval, maxrow);
+            locval l = findLocVal(0, activeCol);
 
             // Contribute to a reduction along the pivot section to identify the pivot row
             // The pivot section includes all sub-diagonal chares along the active column of the chare array
@@ -227,10 +225,10 @@ mainmodule lu {
         if (thisIndex.x < numBlks - 1) {
           when colMax(CkReductionMsg *m) atomic {
             locval &remoteL = *(locval *)(m->getData());
-            l = findLocVal(activeCol, activeCol, remoteL.val, remoteL.loc);
+            l = findLocVal(activeCol, activeCol, remoteL);
           }
         } else atomic {
-          l = findLocVal(activeCol, activeCol, 0.0, -1);
+          l = findLocVal(activeCol, activeCol);
         }
 
         // Share the pivot info with the appropriate array section
