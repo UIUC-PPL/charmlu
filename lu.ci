@@ -184,55 +184,40 @@ mainmodule lu {
         }
         atomic {
           multicastRecvL();
+          currentStep = internalStep+1;
+        }
+        for (ind = 0;  ind < thisIndex.x - thisIndex.y; ind++) {
+          atomic {
+            DEBUG_PRINT("(%d, %d): incrementing step, times = %d\n", thisIndex.x, thisIndex.y, ind);
+          }
+          for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
+            when doPivot[currentStep*BLKSIZE + pivotBlk](int step, int row1, int row2) atomic {
+              if (row1 != row2) {
+                DEBUG_PIVOT("(%d, %d): LATER received doPivot for %d and %d, step = %d, tag = %d\n", thisIndex.x, thisIndex.y, row1, row2, currentStep, step);
+              }
+              doPivotLocal(row1, row2);
+            }
+            if (remoteSwap) {
+              atomic {
+                thisProxy(otherRowIndex, thisIndex.y)
+                .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow]);
+              }
+              when sendPivotData[globalThisRow](int index, int size, double data[size], double b) atomic {
+                applySwap(thisLocalRow, 0, data, b);
+              }
+            }
+          }
+          atomic {
+            currentStep++;
+          }
         }
       }
-        // Wait for pivot messages, and handle appropriately
-        // Receive and process each pivot selection sent out by the current diagonal block
+      if (thisIndex.x != thisIndex.y) {
         atomic {
-          DEBUG_PRINT("(%d, %d): through code is = %d\n", thisIndex.x, thisIndex.y, internalStep);
+          DEBUG_PIVOT("[%d] chare %d,%d contributing\n", CkMyPe(), thisIndex.x, thisIndex.y);
+          contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
         }
-        if (thisIndex.x != thisIndex.y && thisIndex.x > thisIndex.y) {
-          atomic {
-            DEBUG_PRINT("(%d, %d): waiting on is = %d\n", thisIndex.x, thisIndex.y, internalStep);
-          }
-          atomic {
-            currentStep = internalStep+1;
-          }
-          for (ind = 0;  ind < thisIndex.x - thisIndex.y; ind++) {
-            atomic {
-              DEBUG_PRINT("(%d, %d): incrementing step, times = %d\n", thisIndex.x, thisIndex.y, ind);
-            }
-            for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
-              when doPivot[currentStep*BLKSIZE + pivotBlk](int step, int row1, int row2) atomic {
-                if (row1 != row2) {
-                  DEBUG_PIVOT("(%d, %d): LATER received doPivot for %d and %d, step = %d, tag = %d\n", thisIndex.x, thisIndex.y, row1, row2, currentStep, step);
-                }
-                doPivotLocal(row1, row2);
-              }
-              if (remoteSwap) {
-                atomic {
-                  thisProxy(otherRowIndex, thisIndex.y)
-                  .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow]);
-                }
-                when sendPivotData[globalThisRow](int index, int size, double data[size], double b) atomic {
-                  applySwap(thisLocalRow, 0, data, b);
-                }
-              }
-            }
-            atomic {
-              currentStep++;
-            }
-          }
-          atomic {
-            DEBUG_PIVOT("[%d] chare %d,%d contributing\n", CkMyPe(), thisIndex.x, thisIndex.y);
-            contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
-          }
-        } else if (thisIndex.x != thisIndex.y) {
-          atomic {
-            DEBUG_PIVOT("[%d] chare %d,%d contributing\n", CkMyPe(), thisIndex.x, thisIndex.y);
-            contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
-          }
-        }
+      }
     };
 
 
