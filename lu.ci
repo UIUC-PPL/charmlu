@@ -345,13 +345,13 @@ mainmodule lu {
             if (thisIndex.x == numBlks-1) {
               // Start backward solve
               thisProxy.solve(false);
+            } else {
               // Broadcast downward from diagonal beginForward
+              CProxySection_LUBlk col =
+                CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1,
+                                           1, thisIndex.y, thisIndex.y, 1);
+              col.beginForward(BLKSIZE, x);
             }
-
-            CProxySection_LUBlk col =
-              CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1,
-                                         1, thisIndex.y, thisIndex.y, 1);
-             col.beginForward(BLKSIZE, x);
           } else {
             if (thisIndex.x == 0) {
               mainProxy.iterationCompleted();
