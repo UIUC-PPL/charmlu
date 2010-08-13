@@ -78,10 +78,10 @@ ComlibInstanceHandle multicastStats[4];
 
 class locval {
     public:
-        locval(): val(0.0), loc(-1) {}
-        locval(double _val, int _loc): val(_val), loc(_loc) {}
+        locval(): val(0.0), loc(-1), origLoc(-1) {}
+        locval(double _val, int _loc, int _oloc): val(_val), loc(_loc), origLoc(_oloc) {}
         double val;
-        int loc;
+        int loc, origLoc;
 };
 
 CkReductionMsg *maxLocVal(int nMsg, CkReductionMsg **msgs)
