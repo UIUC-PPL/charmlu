@@ -318,11 +318,14 @@ mainmodule lu {
 
     entry void solve(bool forward1) {
       if (thisIndex.x == thisIndex.y) {
+        // Left-upper corner and bottom-right corner call startSolve without data
         if (thisIndex.x == 0 && thisIndex.y == 0 && forward1) atomic {
           thisProxy(thisIndex.x, thisIndex.y).startSolve(0, NULL);
         } else if (thisIndex.x == numBlks-1 && thisIndex.y == numBlks-1 && !forward1) atomic {
           thisProxy(numBlks-1, numBlks-1).startSolve(0, NULL);
         } else {
+          // The other diagonals wait to receive the row reductions
+          // either to the left (forward solve) or right (backward solve)
           when recvSolveData[thisIndex.x](CkReductionMsg *m) atomic {
             double* preVec = (double*)(m->getData());
             thisProxy(thisIndex.x, thisIndex.y).startSolve(BLKSIZE, preVec);
@@ -342,6 +345,7 @@ mainmodule lu {
             if (thisIndex.x == numBlks-1) {
               // Start backward solve
               thisProxy.solve(false);
+              // Broadcast downward from diagonal beginForward
             }
 
             CProxySection_LUBlk col =
@@ -352,6 +356,7 @@ mainmodule lu {
             if (thisIndex.x == 0) {
               mainProxy.iterationCompleted();
             } else {
+              // Broadcast upward from diagonal beginBackward
               CProxySection_LUBlk col =
                 CProxySection_LUBlk::ckNew(thisArrayID, 0, thisIndex.x-1,
                                            1, thisIndex.y, thisIndex.y, 1);
@@ -361,6 +366,7 @@ mainmodule lu {
         }
       } else if (thisIndex.x > thisIndex.y) {
         when beginForward(int size, double preVec[size]) atomic {
+          // Perform local solve and reduce left-of-diagonal row to diagonal
           double *xvec = new double[BLKSIZE];
           localSolve(xvec, preVec, false, true);
           CkCallback cb(CkIndex_LUBlk::recvSolveData(0), thisProxy(thisIndex.x, thisIndex.x));
@@ -368,6 +374,7 @@ mainmodule lu {
         }
       } else {
         when beginBackward(int size, double preVec[size]) atomic {
+          // Perform local solve and reduce right-of-diagonal row to diagonal
           double *xvec = new double[BLKSIZE];
           localSolve(xvec, preVec, false, false);
           CkCallback cb(CkIndex_LUBlk::recvSolveData(0), thisProxy(thisIndex.x, thisIndex.x));
