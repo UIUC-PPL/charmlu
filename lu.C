@@ -871,20 +871,6 @@ public:
    * state of the block
    */
 
-  //thisIndex.x indicates the internal step it is going to work on
-  void solveLocalLU() {
-    traceLU t(internalStep, traceSolveLocalLU);
-
-    CkAssert(internalStep == thisIndex.x);
-
-    DEBUG_PRINT("elem[%d,%d]::solveLocalLU called at step %d\n", thisIndex.x, thisIndex.y, internalStep);
-
-    CkAssert(thisIndex.x == thisIndex.y);
-
-    LUdecompose(LU);
-  }
-
-
   void computeU(blkMsg *givenLMsg) {
     traceLU t(internalStep, traceComputeU);
     double *givenL = givenLMsg->data;
@@ -1081,24 +1067,6 @@ public:
 
     fclose(file);
 #endif
-  }
-
-  void LUdecompose(double* A) { 
-    for (int j = 0; j < BLKSIZE; j++) {
-      for (int i = 0; i <= j; i++) {
-	double sum = 0.0;
-	for (int k = 0; k < i; k++)
-	  sum += A[getIndex(i, k)] * A[getIndex(k,j)];
-	A[getIndex(i,j)] -= sum;
-      }
-      for (int i = j + 1; i < BLKSIZE; i++) {
-	double sum = 0.0;
-	for (int k = 0; k < j; k++)
-	  sum += A[getIndex(i,k)] * A[getIndex(k,j)];
-	A[getIndex(i,j)] -= sum;
-	A[getIndex(i,j)] /= A[getIndex(j,j)];
-      }
-    }
   }
 
 private:
