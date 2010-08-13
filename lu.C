@@ -88,21 +88,14 @@ CkReductionMsg *maxLocVal(int nMsg, CkReductionMsg **msgs)
 {
   CkAssert(nMsg > 0);
 
-  double val;
-  int loc;
-  locval l = *((locval *)(msgs[0]->getData()));
-
+  locval *l = (locval*) msgs[0]->getData();
   for (int i = 1; i < nMsg; ++i) {
-    loc = ((locval *)(msgs[i]->getData()))->loc;
-    val = ((locval *)(msgs[i]->getData()))->val;
-
-    if (fabs(val) > fabs(l.val)) {
-      l.val = val;
-      l.loc = loc;
-    }
+      locval *n = (locval *) msgs[i]->getData();
+      if ( fabs(n->val) > fabs(l->val) )
+          l = n;
   }
 
-  return CkReductionMsg::buildNew(sizeof(locval), &l);
+  return CkReductionMsg::buildNew(sizeof(locval), l);
 }
 
 /// Global that holds the reducer type for locval
