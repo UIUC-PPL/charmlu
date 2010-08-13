@@ -162,6 +162,11 @@ public:
     for (int i=0; i<num; i++)
       d[i] = nextRndDouble();
   }
+
+  void skipNDoubles(int num) {
+    for (int i=0; i<num; i++)
+      nextRndDouble();
+  }
 };
 
 struct blkMsg: public CMessage_blkMsg {
@@ -537,15 +542,13 @@ public:
 	  // variable b has the original b vector on the diagonals
 
 	  //Regenerate A and place into already allocated LU
-	  MatGen rnd(seed_A);
-	  rnd.getNRndDoubles(BLKSIZE * BLKSIZE, LU);
+    genBlock();
 
 	  //Diagonals regenerate b and distribute x across entire column
 	  if(thisIndex.x == thisIndex.y)
 	  {
 		  b = new double[BLKSIZE];
-		  MatGen rnd(seed_b);
-		  rnd.getNRndDoubles(BLKSIZE, b);
+		  genVec(b);
 
 		  CProxySection_LUBlk col =
 				  CProxySection_LUBlk::ckNew(thisArrayID, 0, numBlks-1,
@@ -732,10 +735,8 @@ public:
   void initVec() {
     bvec = new double[BLKSIZE];
 
-    seed_b = thisIndex.x * numBlks + 9934834;
-    MatGen rnd(seed_b);
-    rnd.getNRndDoubles(BLKSIZE, bvec);
-
+    seed_b = thisIndex.x * numBlks + 9934835;
+    genVec(bvec);
 
 #if defined(PRINT_VECTORS)
     for (int i = 0; i < BLKSIZE; i++) {
@@ -745,6 +746,31 @@ public:
 
     contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
   }
+
+  void genBlock()
+    {
+      MatGen rnd(seed_A);
+
+      // Skip the rows of blocks before this one
+      rnd.skipNDoubles(thisIndex.x * BLKSIZE * BLKSIZE * numBlks);
+      for (int row = 0; row < BLKSIZE; ++row) {
+	// Skip the blocks before this one in this row
+	rnd.skipNDoubles(thisIndex.y * BLKSIZE);
+	rnd.getNRndDoubles(BLKSIZE, LU + row*BLKSIZE);
+	// Skip the blocks after this one in this row
+	rnd.skipNDoubles((numBlks - thisIndex.y - 1) * BLKSIZE);
+      }
+
+    }
+
+  void genVec(double *buf)
+    {
+      MatGen rnd(seed_b);
+
+      // Skip the blocks before this one
+      rnd.skipNDoubles(thisIndex.x * BLKSIZE);
+      rnd.getNRndDoubles(BLKSIZE, buf);
+    }
 
     void init(int _whichMulticastStrategy, int _BLKSIZE, int _numBlks,
 	      int memThreshold, CProxy_LUMgr _mgr) {
@@ -777,10 +803,8 @@ public:
     traceMemoryUsage();	 
      
     //VALIDATION: saved seed value to use for validation
-    seed_A = thisIndex.x * numBlks + thisIndex.y + 2998388;
-    MatGen rnd(seed_A);
-
-    rnd.getNRndDoubles(BLKSIZE * BLKSIZE, LU);
+    seed_A = 2998389;
+    genBlock();
 
 #if 0
     double b = thisIndex.x * BLKSIZE + 1, c = thisIndex.y * BLKSIZE + 1;
