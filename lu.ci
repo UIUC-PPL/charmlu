@@ -193,31 +193,8 @@ mainmodule lu {
           CkCallback cb(CkIndex_LUBlk::recvSolveData(0), thisProxy(thisIndex.x, thisIndex.x));
           mcastMgr->contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double, rowBeforeCookie, cb, thisIndex.x);
         }
-        for (ind = 0;  ind < thisIndex.x - thisIndex.y; ind++) {
-          atomic {
-            DEBUG_PRINT("(%d, %d): incrementing step, times = %d\n", thisIndex.x, thisIndex.y, ind);
-          }
-          for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
-            when doPivot[currentStep*BLKSIZE + pivotBlk](int step, int row1, int row2) atomic {
-              if (row1 != row2) {
-                DEBUG_PIVOT("(%d, %d): LATER received doPivot for %d and %d, step = %d, tag = %d\n", thisIndex.x, thisIndex.y, row1, row2, currentStep, step);
-              }
-              doPivotLocal(row1, row2);
-            }
-            if (remoteSwap) {
-              atomic {
-                thisProxy(otherRowIndex, thisIndex.y)
-                .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow]);
-              }
-              when sendPivotData[globalThisRow](int index, int size, double data[size], double b) atomic {
-                applySwap(thisLocalRow, 0, data, b);
-              }
-            }
-          }
-          atomic {
-            currentStep++;
-          }
-        }
+        // TODO: doPivots are getting sent here for no reason
+        // need to fix multicast
       }
       if (thisIndex.x != thisIndex.y) {
         atomic {
@@ -293,37 +270,23 @@ mainmodule lu {
       }
 
       when startSolve(int size, double preVec[size]) atomic {
-        bool forward1 = true;
         x = new double[BLKSIZE];
 
-        localSolve(x, (size == BLKSIZE) ? preVec : NULL, true, forward1);
+        localSolve(x, (size == BLKSIZE) ? preVec : NULL, true, true);
 
-        if (forward1) {
-          for (int i = 0; i < BLKSIZE; i++) {
-            bvec[i] = x[i];
-          }
-
-          if (thisIndex.x == numBlks-1) {
-            // Start backward solve
-            thisProxy.solve(false);
-          } else {
-            // Broadcast downward from diagonal beginForward
-            CProxySection_LUBlk col =
-              CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1,
-                                         1, thisIndex.y, thisIndex.y, 1);
-            col.beginForward(BLKSIZE, x);
-          }
-        } else {
-          if (thisIndex.x == 0) {
-            mainProxy.iterationCompleted();
-          } else {
-            // Broadcast upward from diagonal beginBackward
-            CProxySection_LUBlk col =
-              CProxySection_LUBlk::ckNew(thisArrayID, 0, thisIndex.x-1,
-                                         1, thisIndex.y, thisIndex.y, 1);
-            col.beginBackward(BLKSIZE, x);
-          }
+        for (int i = 0; i < BLKSIZE; i++) {
+          bvec[i] = x[i];
         }
+
+        // Broadcast downward from diagonal beginForward
+        CProxySection_LUBlk col =
+          CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1,
+                                     1, thisIndex.y, thisIndex.y, 1);
+        col.beginForward(BLKSIZE, x);
+      }
+
+      atomic {
+        applyPivotbvec();
       }
 
       atomic {
