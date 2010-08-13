@@ -329,7 +329,10 @@ public:
       CkPrintf("called solve()\n");
 
       // Perform forward solving
-      luArrProxy.solve(true);
+      // luArrProxy.solve(true);
+
+      // Forward solving completed, begin backward
+      luArrProxy.solve(false);
 
       solved = true;
       iteration++;

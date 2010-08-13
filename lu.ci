@@ -118,10 +118,10 @@ mainmodule lu {
           if (remoteSwap) {
             atomic {
               thisProxy(otherRowIndex, thisIndex.y)
-              .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow]);
+              .sendPivotData(globalOtherRow, 0, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow]);
             }
             when sendPivotData[globalThisRow](int index, int size, double data[size], double b) atomic {
-              applySwap(thisLocalRow, 0, data, b);
+              bvec[thisLocalRow] = b;
             }
           }
         }
@@ -184,6 +184,14 @@ mainmodule lu {
         atomic {
           multicastRecvL();
           currentStep = internalStep+1;
+        }
+        // Wait for forward solve message
+        when beginForward(int size, double preVec[size]) atomic {
+          // Perform local solve and reduce left-of-diagonal row to diagonal
+          double *xvec = new double[BLKSIZE];
+          localSolve(xvec, preVec, false, true);
+          CkCallback cb(CkIndex_LUBlk::recvSolveData(0), thisProxy(thisIndex.x, thisIndex.x));
+          mcastMgr->contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double, rowBeforeCookie, cb, thisIndex.x);
         }
         for (ind = 0;  ind < thisIndex.x - thisIndex.y; ind++) {
           atomic {
@@ -270,6 +278,51 @@ mainmodule lu {
           CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
           oneCol.sendUSegment(BLKSIZE - activeCol, &LU[getIndex(activeCol, activeCol)]);
           diagonalUpdate(activeCol);
+        }
+      }
+
+      if (thisIndex.x == 0 && thisIndex.y == 0) atomic {
+        thisProxy(thisIndex.x, thisIndex.y).startSolve(0, NULL);
+      } else {
+        // The other diagonals wait to receive the row reductions
+        // either to the left (forward solve) or right (backward solve)
+        when recvSolveData[thisIndex.x](CkReductionMsg *m) atomic {
+          double* preVec = (double*)(m->getData());
+          thisProxy(thisIndex.x, thisIndex.y).startSolve(BLKSIZE, preVec);
+        }
+      }
+
+      when startSolve(int size, double preVec[size]) atomic {
+        bool forward1 = true;
+        x = new double[BLKSIZE];
+
+        localSolve(x, (size == BLKSIZE) ? preVec : NULL, true, forward1);
+
+        if (forward1) {
+          for (int i = 0; i < BLKSIZE; i++) {
+            bvec[i] = x[i];
+          }
+
+          if (thisIndex.x == numBlks-1) {
+            // Start backward solve
+            thisProxy.solve(false);
+          } else {
+            // Broadcast downward from diagonal beginForward
+            CProxySection_LUBlk col =
+              CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1,
+                                         1, thisIndex.y, thisIndex.y, 1);
+            col.beginForward(BLKSIZE, x);
+          }
+        } else {
+          if (thisIndex.x == 0) {
+            mainProxy.iterationCompleted();
+          } else {
+            // Broadcast upward from diagonal beginBackward
+            CProxySection_LUBlk col =
+              CProxySection_LUBlk::ckNew(thisArrayID, 0, thisIndex.x-1,
+                                         1, thisIndex.y, thisIndex.y, 1);
+            col.beginBackward(BLKSIZE, x);
+          }
         }
       }
 
