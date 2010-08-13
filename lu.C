@@ -626,7 +626,7 @@ public:
 	  //find local max values
 	  double A_max = infNorm(BLKSIZE * BLKSIZE, LU);
 	  double b_max = infNorm(BLKSIZE, b);
-	  double x_max = infNorm(BLKSIZE, bvec);
+	  double x_max = infNorm(BLKSIZE, x);
 	  double res_max = infNorm(BLKSIZE, residuals);
 	  DEBUG_PRINT("[%d,%d] A_max  = %e\n",thisIndex.x,thisIndex.y,A_max);
 	  DEBUG_PRINT("[%d,%d] b_max  = %e\n",thisIndex.x,thisIndex.y,b_max);
