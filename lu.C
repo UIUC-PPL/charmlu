@@ -735,7 +735,7 @@ public:
   void initVec() {
     bvec = new double[BLKSIZE];
 
-    seed_b = thisIndex.x * numBlks + 9934835;
+    seed_b = 9934835;
     genVec(bvec);
 
 #if defined(PRINT_VECTORS)
