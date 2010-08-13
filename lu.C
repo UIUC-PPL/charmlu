@@ -93,7 +93,7 @@ CkReductionMsg *maxLocVal(int nMsg, CkReductionMsg **msgs)
     loc = ((locval *)(msgs[i]->getData()))->loc;
     val = ((locval *)(msgs[i]->getData()))->val;
 
-    if (val > l.val) {
+    if (fabs(val) > fabs(l.val)) {
       l.val = val;
       l.loc = loc;
     }
