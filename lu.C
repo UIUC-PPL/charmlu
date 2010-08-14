@@ -567,7 +567,7 @@ public:
 #if USE_ESSL
     dgemv("T", BLKSIZE, BLKSIZE, 1.0, LU, BLKSIZE, xvec, 1, 0.0, partial_b, 1);
 #else
-    cblas_dgemv( CblasColMajor, CblasTrans,
+    cblas_dgemv( CblasRowMajor, CblasNoTrans,
     		  BLKSIZE, BLKSIZE, 1.0, LU,
     		  BLKSIZE, xvec, 1, 0.0, partial_b, 1);
 #endif
