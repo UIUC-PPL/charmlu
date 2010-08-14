@@ -1092,7 +1092,7 @@ public:
 private:
 
   // Copy received pivot data into its place in this block
-    void applySwap(int row, int offset, double *data, double b) {
+    void applySwap(int row, int fromGlobalRow, int offset, double *data, double b) {
       DEBUG_PIVOT("(%d, %d): remote pivot inserted at %d\n", thisIndex.x, thisIndex.y, row);
       bvec[row] = b;
     for (int col = offset; col < BLKSIZE; ++col)
