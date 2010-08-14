@@ -483,6 +483,8 @@ class LUBlk: public CBase_LUBlk {
   bool remoteSwap;
   locval l;
   int pivotBlk;
+  // Vector of pivots used to store the original global row numbers
+  int *permutationVec;
 
   /// The sub-diagaonal chare array section that will participate in pivot selection
   /// @note: Only the diagonal chares will create and mcast along this section
@@ -861,6 +863,11 @@ public:
         }
     }
 
+    // Initialize the pivot vector with the original global row numbers
+    permutationVec = new int[BLKSIZE];
+    for (int i=0; i < BLKSIZE; i++)
+        permutationVec[i] = thisIndex.x * BLKSIZE + i;
+
     // All chares except members of pivot sections are done with init
   }
 
@@ -1092,8 +1099,10 @@ public:
 private:
 
   // Copy received pivot data into its place in this block
-    void applySwap(int row, int fromGlobalRow, int offset, double *data, double b) {
+    void applySwap(int row, int fromOrigRow, int offset, double *data, double b) {
       DEBUG_PIVOT("(%d, %d): remote pivot inserted at %d\n", thisIndex.x, thisIndex.y, row);
+      // Store the original global row number of the incoming row in the permutation vector
+      permutationVec[row] = fromOrigRow;
       bvec[row] = b;
     for (int col = offset; col < BLKSIZE; ++col)
       LU[getIndex(row, col)] = data[col - offset];
@@ -1102,9 +1111,15 @@ private:
   // Exchange local data
   void swapLocal(int row1, int row2) {
     double buf;
+    // Swap the pivot vector
+    buf = permutationVec[row1];
+    permutationVec[row1] = permutationVec[row2];
+    permutationVec[row2] = buf;
+    // Swap the b vector
     buf = bvec[row1];
     bvec[row1] = bvec[row2];
     bvec[row2] = buf;
+    // Swap the row of A (LU)
     for (int col = 0; col < BLKSIZE; col++) {
       buf = LU[getIndex(row1, col)];
       LU[getIndex(row1, col)] = LU[getIndex(row2, col)];
@@ -1155,6 +1170,7 @@ private:
       if ( fabs(LU[getIndex(row, col)]) > fabs(l.val) ) {
         l.val = LU[getIndex(row, col)];
         l.loc = row + BLKSIZE * thisIndex.x;
+        l.origLoc = permutationVec[row];
       }
     return l;
   }
