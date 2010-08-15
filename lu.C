@@ -488,7 +488,7 @@ class LUBlk: public CBase_LUBlk {
   locval l;
   int pivotBlk;
 
-  /// The sub-diagaonal chare array section that will participate in pivot selection
+  /// The sub-diagonal chare array section that will participate in pivot selection
   /// @note: Only the diagonal chares will create and mcast along this section
   CProxySection_LUBlk pivotSection;
   /// All pivot sections members will save a cookie to their section
