@@ -285,6 +285,10 @@ mainmodule lu {
           DEBUG_PIVOT("[%d] chare %d,%d contributing\n", CkMyPe(), thisIndex.x, thisIndex.y);
           contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
         }
+
+        // Testing the pivot recording
+        for (int i=0; i< BLKSIZE; i++)
+            DEBUG_PIVOT("Current row %d was originally row %d\n",thisIndex.x*BLKSIZE + i, permutationVec[i]);
       }
     };
 
