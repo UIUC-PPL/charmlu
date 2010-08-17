@@ -48,3 +48,7 @@ BLAS_LIBS = -lcblas
 #BLAS_LD   = $(BGP_LIBS)
 #BLAS_LIBS = -lesslbg -lmass -lxlfmath -lxlf90_r -lxlsmp -lxlomp_ser -lpthread
 
+
+# BluePrint
+#BLAS_INC = -DUSE_ESSL=1 -DUSE_MEMALIGN=1
+#BLAS_LIBS = -lessl
