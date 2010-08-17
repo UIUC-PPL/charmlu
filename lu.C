@@ -65,13 +65,15 @@ int traceComputeL;
 int traceSolveLocalLU;
 bool doPrioritize;
 ComlibInstanceHandle multicastStats[4];
- 
+
 #ifdef CHARMLU_DEBUG
     #define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
     #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
+    #define DEBUG_IMPLICIT_PIVOT(...) CkPrintf(__VA_ARGS__)
 #else
     #define DEBUG_PRINT(...)
     #define DEBUG_PIVOT(...)
+    #define DEBUG_IMPLICIT_PIVOT(...)
 #endif
 
 #include <cmath>
@@ -483,8 +485,14 @@ class LUBlk: public CBase_LUBlk {
   bool remoteSwap;
   locval l;
   int pivotBlk;
-  // Vector of pivots used to store the original global row numbers
+  /// Vector of pivots used to store the original global row numbers
   int *permutationVec;
+  // A sorted copy of the permutation vector used temporarily while exchanging data
+  int *sortedPermutationVec;
+  /// The number of rows held by this chare (after pivoting) that were originally held by other chares
+  int numRemoteSwaps, numPendingPivots;
+  // @todo: Remove once y pivoting is triggered after the fwd solve
+  double *pivotedB;
 
   /// The sub-diagaonal chare array section that will participate in pivot selection
   /// @note: Only the diagonal chares will create and mcast along this section
@@ -1096,6 +1104,21 @@ public:
 #endif
   }
 
+  void sendPivotDataToFinalOwner(int requestingChareIdx, int nRows, int* rowIndex) {
+      DEBUG_IMPLICIT_PIVOT("[%d,%d] Sending to chare (%d,%d) b vector rows: ",
+                           thisIndex.x, thisIndex.y, requestingChareIdx, thisIndex.y);
+
+      double *bChunk = new double[nRows];
+      for (int i=0; i < nRows; i++) {
+          CkAssert(rowIndex[i] / BLKSIZE == thisIndex.x);
+          bChunk[i] = bvec[ rowIndex[i]%BLKSIZE ];
+          DEBUG_IMPLICIT_PIVOT(" %d ",rowIndex[i]);
+      }
+      thisProxy(requestingChareIdx, thisIndex.y).assemblePivotedB(thisIndex.x, nRows, bChunk);
+      DEBUG_IMPLICIT_PIVOT("\n");
+      delete bChunk;
+  }
+
 private:
 
   // Copy received pivot data into its place in this block
@@ -1208,6 +1231,93 @@ private:
     }
   }
 
+
+  /// Send out requests to all chares in your column to have them send you remote data for pivoting b
+  void requestRemotePivotData() {
+      pivotedB = new double[BLKSIZE];
+
+      // Setup a sorted copy of the permutation vector
+      sortedPermutationVec = new int[BLKSIZE];
+      memcpy(sortedPermutationVec,permutationVec,BLKSIZE*sizeof(int));
+      std::sort(sortedPermutationVec, sortedPermutationVec + BLKSIZE);
+
+      numRemoteSwaps = BLKSIZE;
+      int rowStart=0, xIdx = 0, toIdx = sortedPermutationVec[rowStart]/BLKSIZE;
+      // Send out the appropriate chunks to each processor
+      for (int rowNum=0; rowNum <= BLKSIZE; rowNum++) {
+          // Find the chare row that originally held this matrix row
+          xIdx = (rowNum<BLKSIZE)? sortedPermutationVec[rowNum] / BLKSIZE: -1;
+          // Collate all the matrix row requests that are going to the same chare
+          if (xIdx != toIdx) {
+            int nRows = rowNum - rowStart;
+            CkAssert(toIdx>=0 && toIdx < numBlks);
+            // If the required matrix rows lived on a different chare row, trigger a remote swap
+            if (toIdx != thisIndex.x)
+                thisProxy(toIdx, thisIndex.y).sendPivotDataToFinalOwner(thisIndex.x, nRows, &sortedPermutationVec[rowStart]);
+            // else, the required matrix rows originally belonged to this chare (only local swaps)
+            else {
+                // Shuffle the required portions of b into the pivoted vector
+                for (int i=0; i<nRows; i++) {
+                    // Compute the original local row number
+                    int fromRow = sortedPermutationVec[rowStart+i] % BLKSIZE;
+                    // Compute the destination local row number
+                    int toRow   = std::find(permutationVec,
+                                            permutationVec + BLKSIZE,
+                                            sortedPermutationVec[rowStart+i]
+                                           ) - permutationVec;
+                    pivotedB[toRow] = bvec[fromRow];
+                }
+                // Update the total number of remote (b vector) pivot operations pending
+                numRemoteSwaps -= nRows;
+            }
+            // Update the destination index and the list of rows for the next pivot data request
+            rowStart = rowNum;
+            toIdx = xIdx;
+          }
+      }
+  }
+
+
+  void assembleB(int originalOwnerIdx, int nRows, double* bChunk) {
+      // Compute the sending chare's smallest possible global matrix row number
+      int minRowNumber = originalOwnerIdx * BLKSIZE;
+      // Find the first required row from this chare in the sorted permutation vector
+      int *rowStart = std::find_if( sortedPermutationVec,
+                                    sortedPermutationVec+BLKSIZE,
+                                    std::bind2nd(std::greater_equal<int>(),minRowNumber)
+                                  );
+      // Find the last required row from this chare in the sorted permutation vector
+      int *rowEnd   = std::find_if( sortedPermutationVec,
+                                    sortedPermutationVec+BLKSIZE,
+                                    std::bind2nd(std::greater_equal<int>(),minRowNumber+BLKSIZE)
+                                  );
+      // Verify that we are expecting rows from this chare and it has sent the correct num of rows
+      CkAssert(rowStart < sortedPermutationVec + BLKSIZE);
+      CkAssert(nRows == rowEnd - rowStart);
+
+      // Step through the whole permutation vector and assemble the pivoted data
+      int *remainingRows = permutationVec;
+      while (remainingRows < permutationVec + BLKSIZE) {
+          // Find the next required row (from the sending chare) in the actual permutation vector
+          int *loc = std::find_first_of(remainingRows, permutationVec + BLKSIZE, rowStart, rowEnd);
+          // If there is such a required row
+          if (loc < permutationVec + BLKSIZE) {
+              // Compute the offset to this row's data in the incoming msg
+              int rowOffset = std::find(rowStart, rowEnd, *loc) - rowStart;
+              // Copy it to the correct location
+              pivotedB[loc-permutationVec] = bChunk[rowOffset];
+              #if 0
+              DEBUG_IMPLICIT_PIVOT("[%d,%d] Assembling pivoted data: from offset %d in incoming buffer into local row %d. val = %f\n",
+                       thisIndex.x, thisIndex.y, rowOffset, loc-permutationVec, bChunk[rowOffset]);
+              #endif
+          }
+          // Prepare to search the rest of the permutation vector
+          remainingRows = ++loc;
+      }
+
+      DEBUG_IMPLICIT_PIVOT("[%d,%d] Received %d rows for pivoting from (%d,%d). Expecting another %d remote rows\n", thisIndex.x, thisIndex.y, nRows, originalOwnerIdx, thisIndex.y, numPendingPivots-nRows);
+  }
 };
 
 #include "lu.def.h"
+

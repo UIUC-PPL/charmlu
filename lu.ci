@@ -50,6 +50,8 @@ mainmodule lu {
     entry void sendPivotData(int toGlobalRow, int fromOrigRow, int size, double data[size], double b);
     entry void doPivot(int activeRow, int row1, int row2);
     entry void sendUSegment(int size, double usegment[size]);
+    entry void sendPivotDataToFinalOwner(int requestingChareIdx, int nRows, int rowIndex[nRows]);
+    entry void assemblePivotedB(int originalOwnerIdx, int nRows, double bChunk[nRows]);
 
     // Describes the control flow for all (super, sub and on diagonal) LU chares
     entry void factor() {
@@ -272,6 +274,28 @@ mainmodule lu {
       }
 
       atomic {
+        // Print the final, post-pivoting global row numbers that belong to this chare
+        for (int i=0; i< BLKSIZE; i++)
+            DEBUG_IMPLICIT_PIVOT("Current row %d was originally row %d\n",thisIndex.x*BLKSIZE + i, permutationVec[i]);
+        // Trigger the requests for remote data (b vector pivoting)
+        requestRemotePivotData();
+        numPendingPivots = numRemoteSwaps;
+      }
+
+      while (numPendingPivots > 0) {
+        when assemblePivotedB(int originalOwnerIdx, int nRows, double bChunk[nRows]) atomic {
+          // Assemble the pivoted data
+          assembleB(originalOwnerIdx, nRows, bChunk);
+          // Update the number of remote rows yet to be received
+          numPendingPivots -= nRows;
+        }
+      }
+
+      atomic {
+        // Spit out the pivoted B vector
+        for (int i=0; i<BLKSIZE; i++)
+          DEBUG_IMPLICIT_PIVOT("pivoted B %f\n",pivotedB[i]);
+
         // The last diagonal chare finishes the factorization
         if (thisIndex.x == numBlks-1 && thisIndex.y == numBlks-1) {
           DEBUG_PIVOT("[%d] chare %d,%d contributing\n", CkMyPe(), thisIndex.x, thisIndex.y);
@@ -285,10 +309,6 @@ mainmodule lu {
           DEBUG_PIVOT("[%d] chare %d,%d contributing\n", CkMyPe(), thisIndex.x, thisIndex.y);
           contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
         }
-
-        // Testing the pivot recording
-        for (int i=0; i< BLKSIZE; i++)
-            DEBUG_PIVOT("Current row %d was originally row %d\n",thisIndex.x*BLKSIZE + i, permutationVec[i]);
       }
     };
 
