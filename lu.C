@@ -653,12 +653,17 @@ public:
     
     if(thisIndex.y == 0 && thisIndex.x == 1){	  
       
-#if USE_MEMALIGN
+#if USE_MEMALIGN==1
       double *m1 = (double*)memalign(128, blocksize*blocksize*sizeof(double) );
       double *m2 = (double*)memalign(128, blocksize*blocksize*sizeof(double) ); 
       double *m3 = (double*)memalign(128, blocksize*blocksize*sizeof(double) );
       if(m1 == NULL || m2 == NULL || m3 == NULL)
 	return;
+#elif USE_MEMALIGN==2
+      double *m1, *m2, *m3;
+      posix_memalign(&m1, 1024, blocksize*blocksize*sizeof(double) );
+      posix_memalign(&m2, 1024, blocksize*blocksize*sizeof(double) );
+      posix_memalign(&m3, 1024, blocksize*blocksize*sizeof(double) );
 #else
       double *m1 = new double[blocksize*blocksize]; 
       double *m2 = new double[blocksize*blocksize]; 
@@ -786,10 +791,12 @@ public:
 			 // propagated soon enough. I'm assuming they
 			 // are safe to use here.
 
-#if USE_MEMALIGN
+#if USE_MEMALIGN==1
     LU = (double*)memalign(128, BLKSIZE*BLKSIZE*sizeof(double) );
     //	 CkPrintf("LU mod 128 = %lu\n", ((unsigned long)LU) % 128);
     CkAssert(LU != NULL);
+#elif USE_MEMALIGN==2
+    posix_memalign(&lu, 1024, BLKSIZE*BLKSIZE*sizeof(double) );
 #else
     LU = new double[BLKSIZE*BLKSIZE];
 #endif
