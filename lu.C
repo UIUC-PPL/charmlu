@@ -464,6 +464,8 @@ class LUBlk: public CBase_LUBlk {
   double *b;
   //VALIDATION: variable to hold copy of final x
   double *x;
+  //VALIDATION: variable to hold Ax
+  double *Ax;
 
   double* storedVec;
   int diagRec;
@@ -550,6 +552,7 @@ public:
 						  1, thisIndex.y, thisIndex.y, 1);
 
 		  col.recvXvec(BLKSIZE, x);
+          Ax = new double[BLKSIZE];
 	  }
   }
 
@@ -592,13 +595,13 @@ public:
 	  //Clear bvec before first message processed for sum-reduction
 	  if(msgsRecvd == 0) {
 		  for(int i = 0; i < BLKSIZE; i++)
-			  bvec[i] = 0.0;
+			  Ax[i] = 0.0;
 	  }
 
 	  //Sum up messages
 	  if(++msgsRecvd <= numBlks) {
 		  for (int i = 0; i < size; i++) {
-			  bvec[i] += partial_b[i];
+			  Ax[i] += partial_b[i];
 		  }
 	  }
 
@@ -613,7 +616,7 @@ public:
 
 	  //diagonal elements that received sum-reduction perform b - A*x
 	  for (int i = 0; i < BLKSIZE; i++) {
-		  residuals[i] = b[i] - bvec[i];
+		  residuals[i] = b[i] - Ax[i];
 //		  if(fabs(residuals[i]) > 1e-14 || std::isnan(residuals[i]) || std::isinf(residuals[i]))
 //			  CkPrintf("WARNING: Large Residual for x[%d]: %f - %f = %e\n", thisIndex.x*BLKSIZE+i, b[i], bvec[i], residuals[i]);
 	  }
