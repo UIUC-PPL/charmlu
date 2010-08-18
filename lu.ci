@@ -272,19 +272,14 @@ mainmodule lu {
       }
 
       atomic {
-        // The last diagonal chare finishes the factorization
-        if (thisIndex.x == numBlks-1 && thisIndex.y == numBlks-1) {
-          DEBUG_PIVOT("[%d] chare %d,%d contributing\n", CkMyPe(), thisIndex.x, thisIndex.y);
-          contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
-        } 
-        // All other diagonal chares must continue the computations
-        else {
-          DEBUG_PRINT("[%d] chare %d,%d is top,left block this step, multicast U & L\n", CkMyPe(), thisIndex.x, thisIndex.y);
+        // All diagonal chares except the last must continue the factorization
+        if (thisIndex.x < numBlks-1 && thisIndex.y < numBlks-1) {
+          DEBUG_PRINT("[%d] chare %d,%d is top,left block this step, multicast L\n", CkMyPe(), thisIndex.x, thisIndex.y);
           // Multicast the local block of L rightwards to the blocks in the same row
           multicastRecvL();
-          DEBUG_PIVOT("[%d] chare %d,%d contributing\n", CkMyPe(), thisIndex.x, thisIndex.y);
-          contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
         }
+        // Contribute to a reduction indicating that this chare is done with its factorization work
+        contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
       }
     };
 
