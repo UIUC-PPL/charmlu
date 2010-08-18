@@ -323,17 +323,9 @@ public:
       //VALIDATION: Instead of ending program, perform validation
       //terminateProg();
       luArrProxy.startValidation();
-
     } else if (!solved && LUcomplete) {
       luArrProxy.print();
-
-      //luArrProxy(0, 0).print();
-
-      CkPrintf("called solve()\n");
-
-      // Perform forward solving
-      luArrProxy.solve(true);
-
+      luArrProxy(0,0).forwardSolve();
       solved = true;
       iteration++;
     } else {
@@ -465,8 +457,6 @@ class LUBlk: public CBase_LUBlk {
   double *bvec;
   //VALIDATION: variable to hold copy of untouched b vector (allocated during validation)
   double *b;
-  //VALIDATION: variable to hold copy of final x
-  double *x;
   //VALIDATION: variable to hold Ax
   double *Ax;
 
@@ -546,7 +536,7 @@ public:
   //VALIDATION
   void startValidation() {
 	  // Starting state:
-	  // solution sub-vector x is in variable x on the diagonals
+	  // solution sub-vector x is in variable bvec on the diagonals
 	  // variable b has the original b vector on the diagonals
 
 	  //Regenerate A and place into already allocated LU
@@ -562,8 +552,9 @@ public:
 				  CProxySection_LUBlk::ckNew(thisArrayID, 0, numBlks-1,
 						  1, thisIndex.y, thisIndex.y, 1);
 
-		  col.recvXvec(BLKSIZE, x);
+          col.recvXvec(BLKSIZE, bvec);
           Ax = new double[BLKSIZE];
+
 	  }
   }
 
@@ -635,7 +626,7 @@ public:
 	  //find local max values
 	  double A_max = infNorm(BLKSIZE * BLKSIZE, LU);
 	  double b_max = infNorm(BLKSIZE, b);
-	  double x_max = infNorm(BLKSIZE, x);
+	  double x_max = infNorm(BLKSIZE, bvec);
 	  double res_max = infNorm(BLKSIZE, residuals);
 	  DEBUG_PRINT("[%d,%d] A_max  = %e\n",thisIndex.x,thisIndex.y,A_max);
 	  DEBUG_PRINT("[%d,%d] b_max  = %e\n",thisIndex.x,thisIndex.y,b_max);
@@ -802,9 +793,6 @@ public:
 #else
     LU = new double[BLKSIZE*BLKSIZE];
 #endif
-
-    //Allocated space to hold solution
-    x = new double[BLKSIZE];
 
     internalStep = 0;  
      
@@ -1054,17 +1042,6 @@ public:
           xvec[i] += LU[getIndex(i,j)] * preVec[j];
         }
       }
-    } else {
-      if (preVec != NULL)
-        for (int i = 0; i < BLKSIZE; i++)
-          xvec[i] = bvec[i] - preVec[i];
-      else
-        memcpy(xvec, bvec, sizeof(double) * BLKSIZE);
-      
-      if (forward)
-	localForward(xvec);
-      else
-	localBackward(xvec);
     }
   }
 
@@ -1084,6 +1061,25 @@ public:
       xvec[i] /= LU[getIndex(i,i)];
     }
   }
+
+
+  void beginForward(int size, double *preVec) {
+      // Perform local solve and reduce left-of-diagonal row to diagonal
+      double *xvec = new double[BLKSIZE];
+      localSolve(xvec, preVec, false, true);
+      CkCallback cb(CkIndex_LUBlk::recvSolveData(0), thisProxy(thisIndex.x, thisIndex.x));
+      mcastMgr->contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double, rowBeforeCookie, cb, thisIndex.x);
+  }
+
+
+  void beginBackward(int size, double *preVec) {
+      // Perform local solve and reduce right-of-diagonal row to diagonal
+      double *xvec = new double[BLKSIZE];
+      localSolve(xvec, preVec, false, false);
+      CkCallback cb(CkIndex_LUBlk::recvSolveData(0), thisProxy(thisIndex.x, thisIndex.x));
+      mcastMgr->contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double, rowAfterCookie, cb, thisIndex.x);
+  }
+
 
   void print() {
     this->print("LU-solution");
