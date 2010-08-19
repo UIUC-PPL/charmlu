@@ -1105,7 +1105,7 @@ public:
 
   void sendPivotDataToFinalOwner(int requestingChareIdx, int nRows, int* rowIndex) {
       DEBUG_IMPLICIT_PIVOT("[%d,%d] Sending to chare (%d,%d) b vector rows: ",
-                           thisIndex.x, thisIndex.y, requestingChareIdx, thisIndex.y);
+                           thisIndex.x, thisIndex.y, requestingChareIdx, requestingChareIdx);
 
       double *bChunk = new double[nRows];
       for (int i=0; i < nRows; i++) {
@@ -1113,7 +1113,7 @@ public:
           bChunk[i] = bvec[ rowIndex[i]%BLKSIZE ];
           DEBUG_IMPLICIT_PIVOT(" %d ",rowIndex[i]);
       }
-      thisProxy(requestingChareIdx, thisIndex.y).assemblePivotedB(thisIndex.x, nRows, bChunk);
+      thisProxy(requestingChareIdx, requestingChareIdx).assemblePivotedB(thisIndex.x, nRows, bChunk);
       DEBUG_IMPLICIT_PIVOT("\n");
       delete bChunk;
   }
@@ -1252,7 +1252,7 @@ private:
             CkAssert(toIdx>=0 && toIdx < numBlks);
             // If the required matrix rows lived on a different chare row, trigger a remote swap
             if (toIdx != thisIndex.x)
-                thisProxy(toIdx, thisIndex.y).sendPivotDataToFinalOwner(thisIndex.x, nRows, &sortedPermutationVec[rowStart]);
+                thisProxy(toIdx, toIdx).sendPivotDataToFinalOwner(thisIndex.x, nRows, &sortedPermutationVec[rowStart]);
             // else, the required matrix rows originally belonged to this chare (only local swaps)
             else {
                 // Shuffle the required portions of b into the pivoted vector
@@ -1314,7 +1314,7 @@ private:
           remainingRows = ++loc;
       }
 
-      DEBUG_IMPLICIT_PIVOT("[%d,%d] Received %d rows for pivoting from (%d,%d). Expecting another %d remote rows\n", thisIndex.x, thisIndex.y, nRows, originalOwnerIdx, thisIndex.y, numPendingPivots-nRows);
+      DEBUG_IMPLICIT_PIVOT("[%d,%d] Received %d rows for pivoting from (%d,%d). Expecting another %d remote rows\n", thisIndex.x, thisIndex.y, nRows, originalOwnerIdx, originalOwnerIdx, numPendingPivots-nRows);
   }
 };
 
