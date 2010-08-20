@@ -279,23 +279,12 @@ mainmodule lu {
             DEBUG_IMPLICIT_PIVOT("Current row %d was originally row %d\n",thisIndex.x*BLKSIZE + i, permutationVec[i]);
         // Trigger the requests for remote data (b vector pivoting)
         requestRemotePivotData();
-        numPendingPivots = numRemoteSwaps;
-      }
-
-      while (numPendingPivots > 0) {
-        when assemblePivotedB(int originalOwnerIdx, int nRows, double bChunk[nRows]) atomic {
-          // Assemble the pivoted data
-          assembleB(originalOwnerIdx, nRows, bChunk);
-          // Update the number of remote rows yet to be received
-          numPendingPivots -= nRows;
-        }
+        // Record how many rows of pivot data this chare will be sending/recving
+        numPendingPivotSends = numRemoteSwaps;
+        numPendingPivotRecvs = numRemoteSwaps;
       }
 
       atomic {
-        // Spit out the pivoted B vector
-        for (int i=0; i<BLKSIZE; i++)
-          DEBUG_IMPLICIT_PIVOT("pivoted B %f\n",pivotedB[i]);
-
         // All diagonal chares except the last must continue the factorization
         if (thisIndex.x < numBlks-1 && thisIndex.y < numBlks-1) {
           DEBUG_PRINT("[%d] chare %d,%d is top,left block this step, multicast L\n", CkMyPe(), thisIndex.x, thisIndex.y);
@@ -344,9 +333,7 @@ mainmodule lu {
 
         atomic {
           localForward(bvec);
-          if (thisIndex.x == numBlks-1)
-            thisProxy(thisIndex.x, thisIndex.y).backwardSolve();
-          else {
+          if (thisIndex.x < numBlks-1) {
             // Broadcast downward from diagonal beginForward
             CProxySection_LUBlk col = CProxySection_LUBlk::ckNew(thisArrayID,
                                                     thisIndex.x+1, numBlks-1, 1,
@@ -354,6 +341,48 @@ mainmodule lu {
             col.beginForward(BLKSIZE, bvec);
             thisProxy(thisIndex.x+1,thisIndex.y+1).forwardSolve();
           }
+        }
+
+        // While there are pivot rows yet to be received / sent out
+        overlap {
+          while (numPendingPivotSends > 0) {
+            // Send out pivot data
+            when sendPivotDataToFinalOwner(int requestingChareIdx, int nRows, int rowIndex[nRows]) atomic {
+              DEBUG_IMPLICIT_PIVOT("[%d,%d] Sending to chare (%d,%d) b vector rows: ", 
+                                   thisIndex.x, thisIndex.y, requestingChareIdx, requestingChareIdx);
+              double *bChunk = new double[nRows];
+              // Extract the requested rows into a buffer
+              for (int i=0; i < nRows; i++) {
+                CkAssert(rowIndex[i] / BLKSIZE == thisIndex.x);
+                bChunk[i] = bvec[ rowIndex[i]%BLKSIZE ];
+                DEBUG_IMPLICIT_PIVOT(" %d ",rowIndex[i]);
+              }
+              DEBUG_IMPLICIT_PIVOT("\n");
+              // Send the required data to the chare that asked for it
+              thisProxy(requestingChareIdx, requestingChareIdx).assemblePivotedB(thisIndex.x, nRows, bChunk);
+              // Update the number of rows that still need to be sent out
+              numPendingPivotSends -= nRows;
+              delete bChunk;
+            }
+          }
+
+          while (numPendingPivotRecvs > 0) {
+            // Receive pivot data
+            when assemblePivotedB(int originalOwnerIdx, int nRows, double bChunk[nRows]) atomic {
+              // Assemble the pivoted data
+              assembleB(originalOwnerIdx, nRows, bChunk);
+              // Update the number of remote rows yet to be received
+              numPendingPivotRecvs -= nRows;
+            }
+          }
+        }
+
+        atomic {
+          // Spit out the pivoted y vector
+          for (int i=0; i<BLKSIZE; i++)
+            DEBUG_IMPLICIT_PIVOT("y[%d] after pivoting = %f\n", thisIndex.x*BLKSIZE+i, pivotedB[i]);
+          // Enqueue the backward solve method as pivoting dependencies have been met
+          thisProxy(thisIndex.x, thisIndex.y).backwardSolve();
         }
       };
 
@@ -377,7 +406,6 @@ mainmodule lu {
                                                     0, thisIndex.x-1, 1,
                                                     thisIndex.y, thisIndex.y, 1);
             col.beginBackward(BLKSIZE, bvec);
-            thisProxy(thisIndex.x-1, thisIndex.y-1).backwardSolve();
           }
         }
       };

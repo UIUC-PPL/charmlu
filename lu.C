@@ -482,7 +482,7 @@ class LUBlk: public CBase_LUBlk {
   // A sorted copy of the permutation vector used temporarily while exchanging data
   int *sortedPermutationVec;
   /// The number of rows held by this chare (after pivoting) that were originally held by other chares
-  int numRemoteSwaps, numPendingPivots;
+  int numRemoteSwaps, numPendingPivotSends, numPendingPivotRecvs;
   // @todo: Remove once y pivoting is triggered after the fwd solve
   double *pivotedB;
 
@@ -1103,21 +1103,6 @@ public:
 #endif
   }
 
-  void sendPivotDataToFinalOwner(int requestingChareIdx, int nRows, int* rowIndex) {
-      DEBUG_IMPLICIT_PIVOT("[%d,%d] Sending to chare (%d,%d) b vector rows: ",
-                           thisIndex.x, thisIndex.y, requestingChareIdx, requestingChareIdx);
-
-      double *bChunk = new double[nRows];
-      for (int i=0; i < nRows; i++) {
-          CkAssert(rowIndex[i] / BLKSIZE == thisIndex.x);
-          bChunk[i] = bvec[ rowIndex[i]%BLKSIZE ];
-          DEBUG_IMPLICIT_PIVOT(" %d ",rowIndex[i]);
-      }
-      thisProxy(requestingChareIdx, requestingChareIdx).assemblePivotedB(thisIndex.x, nRows, bChunk);
-      DEBUG_IMPLICIT_PIVOT("\n");
-      delete bChunk;
-  }
-
 private:
 
   // Copy received pivot data into its place in this block
@@ -1314,7 +1299,7 @@ private:
           remainingRows = ++loc;
       }
 
-      DEBUG_IMPLICIT_PIVOT("[%d,%d] Received %d rows for pivoting from (%d,%d). Expecting another %d remote rows\n", thisIndex.x, thisIndex.y, nRows, originalOwnerIdx, originalOwnerIdx, numPendingPivots-nRows);
+      DEBUG_IMPLICIT_PIVOT("[%d,%d] Received %d rows for pivoting from (%d,%d). Expecting another %d remote rows\n", thisIndex.x, thisIndex.y, nRows, originalOwnerIdx, originalOwnerIdx, numPendingPivotRecvs-nRows);
   }
 };
 
