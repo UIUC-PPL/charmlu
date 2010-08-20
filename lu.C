@@ -1098,12 +1098,13 @@ private:
   }
 
   // Exchange local data
-  void swapLocal(int row1, int row2) {
+  void swapLocal(int row1, int row2, int offset=0) {
     double buf;
     buf = bvec[row1];
     bvec[row1] = bvec[row2];
     bvec[row2] = buf;
-    for (int col = 0; col < BLKSIZE; col++) {
+    // Swap the row of A (LU)
+    for (int col = offset; col < BLKSIZE; col++) {
       buf = LU[getIndex(row1, col)];
       LU[getIndex(row1, col)] = LU[getIndex(row2, col)];
       LU[getIndex(row2, col)] = buf;
