@@ -280,8 +280,8 @@ mainmodule lu {
         // Trigger the requests for remote data (b vector pivoting)
         requestRemotePivotData();
         // Record how many rows of pivot data this chare will be sending/recving
-        numPendingPivotSends = numRemoteSwaps;
-        numPendingPivotRecvs = numRemoteSwaps;
+        numPendingPivotSends = BLKSIZE;
+        numPendingPivotRecvs = BLKSIZE;
       }
 
       atomic {
