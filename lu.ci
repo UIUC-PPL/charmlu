@@ -380,7 +380,7 @@ mainmodule lu {
         atomic {
           // Spit out the pivoted y vector
           for (int i=0; i<BLKSIZE; i++)
-            DEBUG_IMPLICIT_PIVOT("y[%d] after pivoting = %f\n", thisIndex.x*BLKSIZE+i, pivotedB[i]);
+            DEBUG_IMPLICIT_PIVOT("y[%d] after pivoting = %f\n", thisIndex.x*BLKSIZE+i, pivotedY[i]);
           // Enqueue the backward solve method as pivoting dependencies have been met
           thisProxy(thisIndex.x, thisIndex.y).backwardSolve();
         }

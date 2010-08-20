@@ -484,7 +484,7 @@ class LUBlk: public CBase_LUBlk {
   /// The number of rows held by this chare (after pivoting) that were originally held by other chares
   int numRemoteSwaps, numPendingPivotSends, numPendingPivotRecvs;
   // @todo: Remove once y pivoting is triggered after the fwd solve
-  double *pivotedB;
+  double *pivotedY;
 
   /// The sub-diagaonal chare array section that will participate in pivot selection
   /// @note: Only the diagonal chares will create and mcast along this section
@@ -1218,7 +1218,7 @@ private:
 
   /// Send out requests to all chares in your column to have them send you remote data for pivoting b
   void requestRemotePivotData() {
-      pivotedB = new double[BLKSIZE];
+      pivotedY = new double[BLKSIZE];
 
       // Setup a sorted copy of the permutation vector
       sortedPermutationVec = new int[BLKSIZE];
@@ -1249,7 +1249,7 @@ private:
                                             permutationVec + BLKSIZE,
                                             sortedPermutationVec[rowStart+i]
                                            ) - permutationVec;
-                    pivotedB[toRow] = bvec[fromRow];
+                    pivotedY[toRow] = bvec[fromRow];
                 }
                 // Update the total number of remote (b vector) pivot operations pending
                 numRemoteSwaps -= nRows;
@@ -1289,7 +1289,7 @@ private:
               // Compute the offset to this row's data in the incoming msg
               int rowOffset = std::find(rowStart, rowEnd, *loc) - rowStart;
               // Copy it to the correct location
-              pivotedB[loc-permutationVec] = bChunk[rowOffset];
+              pivotedY[loc-permutationVec] = bChunk[rowOffset];
               #if 0
               DEBUG_IMPLICIT_PIVOT("[%d,%d] Assembling pivoted data: from offset %d in incoming buffer into local row %d. val = %f\n",
                        thisIndex.x, thisIndex.y, rowOffset, loc-permutationVec, bChunk[rowOffset]);
