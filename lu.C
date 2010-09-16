@@ -113,11 +113,10 @@ double infNorm(int size, double * array)
 {
 	  double maxval = fabs(array[0]);
 	  for(int i = 1; i < size; i++) {
-		  if(fabs(array[i]) > maxval)
-			  maxval = array[i];
+	      if(fabs(array[i]) > maxval)
+	          maxval = fabs(array[i]);
 	  }
-
-	  return fabs(maxval);
+	  return maxval;
 }
 
 //A class for randomly generating matrix elements' value
