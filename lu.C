@@ -18,6 +18,7 @@
 using std::min;
 //#include <pthread.h>
 #include <limits>
+#include <vector>
 
 #if USE_CBLAS_H
 extern "C" {
@@ -613,7 +614,7 @@ public:
 
   //VALIDATION
   void calcResiduals() {
-	  double *residuals = new double[BLKSIZE];
+    std::vector<double> residuals(BLKSIZE);
 
 	  //diagonal elements that received sum-reduction perform b - A*x
 	  for (int i = 0; i < BLKSIZE; i++) {
@@ -626,7 +627,7 @@ public:
 	  double A_max = infNorm(BLKSIZE * BLKSIZE, LU);
 	  double b_max = infNorm(BLKSIZE, b);
 	  double x_max = infNorm(BLKSIZE, x);
-	  double res_max = infNorm(BLKSIZE, residuals);
+	  double res_max = infNorm(BLKSIZE, residuals.data());
 	  DEBUG_PRINT("[%d,%d] A_max  = %e\n",thisIndex.x,thisIndex.y,A_max);
 	  DEBUG_PRINT("[%d,%d] b_max  = %e\n",thisIndex.x,thisIndex.y,b_max);
 	  DEBUG_PRINT("[%d,%d] x_max  = %e\n",thisIndex.x,thisIndex.y,x_max);
