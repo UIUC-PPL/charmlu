@@ -28,7 +28,8 @@ struct PrioLU : public LUMgr
   {
     blkMsg *msg = LUMgr::createBlockMessage(brow, bcol, bactive, priobits);
     CkSetQueueing(msg, CK_QUEUEING_IFIFO);
-    *((int*)CkPriorityPtr(msg)) = bactive;
+    if (0 != priobits)
+      *((int*)CkPriorityPtr(msg)) = bactive;
     return msg;
   }
 };
