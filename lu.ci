@@ -157,10 +157,11 @@ mainmodule lu {
             if (row2 / BLKSIZE == thisIndex.x) {
               atomic {
                 thisProxy(thisIndex.y, thisIndex.y)
-                .sendPivotData(row2, permutationVec[row2 % BLKSIZE], BLKSIZE, &LU[getIndex(row2 % BLKSIZE, 0)], bvec[row2 % BLKSIZE]);
+                .sendPivotData(row2, permutationVec[row2 % BLKSIZE], BLKSIZE-activeCol, &LU[getIndex(row2 % BLKSIZE, activeCol)], bvec[row2 % BLKSIZE]);
               }
               when sendPivotData[row1](int rowIndex, int fromOrigRow, int size, double data[size], double b) atomic {
-                applySwap(row2 % BLKSIZE, fromOrigRow, 0, data, b);
+                CkAssert( size == BLKSIZE-activeCol);
+                applySwap(row2 % BLKSIZE, fromOrigRow, activeCol, data, b);
               }
             }
           }
@@ -185,6 +186,7 @@ mainmodule lu {
           multicastRecvL();
           currentStep = internalStep+1;
         }
+        /*
         for (ind = 0;  ind < thisIndex.x - thisIndex.y; ind++) {
           atomic {
             DEBUG_PRINT("(%d, %d): incrementing step, times = %d\n", thisIndex.x, thisIndex.y, ind);
@@ -210,6 +212,7 @@ mainmodule lu {
             currentStep++;
           }
         }
+        */
       }
       if (thisIndex.x != thisIndex.y) {
         atomic {
@@ -236,7 +239,7 @@ mainmodule lu {
         // Share the pivot info with the appropriate array section
         atomic {
           // Builds a section including all chares on and below the current diagonal element's row
-          CProxySection_LUBlk below = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, numBlks-1, 1, 0, numBlks-1, 1);
+          CProxySection_LUBlk below = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, numBlks-1, 1, thisIndex.y, numBlks-1, 1);
           // Send pivot info to all chares that will care (below section)
           below.doPivot(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
           DEBUG_PIVOT("(%d, %d): diagonal sending doPivot tag = %d to pivot %d and %d\n",
@@ -248,11 +251,13 @@ mainmodule lu {
           when doPivot[internalStep*BLKSIZE + activeCol](int step, int row1, int row2) atomic {
             // Trigger swap of data
             thisProxy(row2 / BLKSIZE, thisIndex.y)
-            .sendPivotData(row1, permutationVec[row1 % BLKSIZE], BLKSIZE, &LU[getIndex(row1 % BLKSIZE, 0)], bvec[row1 % BLKSIZE]);
+            .sendPivotData(row1, permutationVec[row1 % BLKSIZE], BLKSIZE-activeCol, &LU[getIndex(row1 % BLKSIZE, activeCol)], bvec[row1 % BLKSIZE]);
           }
           when sendPivotData[l.loc](int rowIndex, int fromOrigRow, int size, 
                                     double data[size], double b) atomic {
-            applySwap(activeCol, fromOrigRow, 0, data, b);
+            // Ensure that you're only getting the post-diagonal row for pivoting
+            CkAssert(size == BLKSIZE - activeCol);
+            applySwap(activeCol, fromOrigRow, activeCol, data, b);
           }
         } else {
           atomic {
@@ -261,7 +266,7 @@ mainmodule lu {
           }
           when doPivot[internalStep*BLKSIZE + activeCol](int step, int row1, int row2) atomic {
             //DEBUG_PIVOT("swapLocal being called\n");
-            swapLocal(l.loc - BLKSIZE * thisIndex.x, activeCol);
+            swapLocal(l.loc - BLKSIZE * thisIndex.x, activeCol, activeCol);
           }
         }
 
@@ -381,6 +386,10 @@ mainmodule lu {
           // Spit out the pivoted y vector
           for (int i=0; i<BLKSIZE; i++)
             DEBUG_IMPLICIT_PIVOT("y[%d] after pivoting = %f\n", thisIndex.x*BLKSIZE+i, pivotedY[i]);
+          // The pivoted y vector should be used hereon
+          delete [] bvec;
+          bvec = pivotedY;
+          pivotedY = NULL;
           // Enqueue the backward solve method as pivoting dependencies have been met
           thisProxy(thisIndex.x, thisIndex.y).backwardSolve();
         }

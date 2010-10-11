@@ -1110,7 +1110,6 @@ private:
       DEBUG_PIVOT("(%d, %d): remote pivot inserted at %d\n", thisIndex.x, thisIndex.y, row);
       // Store the original global row number of the incoming row in the permutation vector
       permutationVec[row] = fromOrigRow;
-      bvec[row] = b;
     for (int col = offset; col < BLKSIZE; ++col)
       LU[getIndex(row, col)] = data[col - offset];
   }
@@ -1122,10 +1121,6 @@ private:
     buf = permutationVec[row1];
     permutationVec[row1] = permutationVec[row2];
     permutationVec[row2] = buf;
-    // Swap the b vector
-    buf = bvec[row1];
-    bvec[row1] = bvec[row2];
-    bvec[row2] = buf;
     // Swap the row of A (LU)
     for (int col = offset; col < BLKSIZE; col++) {
       buf = LU[getIndex(row1, col)];
