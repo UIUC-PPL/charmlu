@@ -68,8 +68,10 @@ mainmodule lu {
           }
           if (remoteSwap) {
             atomic {
+              CkEntryOptions opts;
+              opts.setPriority(thisIndex.x + 1);
               thisProxy(otherRowIndex, thisIndex.y)
-              .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow]);
+              .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
             }
             when sendPivotData[globalThisRow](int index, int size, double data[size], double b) atomic {
               applySwap(thisLocalRow, 0, data, b);
@@ -87,7 +89,9 @@ mainmodule lu {
         }
         // Schedule the trailing update for sometime later
         atomic {
-          thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep);
+          CkEntryOptions opts;
+          opts.setPriority(thisIndex.x + 1);
+          thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep, &opts);
         }
         when processTrailingUpdate[internalStep](int step) atomic {
           updateMatrix(L, U);
@@ -117,8 +121,10 @@ mainmodule lu {
           }
           if (remoteSwap) {
             atomic {
+              CkEntryOptions opts;
+              opts.setPriority(thisIndex.x + 1);
               thisProxy(otherRowIndex, thisIndex.y)
-              .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow]);
+              .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
             }
             when sendPivotData[globalThisRow](int index, int size, double data[size], double b) atomic {
               applySwap(thisLocalRow, 0, data, b);
@@ -129,7 +135,9 @@ mainmodule lu {
         when recvL[internalStep](blkMsg *mL) atomic {
           CmiReference(UsrToEnv(mL));
           L = mL;
-          thisProxy(thisIndex.x, thisIndex.y).processComputeU(0);
+          CkEntryOptions opts;
+          opts.setPriority(thisIndex.x);
+          thisProxy(thisIndex.x, thisIndex.y).processComputeU(0, &opts);
         }
       }
       // Below diagonal
@@ -154,8 +162,10 @@ mainmodule lu {
             // Assume that row2 is always the non-diagonal row and that LU is row-major
             if (row2 / BLKSIZE == thisIndex.x) {
               atomic {
+                CkEntryOptions opts;
+                opts.setPriority(thisIndex.x + 1);
                 thisProxy(thisIndex.y, thisIndex.y)
-                .sendPivotData(row2, BLKSIZE, &LU[getIndex(row2 % BLKSIZE, 0)], bvec[row2 % BLKSIZE]);
+                .sendPivotData(row2, BLKSIZE, &LU[getIndex(row2 % BLKSIZE, 0)], bvec[row2 % BLKSIZE], &opts);
               }
               when sendPivotData[row1](int rowIndex, int size, double data[size], double b) atomic {
                 applySwap(row2 % BLKSIZE, 0, data, b);
@@ -196,8 +206,10 @@ mainmodule lu {
             }
             if (remoteSwap) {
               atomic {
+                CkEntryOptions opts;
+                opts.setPriority(thisIndex.x + numBlks + 1);
                 thisProxy(otherRowIndex, thisIndex.y)
-                .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow]);
+                .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
               }
               when sendPivotData[globalThisRow](int index, int size, double data[size], double b) atomic {
                 applySwap(thisLocalRow, 0, data, b);
@@ -245,8 +257,10 @@ mainmodule lu {
         if (l.loc / BLKSIZE != thisIndex.x) {
           when doPivot[internalStep*BLKSIZE + activeCol](int step, int row1, int row2) atomic {
             // Trigger swap of data
+            CkEntryOptions opts;
+            opts.setPriority(thisIndex.x + 1);
             thisProxy(row2 / BLKSIZE, thisIndex.y)
-            .sendPivotData(row1, BLKSIZE, &LU[getIndex(row1 % BLKSIZE, 0)], bvec[row1 % BLKSIZE]);
+            .sendPivotData(row1, BLKSIZE, &LU[getIndex(row1 % BLKSIZE, 0)], bvec[row1 % BLKSIZE], &opts);
           }
           when sendPivotData[l.loc](int rowIndex, int size, 
                                     double data[size], double b) atomic {
@@ -266,7 +280,9 @@ mainmodule lu {
         // Now, send the post-diagonal portion of the matrix block (a segment of U)
         atomic {
           CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
-          oneCol.sendUSegment(BLKSIZE - activeCol, &LU[getIndex(activeCol, activeCol)]);
+          CkEntryOptions opts;
+          opts.setPriority(thisIndex.x + 1);
+          oneCol.sendUSegment(BLKSIZE - activeCol, &LU[getIndex(activeCol, activeCol)], &opts);
           diagonalUpdate(activeCol);
         }
       }
