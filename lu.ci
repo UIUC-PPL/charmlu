@@ -55,6 +55,7 @@ mainmodule lu {
 
     // Describes the control flow for all (super, sub and on diagonal) LU chares
     entry void factor() {
+          atomic { for (int i=0; i<BLKSIZE; i++) CkPrintf("b[%d] before factor = %g\n", thisIndex.x*BLKSIZE+i, bvec[i]); }
       //-----------------------------------------------------------------------
       // Each chare in the array has to process these many trailing updates
       // before the diagonal chare on its row / column becomes active in the factorization process
@@ -327,6 +328,7 @@ mainmodule lu {
     };
 
     entry void forwardSolve() {
+          atomic { for (int i=0; i<BLKSIZE; i++) CkPrintf("b[%d] before fwdSolve = %g\n", thisIndex.x*BLKSIZE+i, bvec[i]); }
         if (thisIndex.x > 0) {
           // All except the first diag chare have to wait for their row reductions
           when recvSolveData[thisIndex.x](CkReductionMsg *m) atomic {
@@ -385,6 +387,8 @@ mainmodule lu {
         atomic {
           // Spit out the pivoted y vector
           for (int i=0; i<BLKSIZE; i++)
+            CkPrintf("y[%d] before pivoting = %g\n", thisIndex.x*BLKSIZE+i, bvec[i]);
+          for (int i=0; i<BLKSIZE; i++)
             DEBUG_IMPLICIT_PIVOT("y[%d] after pivoting = %f\n", thisIndex.x*BLKSIZE+i, pivotedY[i]);
           // The pivoted y vector should be used hereon
           delete [] bvec;
@@ -417,6 +421,7 @@ mainmodule lu {
             col.beginBackward(BLKSIZE, bvec);
           }
         }
+          atomic { for (int i=0; i<BLKSIZE; i++) CkPrintf("b[%d] after full solve = %g\n", thisIndex.x*BLKSIZE+i, bvec[i]); }
       };
 
     // These entry methods are the targets of the row- and column-wise
