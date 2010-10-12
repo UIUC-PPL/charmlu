@@ -1015,8 +1015,7 @@ public:
     return i * BLKSIZE + j;
   }
 
-  void localSolve(double *xvec, double *preVec, bool diag, bool forward) {
-    if (!diag) {
+  void localSolve(double *xvec, double *preVec) {
       for (int i = 0; i < BLKSIZE; i++) {
         xvec[i] = 0.0;
       }
@@ -1026,7 +1025,6 @@ public:
           xvec[i] += LU[getIndex(i,j)] * preVec[j];
         }
       }
-    }
   }
 
   void localForward(double *xvec) {
@@ -1050,7 +1048,7 @@ public:
   void beginForward(int size, double *preVec) {
       // Perform local solve and reduce left-of-diagonal row to diagonal
       double *xvec = new double[BLKSIZE];
-      localSolve(xvec, preVec, false, true);
+      localSolve(xvec, preVec);
       CkCallback cb(CkIndex_LUBlk::recvSolveData(0), thisProxy(thisIndex.x, thisIndex.x));
       mcastMgr->contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double, rowBeforeCookie, cb, thisIndex.x);
   }
@@ -1059,7 +1057,7 @@ public:
   void beginBackward(int size, double *preVec) {
       // Perform local solve and reduce right-of-diagonal row to diagonal
       double *xvec = new double[BLKSIZE];
-      localSolve(xvec, preVec, false, false);
+      localSolve(xvec, preVec);
       CkCallback cb(CkIndex_LUBlk::recvSolveData(0), thisProxy(thisIndex.x, thisIndex.x));
       mcastMgr->contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double, rowAfterCookie, cb, thisIndex.x);
   }
