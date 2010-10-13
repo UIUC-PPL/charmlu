@@ -233,14 +233,16 @@ mainmodule lu {
       // Process matrix column-by-column
       for (activeCol = 0; activeCol < BLKSIZE; ++activeCol) {
 
-        // Find the pivot row
-        if (thisIndex.x < numBlks - 1) {
-          when colMax(CkReductionMsg *m) atomic {
-            locval &remoteL = *(locval *)(m->getData());
-            l = findLocVal(activeCol, activeCol, remoteL);
-          }
-        } else atomic {
+        atomic {
+          // Find the local maximum in the active column
           l = findLocVal(activeCol, activeCol);
+          // Contribute to a redn along the pivot section to identify the pivot row
+          mcastMgr->contribute(sizeof(locval), &l, LocValReducer, pivotCookie);
+        }
+
+        // Find the pivot row
+        when colMax(CkReductionMsg *m) atomic {
+          l = *(locval *)(m->getData());
         }
 
         // Share the pivot info with the appropriate array section
@@ -304,11 +306,13 @@ mainmodule lu {
     entry void recvSolveData(CkReductionMsg *m);
 
     entry void multicastRedns() {
-      if (thisIndex.x > thisIndex.y) {
+      if (thisIndex.x >= thisIndex.y) {
         when prepareForPivotRedn(rednSetupMsg *msg) atomic {
           mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
           CkGetSectionInfo(pivotCookie, msg);
         }
+      }
+      if (thisIndex.x > thisIndex.y) {
         when prepareForRowBeforeDiag(rednSetupMsg *msg) atomic {
           mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
           CkGetSectionInfo(rowBeforeCookie, msg);
