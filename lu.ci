@@ -60,20 +60,20 @@ mainmodule lu {
       for (internalStep = 0; internalStep < min(thisIndex.x, thisIndex.y); internalStep++) {
         // Receive and process each pivot selection sent out by the current diagonal block
         for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
-          when doPivot[internalStep*BLKSIZE + pivotBlk](int step, int row1, int row2) atomic {
+          when doPivot[internalStep*BLKSIZE + pivotBlk](int step, int row1, int row2) atomic "trailing_recv_pivot" {
             if (row1 != row2) {
               DEBUG_PIVOT("(%d, %d): TRAILING received doPivot for %d and %d, step = %d, tag = %d\n", thisIndex.x, thisIndex.y, row1, row2, internalStep, step);
             }
             doPivotLocal(row1, row2);
           }
           if (remoteSwap) {
-            atomic {
+            atomic "trailing_send_remote_pivot" {
               CkEntryOptions opts;
               opts.setPriority(thisIndex.x + 1);
               thisProxy(otherRowIndex, thisIndex.y)
               .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
             }
-            when sendPivotData[globalThisRow](int index, int size, double data[size], double b) atomic {
+            when sendPivotData[globalThisRow](int index, int size, double data[size], double b) atomic "trailing_recv_remote_pivot" {
               applySwap(thisLocalRow, 0, data, b);
             }
           }
@@ -88,12 +88,12 @@ mainmodule lu {
             { CmiReference(UsrToEnv(mU)); U = mU; }
         }
         // Schedule the trailing update for sometime later
-        atomic {
+        atomic "trailing_schedule_update" {
           CkEntryOptions opts;
           opts.setPriority(thisIndex.x + 1);
           thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep, &opts);
         }
-        when processTrailingUpdate[internalStep](int step) atomic {
+        when processTrailingUpdate[internalStep](int step) atomic "trailing_update" {
           updateMatrix(L, U);
           CmiFree(UsrToEnv(L));
           CmiFree(UsrToEnv(U));
@@ -113,26 +113,26 @@ mainmodule lu {
       else if (thisIndex.x < thisIndex.y) {
         // Receive and process each pivot selection sent out by the current diagonal block
         for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
-          when doPivot[internalStep*BLKSIZE + pivotBlk](int step, int row1, int row2) atomic {
+          when doPivot[internalStep*BLKSIZE + pivotBlk](int step, int row1, int row2) atomic "beforeL_recv_pivot" {
             if (row1 != row2) {
               DEBUG_PIVOT("(%d, %d): BEFOREL received doPivot for %d and %d, step = %d, tag = %d\n", thisIndex.x, thisIndex.y, row1, row2, internalStep, step);
             }
             doPivotLocal(row1, row2);
           }
           if (remoteSwap) {
-            atomic {
+            atomic "beforeL_send_remote_pivot" {
               CkEntryOptions opts;
               opts.setPriority(thisIndex.x + 1);
               thisProxy(otherRowIndex, thisIndex.y)
               .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
             }
-            when sendPivotData[globalThisRow](int index, int size, double data[size], double b) atomic {
+            when sendPivotData[globalThisRow](int index, int size, double data[size], double b) atomic "beforeL_recv_remote_pivot" {
               applySwap(thisLocalRow, 0, data, b);
             }
           }
         }
         // Once all pivot info is processed, perform the row update
-        when recvL[internalStep](blkMsg *mL) atomic {
+        when recvL[internalStep](blkMsg *mL) atomic "beforeL_schedule_computeU" {
           CmiReference(UsrToEnv(mL));
           L = mL;
           CkEntryOptions opts;
@@ -144,7 +144,7 @@ mainmodule lu {
       else {
         // Work in the active column of the chare array proceeds column-by-column through the matrix
         for (activeCol = 0; activeCol < BLKSIZE; activeCol++) {
-          atomic {
+          atomic "below_find_pivot" {
             // Find the local maximum in the active column
             locval l = findLocVal(0, activeCol);
 
@@ -161,19 +161,19 @@ mainmodule lu {
             }
             // Assume that row2 is always the non-diagonal row and that LU is row-major
             if (row2 / BLKSIZE == thisIndex.x) {
-              atomic {
+              atomic "below_send_remote_pivot" {
                 CkEntryOptions opts;
                 opts.setPriority(thisIndex.x + 1);
                 thisProxy(thisIndex.y, thisIndex.y)
                 .sendPivotData(row2, BLKSIZE, &LU[getIndex(row2 % BLKSIZE, 0)], bvec[row2 % BLKSIZE], &opts);
               }
-              when sendPivotData[row1](int rowIndex, int size, double data[size], double b) atomic {
+              when sendPivotData[row1](int rowIndex, int size, double data[size], double b) atomic "below_recv_remote_pivot" {
                 applySwap(row2 % BLKSIZE, 0, data, b);
               }
             }
           }
           // The diagonal chare also then sends out the post-pivoting row that can be used for updates
-          when sendUSegment(int size, double usegment[size]) atomic {
+          when sendUSegment(int size, double usegment[size]) atomic "below_recv_useg" {
             // Compute the multipliers using the diagonal element
             computeMultipliers(usegment[0], 0, activeCol);
             // Update all trailing columns in the same block based on the multipliers and Usegment
@@ -189,7 +189,7 @@ mainmodule lu {
             //}
           }
         }
-        atomic {
+        atomic "below_send_L" {
           multicastRecvL();
           currentStep = internalStep+1;
         }
@@ -198,20 +198,20 @@ mainmodule lu {
             DEBUG_PRINT("(%d, %d): incrementing step, times = %d\n", thisIndex.x, thisIndex.y, ind);
           }
           for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
-            when doPivot[currentStep*BLKSIZE + pivotBlk](int step, int row1, int row2) atomic {
+            when doPivot[currentStep*BLKSIZE + pivotBlk](int step, int row1, int row2) atomic "later_recv_pivot" {
               if (row1 != row2) {
                 DEBUG_PIVOT("(%d, %d): LATER received doPivot for %d and %d, step = %d, tag = %d\n", thisIndex.x, thisIndex.y, row1, row2, currentStep, step);
               }
               doPivotLocal(row1, row2);
             }
             if (remoteSwap) {
-              atomic {
+              atomic "later_send_remote_pivot" {
                 CkEntryOptions opts;
                 opts.setPriority(thisIndex.x + numBlks + 1);
                 thisProxy(otherRowIndex, thisIndex.y)
                 .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
               }
-              when sendPivotData[globalThisRow](int index, int size, double data[size], double b) atomic {
+              when sendPivotData[globalThisRow](int index, int size, double data[size], double b) atomic "later_recv_remote_pivot" {
                 applySwap(thisLocalRow, 0, data, b);
               }
             }
@@ -222,7 +222,7 @@ mainmodule lu {
         }
       }
       if (thisIndex.x != thisIndex.y) {
-        atomic {
+        atomic "offdiag_iteration_completed" {
           DEBUG_PIVOT("[%d] chare %d,%d contributing\n", CkMyPe(), thisIndex.x, thisIndex.y);
           contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
         }
@@ -233,7 +233,7 @@ mainmodule lu {
       // Process matrix column-by-column
       for (activeCol = 0; activeCol < BLKSIZE; ++activeCol) {
 
-        atomic {
+        atomic "diag_find_colmax" {
           // Find the local maximum in the active column
           l = findLocVal(activeCol, activeCol);
           // Contribute to a redn along the pivot section to identify the pivot row
@@ -241,12 +241,12 @@ mainmodule lu {
         }
 
         // Find the pivot row
-        when colMax(CkReductionMsg *m) atomic {
+        when colMax(CkReductionMsg *m) atomic "diag_found_colmax" {
           l = *(locval *)(m->getData());
         }
 
         // Share the pivot info with the appropriate array section
-        atomic {
+        atomic "diag_send_pivot" {
           // Builds a section including all chares on and below the current diagonal element's row
           CProxySection_LUBlk below = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, numBlks-1, 1, 0, numBlks-1, 1);
           // Send pivot info to all chares that will care (below section)
@@ -257,7 +257,7 @@ mainmodule lu {
 
         // If required chunk of pivot row is not with me (but in a chare below me)
         if (l.loc / BLKSIZE != thisIndex.x) {
-          when doPivot[internalStep*BLKSIZE + activeCol](int step, int row1, int row2) atomic {
+          when doPivot[internalStep*BLKSIZE + activeCol](int step, int row1, int row2) atomic "diag_send_remote_pivot" {
             // Trigger swap of data
             CkEntryOptions opts;
             opts.setPriority(thisIndex.x + 1);
@@ -265,7 +265,7 @@ mainmodule lu {
             .sendPivotData(row1, BLKSIZE, &LU[getIndex(row1 % BLKSIZE, 0)], bvec[row1 % BLKSIZE], &opts);
           }
           when sendPivotData[l.loc](int rowIndex, int size, 
-                                    double data[size], double b) atomic {
+                                    double data[size], double b) atomic "diag_receive_remote_pivot" {
             applySwap(activeCol, 0, data, b);
           }
         } else {
@@ -273,14 +273,14 @@ mainmodule lu {
             DEBUG_PIVOT("(%d, %d): diagonal waiting on doPivot tag = %d\n", thisIndex.x, thisIndex.y,
             internalStep*BLKSIZE + activeCol);
           }
-          when doPivot[internalStep*BLKSIZE + activeCol](int step, int row1, int row2) atomic {
+          when doPivot[internalStep*BLKSIZE + activeCol](int step, int row1, int row2) atomic "diag_local_pivot" {
             //DEBUG_PIVOT("swapLocal being called\n");
             swapLocal(l.loc - BLKSIZE * thisIndex.x, activeCol);
           }
         }
 
         // Now, send the post-diagonal portion of the matrix block (a segment of U)
-        atomic {
+        atomic "diag_send_useg" {
           CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
           CkEntryOptions opts;
           opts.setPriority(thisIndex.x + 1);
@@ -289,7 +289,7 @@ mainmodule lu {
         }
       }
 
-      atomic {
+      atomic "diag_multicast_L" {
         // All diagonal chares except the last must continue the factorization
         if (thisIndex.x < numBlks-1 && thisIndex.y < numBlks-1) {
           DEBUG_PRINT("[%d] chare %d,%d is top,left block this step, multicast L\n", CkMyPe(), thisIndex.x, thisIndex.y);
