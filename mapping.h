@@ -253,8 +253,8 @@ public:
   BlockCyclicMap() {}
   int procNum(int arrayHdl, const CkArrayIndex &idx) {
     int *coor = (int *)idx.data();
-    int x = coor[0];
-    int y = coor[1];
+    int x = coor[1];
+    int y = coor[0];
 
     int numProcs = CkNumPes();
     int numNodes = CkNumNodes();
