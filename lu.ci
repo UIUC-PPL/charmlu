@@ -170,7 +170,7 @@ mainmodule lu {
             if (msg->row2 / BLKSIZE == thisIndex.x) {
               atomic "below_send_remote_pivot" {
                 CkEntryOptions opts;
-                opts.setPriority(thisIndex.x + 1);
+                opts.setPriority(-1);
                 thisProxy(thisIndex.y, thisIndex.y)
                 .sendPivotData(internalStep*BLKSIZE + activeCol, BLKSIZE, &LU[getIndex(msg->row2 % BLKSIZE, 0)], bvec[msg->row2 % BLKSIZE], &opts);
               }
