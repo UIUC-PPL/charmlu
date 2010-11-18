@@ -1,6 +1,12 @@
+#include <string>
+
+class LUMap : public CkArrayMap {
+    virtual std::string desc() { return ""; }
+};
+
 
 /** do a space filling curve style allocation from the bottom right to the upper left. */
-class LUSnakeMap: public CkArrayMap {
+class LUSnakeMap: public LUMap {
 public:
   int numBlks, BLKSIZE;
   LUSnakeMap(int _numBlks, int _BLKSIZE) : numBlks(_numBlks), BLKSIZE(_BLKSIZE) {}
@@ -46,7 +52,7 @@ public:
 };
 
 /** do an allocation that results in almost identical numbers of trailing updates per PE */
-class LUBalancedSnakeMap: public CkArrayMap {
+class LUBalancedSnakeMap: public LUMap {
 public:
   
   int mappingSize;
@@ -144,7 +150,7 @@ public:
 };
 
 /** do an allocation that results in almost identical numbers of trailing updates per PE */
-class LUBalancedSnakeMap2: public CkArrayMap {
+class LUBalancedSnakeMap2: public LUMap {
 public:
   int mappingSize;
   int *mapping;
@@ -248,7 +254,7 @@ public:
 
 };
 
-class BlockCyclicMap: public CkArrayMap {
+class BlockCyclicMap: public LUMap {
 public:
   BlockCyclicMap() {}
   int procNum(int arrayHdl, const CkArrayIndex &idx) {
@@ -271,7 +277,7 @@ public:
   }
 };
 
-class RealBlockCyclicMap : public CkArrayMap {
+class RealBlockCyclicMap : public LUMap {
     int r, num_blocks;
 public:
     RealBlockCyclicMap(int r_, int num_blocks_) : r(r_), num_blocks(num_blocks_) {}
