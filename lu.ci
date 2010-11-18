@@ -74,9 +74,9 @@ mainmodule lu {
               CkEntryOptions opts;
               opts.setPriority(thisIndex.x + 1);
               thisProxy(otherRowIndex, thisIndex.y)
-              .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
+              .sendPivotData(internalStep*BLKSIZE + pivotBlk, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
             }
-            when sendPivotData[globalThisRow](int index, int size, double data[size], double b) atomic "trailing_recv_remote_pivot" {
+            when sendPivotData[internalStep*BLKSIZE + pivotBlk](int index, int size, double data[size], double b) atomic "trailing_recv_remote_pivot" {
               applySwap(thisLocalRow, 0, data, b);
             }
           }
@@ -127,9 +127,9 @@ mainmodule lu {
               CkEntryOptions opts;
               opts.setPriority(thisIndex.x + 1);
               thisProxy(otherRowIndex, thisIndex.y)
-              .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
+              .sendPivotData(internalStep*BLKSIZE + pivotBlk, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
             }
-            when sendPivotData[globalThisRow](int index, int size, double data[size], double b) atomic "beforeL_recv_remote_pivot" {
+            when sendPivotData[internalStep*BLKSIZE + pivotBlk](int index, int size, double data[size], double b) atomic "beforeL_recv_remote_pivot" {
               applySwap(thisLocalRow, 0, data, b);
             }
           }
@@ -168,9 +168,9 @@ mainmodule lu {
                 CkEntryOptions opts;
                 opts.setPriority(thisIndex.x + 1);
                 thisProxy(thisIndex.y, thisIndex.y)
-                .sendPivotData(msg->row2, BLKSIZE, &LU[getIndex(msg->row2 % BLKSIZE, 0)], bvec[msg->row2 % BLKSIZE], &opts);
+                .sendPivotData(internalStep*BLKSIZE + activeCol, BLKSIZE, &LU[getIndex(msg->row2 % BLKSIZE, 0)], bvec[msg->row2 % BLKSIZE], &opts);
               }
-              when sendPivotData[(msg->row1)](int rowIndex, int size, double data[size], double b) atomic "below_recv_remote_pivot" {
+              when sendPivotData[internalStep*BLKSIZE + activeCol](int rowIndex, int size, double data[size], double b) atomic "below_recv_remote_pivot" {
                 applySwap(msg->row2 % BLKSIZE, 0, data, b);
               }
             }
@@ -212,9 +212,9 @@ mainmodule lu {
                 CkEntryOptions opts;
                 opts.setPriority(thisIndex.x + numBlks + 1);
                 thisProxy(otherRowIndex, thisIndex.y)
-                .sendPivotData(globalOtherRow, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
+                .sendPivotData(internalStep*BLKSIZE + pivotBlk, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
               }
-              when sendPivotData[globalThisRow](int index, int size, double data[size], double b) atomic "later_recv_remote_pivot" {
+              when sendPivotData[internalStep*BLKSIZE + pivotBlk](int index, int size, double data[size], double b) atomic "later_recv_remote_pivot" {
                 applySwap(thisLocalRow, 0, data, b);
               }
             }
@@ -274,10 +274,10 @@ mainmodule lu {
             CkEntryOptions opts;
             opts.setPriority(thisIndex.x + 1);
             thisProxy(msg->row2 / BLKSIZE, thisIndex.y)
-            .sendPivotData(msg->row1, BLKSIZE, &LU[getIndex(msg->row1 % BLKSIZE, 0)], bvec[msg->row1 % BLKSIZE], &opts);
+            .sendPivotData(internalStep*BLKSIZE + activeCol, BLKSIZE, &LU[getIndex(msg->row1 % BLKSIZE, 0)], bvec[msg->row1 % BLKSIZE], &opts);
           }
-          when sendPivotData[l.loc](int rowIndex, int size, 
-                                    double data[size], double b) atomic "diag_receive_remote_pivot" {
+          when sendPivotData[internalStep*BLKSIZE + activeCol](int rowIndex, int size,
+                                                               double data[size], double b) atomic "diag_receive_remote_pivot" {
             applySwap(activeCol, 0, data, b);
           }
         } else {
