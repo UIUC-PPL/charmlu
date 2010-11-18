@@ -367,6 +367,8 @@ public:
       fflush(stdout);
     
       CkArrayOptions opts(numBlks, numBlks);
+      opts.setAnytimeMigration(false)
+	  .setStaticInsertion(true);
       switch (mapping) {
       case 1:
         opts.setMap(CProxy_LUBalancedSnakeMap2::ckNew(numBlks, BLKSIZE));
