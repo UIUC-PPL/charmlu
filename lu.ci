@@ -251,19 +251,22 @@ mainmodule lu {
         // Share the pivot info with the appropriate array section
         atomic "diag_send_pivot_active" {
           // Send pivot info to all chares that will care (below section)
-          pivotMsg *msg = new pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
+          pivotMsg *msg = new(sizeof(int)) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
+          *(int*)CkPriorityPtr(msg) = -1;
           pivotSection.doPivot(msg);
         }
 
         atomic "diag_send_pivot_right" {
           // Send pivot info to all chares that will care (below section)
-          pivotMsg *msg = new pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
+          pivotMsg *msg = new(sizeof(int)) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
+          *(int*)CkPriorityPtr(msg) = thisIndex.x + 1;
           pivotRightSection.doPivot(msg);
         }
 
         atomic "diag_send_pivot_left" {
           // Send pivot info to all chares that will care (below section)
-          pivotMsg *msg = new pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
+          pivotMsg *msg = new(sizeof(int)) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
+          *(int*)CkPriorityPtr(msg) = 100000000;
           pivotLeftSection.doPivot(msg);
         }
 
