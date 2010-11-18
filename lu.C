@@ -175,6 +175,15 @@ struct blkMsg: public CMessage_blkMsg {
   }
 };
 
+struct pivotMsg: public CMessage_pivotMsg, public CkMcastBaseMsg {
+  int activeRow, row1, row2;
+
+  pivotMsg(int activeRow_, int row1_, int row2_) :
+    activeRow(activeRow_), row1(row1_), row2(row2_) {
+    CkSetRefNum(this, activeRow);
+  }
+};
+
 #include "manager.h"
 
 class rednSetupMsg: public CkMcastBaseMsg, public CMessage_rednSetupMsg
@@ -441,6 +450,10 @@ public:
 };
 
 class LUBlk: public CBase_LUBlk {
+  // The section of chares in the array on and below the current diagonal
+  CProxySection_LUBlk belowLeft, belowRight;
+  CProxySection_LUBlk activePanel;
+
   /// Variables used during factorization
   double *LU;
 
@@ -480,6 +493,12 @@ class LUBlk: public CBase_LUBlk {
   CProxySection_LUBlk pivotSection;
   /// All pivot sections members will save a cookie to their section
   CkSectionInfo pivotCookie;
+
+  /// The left-of-diagonal section of the chare array for pivoting
+  CProxySection_LUBlk pivotLeftSection;
+
+  /// The right-of-diagonal section of the chare array for pivoting
+  CProxySection_LUBlk pivotRightSection;
 
   CProxySection_LUBlk rowBeforeDiag;
   CProxySection_LUBlk rowAfterDiag;
@@ -825,6 +844,8 @@ public:
     {
         // Create the pivot section
         pivotSection = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,numBlks-1,1,thisIndex.y,thisIndex.y,1);
+        pivotLeftSection = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, numBlks-1, 1, 0, thisIndex.y-1, 1);
+        pivotRightSection = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, numBlks-1, 1, thisIndex.y+1, numBlks-1, 1);
         rowBeforeDiag = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,thisIndex.x,1,0,thisIndex.y-1,1);
         rowAfterDiag = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,thisIndex.x,1,thisIndex.y+1,numBlks-1,1);
         // Create a multicast manager group
@@ -832,6 +853,8 @@ public:
         CkMulticastMgr *mcastMgr = CProxy_CkMulticastMgr(mcastMgrGID).ckLocalBranch();
         // Delegate pivot section to the manager
         pivotSection.ckSectionDelegate(mcastMgr);
+        pivotLeftSection.ckSectionDelegate(mcastMgr);
+        pivotRightSection.ckSectionDelegate(mcastMgr);
         rowBeforeDiag.ckSectionDelegate(mcastMgr);
         rowAfterDiag.ckSectionDelegate(mcastMgr);
         // Set the reduction client for this pivot section
@@ -839,10 +862,14 @@ public:
 
         // Invoke a dummy mcast so that all the section members know which section to reduce along
         rednSetupMsg *pivotMsg = new rednSetupMsg(mcastMgrGID);
+        rednSetupMsg *pivotLeftMsg = new rednSetupMsg(mcastMgrGID);
+        rednSetupMsg *pivotRightMsg = new rednSetupMsg(mcastMgrGID);
         rednSetupMsg *rowBeforeMsg = new rednSetupMsg(mcastMgrGID);
         rednSetupMsg *rowAfterMsg = new rednSetupMsg(mcastMgrGID);
 
         pivotSection.prepareForPivotRedn(pivotMsg);
+        pivotLeftSection.prepareForPivotLR(pivotLeftMsg);
+        pivotRightSection.prepareForPivotLR(pivotRightMsg);
         rowBeforeDiag.prepareForRowBeforeDiag(rowBeforeMsg);
         rowAfterDiag.prepareForRowAfterDiag(rowAfterMsg);
 
