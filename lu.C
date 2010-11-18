@@ -998,6 +998,7 @@ public:
       ComlibAssociateProxy(multicastStats[whichMulticastStrategy], oneCol);
     
     blkMsg *givenU = createABlkMsg();
+    *(int*)CkPriorityPtr(givenU) = -1;
     oneCol.recvU(givenU);
 
 //     for(int i=thisIndex.x+1; i<numBlks; i++){
@@ -1021,6 +1022,7 @@ public:
       ComlibAssociateProxy(multicastStats[whichMulticastStrategy], oneRow);
     
     blkMsg *givenL = createABlkMsg();
+    *(int*)CkPriorityPtr(givenL) = -1;
     oneRow.recvL(givenL);
     
 //     for(int i=thisIndex.y+1; i<numBlks; i++){
@@ -1178,7 +1180,7 @@ private:
   //internal functions for creating messages to encapsulate the priority
   inline blkMsg* createABlkMsg() {
     blkMsg *msg = mgr->createBlockMessage(thisIndex.x, thisIndex.y,
-                                          internalStep);
+                                          internalStep, sizeof(int)*8);
     msg->setMsgData(LU, internalStep, BLKSIZE);
     return msg;
   }
