@@ -161,11 +161,6 @@ mainmodule lu {
           }
           // Once pivot is identified, and diagonal chare sends out the pivot update
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) {
-            atomic {
-              if (msg->row1 != msg->row2) {
-                DEBUG_PIVOT("(%d, %d): BELOW received doPivot for %d and %d, step = %d, tag = %d\n", thisIndex.x, thisIndex.y, msg->row1, msg->row2, internalStep, step);
-              }
-            }
             // Assume that row2 is always the non-diagonal row and that LU is row-major
             if (msg->row2 / BLKSIZE == thisIndex.x) {
               atomic "below_send_remote_pivot" {
@@ -201,9 +196,6 @@ mainmodule lu {
           currentStep = internalStep+1;
         }
         for (ind = 0;  ind < thisIndex.x - thisIndex.y; ind++) {
-          atomic {
-            DEBUG_PRINT("(%d, %d): incrementing step, times = %d\n", thisIndex.x, thisIndex.y, ind);
-          }
           for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
             when doPivot[currentStep*BLKSIZE + pivotBlk](pivotMsg *msg) atomic "later_recv_pivot" {
               if (msg->row1 != msg->row2) {
@@ -288,10 +280,6 @@ mainmodule lu {
             applySwap(activeCol, 0, data, b);
           }
         } else {
-          atomic {
-            DEBUG_PIVOT("(%d, %d): diagonal waiting on doPivot tag = %d\n", thisIndex.x, thisIndex.y,
-            internalStep*BLKSIZE + activeCol);
-          }
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) atomic "diag_local_pivot" {
             //DEBUG_PIVOT("swapLocal being called\n");
             swapLocal(l.loc - BLKSIZE * thisIndex.x, activeCol);
