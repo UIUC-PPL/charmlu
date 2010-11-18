@@ -390,12 +390,15 @@ public:
       opts.setAnytimeMigration(false)
 	  .setStaticInsertion(true);
       switch (mapping) {
-      case 1:
-        opts.setMap(CProxy_LUBalancedSnakeMap2::ckNew(numBlks, BLKSIZE));
-	break;
       case 0:
 	opts.setMap(CProxy_BlockCyclicMap::ckNew());
 	break;
+      case 1:
+        opts.setMap(CProxy_LUBalancedSnakeMap2::ckNew(numBlks, BLKSIZE));
+	break;
+      case 2:
+	  opts.setMap(CProxy_RealBlockCyclicMap::ckNew(1, numBlks));
+	  break;
       }
       CProxy_LUMgr mgr = CProxy_PrioLU::ckNew(BLKSIZE, gMatSize);
 

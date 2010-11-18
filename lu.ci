@@ -430,6 +430,10 @@ mainmodule lu {
     entry BlockCyclicMap();
   };
 
+  group RealBlockCyclicMap : CkArrayMap{
+      entry RealBlockCyclicMap(int r, int num_blocks);
+  };
+
   group LUSnakeMap : CkArrayMap{
     entry LUSnakeMap(int, int);
   };

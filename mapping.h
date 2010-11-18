@@ -270,3 +270,14 @@ public:
     return penum;
   }
 };
+
+class RealBlockCyclicMap : public CkArrayMap {
+    int r, num_blocks;
+public:
+    RealBlockCyclicMap(int r_, int num_blocks_) : r(r_), num_blocks(num_blocks_) {}
+    int procNum(int arrayHdl, const CkArrayIndex &idx) {
+	int *coor = (int *)idx.data();
+	int m = coor[1]*num_blocks + coor[0];
+	return (m % (r*CkNumPes()))/r;
+    }
+};
