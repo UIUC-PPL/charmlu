@@ -1052,7 +1052,7 @@ public:
     DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
   }
 
-  int getIndex(int i, int j) {
+  int inline getIndex(int i, int j) {
     return i * BLKSIZE + j;
   }
 
