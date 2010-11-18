@@ -379,6 +379,8 @@ public:
       }
     
     
+      mapping = 2;
+
       char note[200];
       sprintf(note, "*** New iteration: block size = %d, mapping = %d %s, multicast = %d, memthreshold = %d MB", 
 	      BLKSIZE, mapping, mapping == 1 ? "Balanced Snake" : "Block Cylic", whichMulticastStrategy, memThreshold);
