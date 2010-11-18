@@ -85,6 +85,8 @@ class locval {
         int loc;
 };
 
+void doExit(void *) { CkExit(); }
+
 CkReductionMsg *maxLocVal(int nMsg, CkReductionMsg **msgs)
 {
   CkAssert(nMsg > 0);
@@ -313,6 +315,7 @@ public:
     lg = CProxy_locker::ckNew();
 
     thisProxy.iterationCompleted();
+    CkStartQD(CkCallback(doExit));
   }
 
   void finishInit() {
