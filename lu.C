@@ -1237,8 +1237,13 @@ private:
   /// Compute the multipliers based on the pivot value from the diagonal chare
   //  starting at [row, col]
   void computeMultipliers(double a_kk, int row, int col) {
+#ifdef USE_CBLAS_H
+      cblas_dscal(BLKSIZE-row-1, 1/a_kk, &LU[getIndex(row,col)],
+		  &LU[getIndex(1,col)]-&LU[getIndex(0,col)]);
+#else
     for(int i = row; i<BLKSIZE;i++)
       LU[getIndex(i,col)] = LU[getIndex(i,col)]/a_kk;
+#endif
   }
 
   /// Update the values in the columns ahead of the active column within the
