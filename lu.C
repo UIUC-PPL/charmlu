@@ -1239,9 +1239,8 @@ private:
   /// Compute the multipliers based on the pivot value from the diagonal chare
   //  starting at [row, col]
   void computeMultipliers(double a_kk, int row, int col) {
-#ifdef USE_CBLAS_H
-      cblas_dscal(BLKSIZE-row-1, 1/a_kk, &LU[getIndex(row,col)],
-		  &LU[getIndex(1,col)]-&LU[getIndex(0,col)]);
+#if 0
+      cblas_dscal(BLKSIZE-row, 1/a_kk, &LU[getIndex(row,col)], BLKSIZE);
 #else
     for(int i = row; i<BLKSIZE;i++)
       LU[getIndex(i,col)] = LU[getIndex(i,col)]/a_kk;
@@ -1252,12 +1251,20 @@ private:
   // pivot section based on the Usegment and the multipliers
   void updateAllCols(int col, double* U) {
     //TODO: Replace with DGEMM
+#if 0
+      cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+		  BLKSIZE, BLKSIZE-(col+1), 1,
+		  -1.0, &LU[getIndex(0,col)], BLKSIZE,
+		  U+1, BLKSIZE,
+		  1.0, &LU[getIndex(0,col+1)], BLKSIZE);
+#else
     for(int k=col+1;k<BLKSIZE;k++) {
       for(int j=0; j<BLKSIZE; j++) {
         //U[k] might need to be U[j]?
         LU[getIndex(j,k)] =  LU[getIndex(j,k)] - LU[getIndex(j,col)]*U[k-col];
       }
     }
+#endif
   }
 
 };
