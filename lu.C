@@ -65,7 +65,8 @@ int traceComputeL;
 int traceSolveLocalLU;
 bool doPrioritize;
 ComlibInstanceHandle multicastStats[4];
- 
+CProxy_locker lg;
+
 #ifdef CHARMLU_DEBUG
     #define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
     #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
@@ -213,6 +214,23 @@ struct traceLU {
   }
 };
 
+CmiNodeLock lock;
+
+struct locker : public CBase_locker {
+    locker() { lock = CmiCreateLock(); }
+};
+
+static inline void takeRef(blkMsg *m) {
+    CmiLock(lock);
+    CmiReference(UsrToEnv(m));
+    CmiUnlock(lock);
+}
+static inline void dropRef(blkMsg *m) {
+    CmiLock(lock);
+    CmiFree(UsrToEnv(m));
+    CmiUnlock(lock);
+}
+
 class Main : public CBase_Main {
   double startTime;
   int iteration;
@@ -291,6 +309,8 @@ public:
     ControlPoint::EffectIncrease::MessageOverhead("mapping");
 
     ControlPoint::EffectIncrease::MemoryConsumption("memory_threshold");
+
+    lg = CProxy_locker::ckNew();
 
     thisProxy.iterationCompleted();
   }

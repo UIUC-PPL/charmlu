@@ -7,6 +7,7 @@ mainmodule lu {
   readonly int traceComputeL;
   readonly int traceSolveLocalLU;
   readonly bool doPrioritize;
+  readonly CProxy_locker lg;
 //  readonly int memThreshold;
 
   // Register the reducer function that handles reductions of locval
@@ -40,6 +41,10 @@ mainmodule lu {
   group PrioLU {
     entry PrioLU(int BLKSIZE, int matSize);
   };
+
+  nodegroup locker {
+      entry locker();
+  }
 
   array [2D] LUBlk {
     entry LUBlk(void);
@@ -90,9 +95,9 @@ mainmodule lu {
         // receive the msgs carrying data for the trailing update from the current step
         overlap {
           when recvL[internalStep](blkMsg *mL) atomic
-            { CmiReference(UsrToEnv(mL)); L = mL; }
+	  { takeRef(mL); L = mL; }
           when recvU[internalStep](blkMsg *mU) atomic
-            { CmiReference(UsrToEnv(mU)); U = mU; }
+	  { takeRef(mU); U = mU; }
         }
         // Schedule the trailing update for sometime later
         atomic "trailing_schedule_update" {
@@ -102,8 +107,8 @@ mainmodule lu {
         }
         when processTrailingUpdate[internalStep](int step) atomic "trailing_update" {
           updateMatrix(L, U);
-          CmiFree(UsrToEnv(L));
-          CmiFree(UsrToEnv(U));
+          dropRef(L);
+          dropRef(U);
         }
       }
 
