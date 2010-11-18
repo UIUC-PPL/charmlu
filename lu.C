@@ -175,6 +175,10 @@ struct blkMsg: public CMessage_blkMsg {
   }
 };
 
+struct UMsg : public CMessage_UMsg, public CkMcastBaseMsg {
+  double *data;
+};
+
 struct pivotMsg: public CMessage_pivotMsg, public CkMcastBaseMsg {
   int activeRow, row1, row2;
 
@@ -452,7 +456,6 @@ public:
 class LUBlk: public CBase_LUBlk {
   // The section of chares in the array on and below the current diagonal
   CProxySection_LUBlk belowLeft, belowRight;
-  CProxySection_LUBlk activePanel;
 
   /// Variables used during factorization
   double *LU;
@@ -493,6 +496,9 @@ class LUBlk: public CBase_LUBlk {
   CProxySection_LUBlk pivotSection;
   /// All pivot sections members will save a cookie to their section
   CkSectionInfo pivotCookie;
+
+  // The panel of blocks below the active diagonal chare
+  CProxySection_LUBlk activePanel;
 
   /// The left-of-diagonal section of the chare array for pivoting
   CProxySection_LUBlk pivotLeftSection;
@@ -844,6 +850,7 @@ public:
     {
         // Create the pivot section
         pivotSection = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,numBlks-1,1,thisIndex.y,thisIndex.y,1);
+        activePanel = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1,numBlks-1,1,thisIndex.y,thisIndex.y,1);
         pivotLeftSection = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, numBlks-1, 1, 0, thisIndex.y-1, 1);
         pivotRightSection = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, numBlks-1, 1, thisIndex.y+1, numBlks-1, 1);
         rowBeforeDiag = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,thisIndex.x,1,0,thisIndex.y-1,1);
@@ -853,6 +860,7 @@ public:
         CkMulticastMgr *mcastMgr = CProxy_CkMulticastMgr(mcastMgrGID).ckLocalBranch();
         // Delegate pivot section to the manager
         pivotSection.ckSectionDelegate(mcastMgr);
+        activePanel.ckSectionDelegate(mcastMgr);
         pivotLeftSection.ckSectionDelegate(mcastMgr);
         pivotRightSection.ckSectionDelegate(mcastMgr);
         rowBeforeDiag.ckSectionDelegate(mcastMgr);
@@ -862,12 +870,14 @@ public:
 
         // Invoke a dummy mcast so that all the section members know which section to reduce along
         rednSetupMsg *pivotMsg = new rednSetupMsg(mcastMgrGID);
+        rednSetupMsg *activePanelMsg = new rednSetupMsg(mcastMgrGID);
         rednSetupMsg *pivotLeftMsg = new rednSetupMsg(mcastMgrGID);
         rednSetupMsg *pivotRightMsg = new rednSetupMsg(mcastMgrGID);
         rednSetupMsg *rowBeforeMsg = new rednSetupMsg(mcastMgrGID);
         rednSetupMsg *rowAfterMsg = new rednSetupMsg(mcastMgrGID);
 
         pivotSection.prepareForPivotRedn(pivotMsg);
+        activePanel.prepareForPivotRedn(activePanelMsg);
         pivotLeftSection.prepareForPivotLR(pivotLeftMsg);
         pivotRightSection.prepareForPivotLR(pivotRightMsg);
         rowBeforeDiag.prepareForRowBeforeDiag(rowBeforeMsg);

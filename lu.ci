@@ -16,6 +16,10 @@ mainmodule lu {
     double data[];
   };
 
+  message UMsg {
+    double data[];
+  };
+
   message pivotMsg;
 
   message rednSetupMsg;
@@ -52,7 +56,7 @@ mainmodule lu {
     entry void colMax(CkReductionMsg *m);
     entry void sendPivotData(int rowIndex, int size, double data[size], double b);
     entry void doPivot(pivotMsg *msg);
-    entry void sendUSegment(int size, double usegment[size]);
+    entry void sendUSegment(UMsg* msg);
 
     // Describes the control flow for all (super, sub and on diagonal) LU chares
     entry void factor() {
@@ -176,11 +180,11 @@ mainmodule lu {
             }
           }
           // The diagonal chare also then sends out the post-pivoting row that can be used for updates
-          when sendUSegment(int size, double usegment[size]) atomic "below_recv_useg" {
+          when sendUSegment(UMsg* msg) atomic "below_recv_useg" {
             // Compute the multipliers using the diagonal element
-            computeMultipliers(usegment[0], 0, activeCol);
+            computeMultipliers(msg->data[0], 0, activeCol);
             // Update all trailing columns in the same block based on the multipliers and Usegment
-            updateAllCols(activeCol, usegment);
+            updateAllCols(activeCol, msg->data);
 
             // Options: this SDAG code (or something like it)
             // Somehow this needs to be overlapped with the maxCol sends
@@ -296,10 +300,10 @@ mainmodule lu {
 
         // Now, send the post-diagonal portion of the matrix block (a segment of U)
         atomic "diag_send_useg" {
-          CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
-          CkEntryOptions opts;
-          opts.setPriority(thisIndex.x + 1);
-          oneCol.sendUSegment(BLKSIZE - activeCol, &LU[getIndex(activeCol, activeCol)], &opts);
+          UMsg *msg = new(BLKSIZE - activeCol, sizeof(int)) UMsg;
+          memcpy(msg->data, &LU[getIndex(activeCol, activeCol)], (BLKSIZE - activeCol) * sizeof(double));
+          *(int*)CkPriorityPtr(msg) = -1;
+          activePanel.sendUSegment(msg);
           diagonalUpdate(activeCol);
         }
       }
@@ -332,6 +336,7 @@ mainmodule lu {
           mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
           CkGetSectionInfo(rowBeforeCookie, msg);
         }
+        when prepareForPivotRedn(rednSetupMsg *msg) atomic { }
       } else if (thisIndex.x < thisIndex.y) {
         when prepareForRowAfterDiag(rednSetupMsg *msg) atomic {
           mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
