@@ -167,6 +167,7 @@ mainmodule lu {
           }
           // Once pivot is identified, and diagonal chare sends out the pivot update
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) {
+            atomic "below_recv_pivot" {}
             // Assume that row2 is always the non-diagonal row and that LU is row-major
             if (msg->row2 / BLKSIZE == thisIndex.x) {
               atomic "below_send_remote_pivot" {
