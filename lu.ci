@@ -265,13 +265,6 @@ mainmodule lu {
           pivotRightSection.doPivot(msg);
         }
 
-        atomic "diag_send_pivot_left" {
-          // Send pivot info to all chares that will care (below section)
-          pivotMsg *msg = new(sizeof(int)) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
-          *(int*)CkPriorityPtr(msg) = 100000000;
-          pivotLeftSection.doPivot(msg);
-        }
-
         // If required chunk of pivot row is not with me (but in a chare below me)
         if (l.loc / BLKSIZE != thisIndex.x) {
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) atomic "diag_send_remote_pivot" {
@@ -303,6 +296,13 @@ mainmodule lu {
 
         when diagUpdate(int a) atomic "diag_update" {
           diagonalUpdate(activeCol);
+        }
+
+        atomic "diag_send_pivot_left" {
+          // Send pivot info to all chares that will care (below section)
+          pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
+          *(int*)CkPriorityPtr(msg) = 100000000;
+          pivotLeftSection.doPivot(msg);
         }
       }
 
