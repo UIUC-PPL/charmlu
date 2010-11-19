@@ -103,7 +103,11 @@ mainmodule lu {
         // Schedule the trailing update for sometime later
         atomic "trailing_schedule_update" {
           CkEntryOptions opts;
-          opts.setPriority(10000000);
+          if (thisIndex.x != thisIndex.y) {
+            opts.setPriority(10000000);
+          } else {
+            opts.setPriority(-1);
+          }
           thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep, &opts);
         }
         when processTrailingUpdate[internalStep](int step) atomic "trailing_update" {
