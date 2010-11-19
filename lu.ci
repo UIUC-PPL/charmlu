@@ -204,21 +204,20 @@ mainmodule lu {
         }
         for (ind = 0;  ind < thisIndex.x - thisIndex.y; ind++) {
           for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
-            when doPivot[currentStep*BLKSIZE + pivotBlk](pivotMsg *msg) atomic "later_recv_pivot" {
-              if (msg->row1 != msg->row2) {
-                DEBUG_PIVOT("(%d, %d): LATER received doPivot for %d and %d, step = %d, tag = %d\n", thisIndex.x, thisIndex.y, msg->row1, msg->row2, currentStep, step);
+            when doPivot[currentStep*BLKSIZE + pivotBlk](pivotMsg *msg) {
+              atomic "later_recv_pivot" {
+                doPivotLocal(msg->row1, msg->row2);
               }
-              doPivotLocal(msg->row1, msg->row2);
-            }
-            if (remoteSwap) {
-              atomic "later_send_remote_pivot" {
-                CkEntryOptions opts;
-                opts.setPriority(thisIndex.x + numBlks + 1);
-                thisProxy(otherRowIndex, thisIndex.y)
-                .sendPivotData(internalStep*BLKSIZE + pivotBlk, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
-              }
-              when sendPivotData[internalStep*BLKSIZE + pivotBlk](int index, int size, double data[size], double b) atomic "later_recv_remote_pivot" {
-                applySwap(thisLocalRow, 0, data, b);
+              if (remoteSwap) {
+                atomic "later_send_remote_pivot" {
+                  CkEntryOptions opts;
+                  opts.setPriority(thisIndex.x + numBlks + 1);
+                  thisProxy(otherRowIndex, thisIndex.y)
+                    .sendPivotData(internalStep*BLKSIZE + pivotBlk, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
+                }
+                when sendPivotData[internalStep*BLKSIZE + pivotBlk](int index, int size, double data[size], double b) atomic "later_recv_remote_pivot" {
+                  applySwap(thisLocalRow, 0, data, b);
+                }
               }
             }
           }
