@@ -62,6 +62,7 @@ mainmodule lu {
     entry void sendPivotData(int rowIndex, int size, double data[size], double b);
     entry void doPivot(pivotMsg *msg);
     entry void sendUSegment(UMsg* msg);
+    entry void diagUpdate(int);
 
     // Describes the control flow for all (super, sub and on diagonal) LU chares
     entry void factor() {
@@ -297,6 +298,10 @@ mainmodule lu {
           memcpy(msg->data, &LU[getIndex(activeCol, activeCol)], (BLKSIZE - activeCol) * sizeof(double));
           *(int*)CkPriorityPtr(msg) = -1;
           activePanel.sendUSegment(msg);
+          thisProxy(thisIndex.x, thisIndex.y).diagUpdate(0);
+        }
+
+        when diagUpdate(int a) atomic "diag_update" {
           diagonalUpdate(activeCol);
         }
       }
