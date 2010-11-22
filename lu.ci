@@ -176,7 +176,7 @@ mainmodule lu {
             if (msg->row2 / BLKSIZE == thisIndex.x) {
               atomic "below_send_remote_pivot" {
                 CkEntryOptions opts;
-                opts.setPriority(-1);
+                opts.setPriority(-100000);
                 thisProxy(thisIndex.y, thisIndex.y)
                 .sendPivotData(internalStep*BLKSIZE + activeCol, BLKSIZE, &LU[getIndex(msg->row2 % BLKSIZE, 0)], bvec[msg->row2 % BLKSIZE], &opts);
               }
@@ -258,15 +258,9 @@ mainmodule lu {
         atomic "diag_send_pivot_active" {
           // Send pivot info to all chares that will care (below section)
           pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
-          *(int*)CkPriorityPtr(msg) = -1;
+          *(int*)CkPriorityPtr(msg) = -100;
+	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           pivotSection.doPivot(msg);
-        }
-
-        atomic "diag_send_pivot_right" {
-          // Send pivot info to all chares that will care (below section)
-          pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
-          *(int*)CkPriorityPtr(msg) = thisIndex.x + 5;
-          pivotRightSection.doPivot(msg);
         }
 
         // If required chunk of pivot row is not with me (but in a chare below me)
@@ -274,7 +268,7 @@ mainmodule lu {
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) atomic "diag_send_remote_pivot" {
             // Trigger swap of data
             CkEntryOptions opts;
-            opts.setPriority(thisIndex.x + 1);
+            opts.setPriority(-1000000);
             thisProxy(msg->row2 / BLKSIZE, thisIndex.y)
             .sendPivotData(internalStep*BLKSIZE + activeCol, BLKSIZE, &LU[getIndex(msg->row1 % BLKSIZE, 0)], bvec[msg->row1 % BLKSIZE], &opts);
           }
@@ -291,9 +285,10 @@ mainmodule lu {
 
         // Now, send the post-diagonal portion of the matrix block (a segment of U)
         atomic "diag_send_useg" {
-          UMsg *msg = new(BLKSIZE - activeCol, sizeof(int)) UMsg;
+          UMsg *msg = new(BLKSIZE - activeCol, sizeof(int)*8) UMsg;
           memcpy(msg->data, &LU[getIndex(activeCol, activeCol)], (BLKSIZE - activeCol) * sizeof(double));
-          *(int*)CkPriorityPtr(msg) = -1;
+          *(int*)CkPriorityPtr(msg) = -10000;
+	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           activePanel.sendUSegment(msg);
           thisProxy(thisIndex.x, thisIndex.y).diagUpdate(0);
         }
@@ -302,10 +297,19 @@ mainmodule lu {
           diagonalUpdate(activeCol);
         }
 
+	atomic "diag_send_pivot_right" {
+          // Send pivot info to all chares that will care (below section)
+          pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
+          *(int*)CkPriorityPtr(msg) = 100034384; //thisIndex.x + 5;
+	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
+          pivotRightSection.doPivot(msg);
+        }
+
         atomic "diag_send_pivot_left" {
           // Send pivot info to all chares that will care (below section)
           pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
           *(int*)CkPriorityPtr(msg) = 100000000;
+	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           pivotLeftSection.doPivot(msg);
         }
       }
