@@ -342,7 +342,7 @@ public:
     thisProxy.arrayIsCreated();
   }
 
-  void arrayIsCreated(CkReductionMsg * m) {
+  void arrayIsCreated() {
     startTime = CmiWallTimer();
     luArrProxy.factor();
   }
