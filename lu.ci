@@ -206,6 +206,7 @@ mainmodule lu {
           multicastRecvL();
           currentStep = internalStep+1;
         }
+	// TODO: index with currentStep
         for (ind = 0;  ind < thisIndex.x - thisIndex.y; ind++) {
           for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
             when doPivot[currentStep*BLKSIZE + pivotBlk](pivotMsg *msg) {
