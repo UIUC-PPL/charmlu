@@ -328,8 +328,9 @@ public:
   }
 
   void continueIter() {
-    CkCallback *cb = new CkCallback(CkIndex_Main::arrayIsCreated(NULL), thisProxy);
-    CkStartQD(*cb); // required currently for use with new Comlib
+    //CkCallback *cb = new CkCallback(CkIndex_Main::arrayIsCreated(NULL), thisProxy);
+    //CkStartQD(*cb); // required currently for use with new Comlib
+    thisProxy.arrayIsCreated();
   }
 
   void arrayIsCreated(CkReductionMsg * m) {
