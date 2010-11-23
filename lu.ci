@@ -218,9 +218,9 @@ mainmodule lu {
                   CkEntryOptions opts;
                   opts.setPriority(thisIndex.x + numBlks + 1);
                   thisProxy(otherRowIndex, thisIndex.y)
-                    .sendPivotData(internalStep*BLKSIZE + pivotBlk, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
+                    .sendPivotData(currentStep*BLKSIZE + pivotBlk, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
                 }
-                when sendPivotData[internalStep*BLKSIZE + pivotBlk](int index, int size, double data[size], double b) atomic "later_recv_remote_pivot" {
+                when sendPivotData[currentStep*BLKSIZE + pivotBlk](int index, int size, double data[size], double b) atomic "later_recv_remote_pivot" {
                   applySwap(thisLocalRow, 0, data, b);
                 }
               }
