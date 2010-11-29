@@ -248,7 +248,7 @@ mainmodule lu {
 	atomic "diag_send_pivot_right" {
           // Send pivot info to all chares that will care (below section)
           pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
-          *(int*)CkPriorityPtr(msg) = 100034384; //thisIndex.x + 5;
+          *(int*)CkPriorityPtr(msg) = 1000000;
 	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           pivotRightSection.doPivot(msg);
         }

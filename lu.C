@@ -587,12 +587,6 @@ public:
 	  //Regenerate A and place into already allocated LU
     genBlock();
 
-    if (thisIndex.x == thisIndex.y) {
-      for (int i = 0; i < BLKSIZE*BLKSIZE; i+=BLKSIZE+1) {
-	LU[i] += 2.0;
-      }
-    }
-
 	  //Diagonals regenerate b and distribute x across entire column
 	  if(thisIndex.x == thisIndex.y)
 	  {
@@ -812,6 +806,11 @@ public:
 	rnd.skipNDoubles((numBlks - thisIndex.y - 1) * BLKSIZE);
       }
 
+      if (thisIndex.x == thisIndex.y) {
+	for (int i = 0; i < BLKSIZE*BLKSIZE; i+=BLKSIZE+1) {
+	  LU[i] += numBlks*BLKSIZE;
+	}
+      }
     }
 
   void genVec(double *buf)
@@ -853,12 +852,6 @@ public:
     //VALIDATION: saved seed value to use for validation
     seed_A = 2998389;
     genBlock();
-
-    if (thisIndex.x == thisIndex.y) {
-      for (int i = 0; i < BLKSIZE*BLKSIZE; i+=BLKSIZE+1) {
-	LU[i] += 2.0;
-      }
-    }
 
 #if 0
     double b = thisIndex.x * BLKSIZE + 1, c = thisIndex.y * BLKSIZE + 1;
