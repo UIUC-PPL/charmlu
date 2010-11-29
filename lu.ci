@@ -59,6 +59,7 @@ mainmodule lu {
     entry void sumBvec(int size, double partial_b[size]);
 
     entry void colMax(CkReductionMsg *m);
+    entry void sendPivotData(int rowIndex, int size, double data[size], double b);
     entry void doPivot(pivotMsg *msg);
     entry void sendUSegment(UMsg* msg);
     entry void diagUpdate(int);
@@ -77,6 +78,17 @@ mainmodule lu {
               DEBUG_PIVOT("(%d, %d): TRAILING received doPivot for %d and %d, step = %d, tag = %d\n", thisIndex.x, thisIndex.y, msg->row1, msg->row2, internalStep, step);
             }
             doPivotLocal(msg->row1, msg->row2);
+          }
+          if (remoteSwap) {
+            atomic "trailing_send_remote_pivot" {
+              CkEntryOptions opts;
+              opts.setPriority(thisIndex.x + 1);
+              thisProxy(otherRowIndex, thisIndex.y)
+              .sendPivotData(internalStep*BLKSIZE + pivotBlk, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
+            }
+            when sendPivotData[internalStep*BLKSIZE + pivotBlk](int index, int size, double data[size], double b) atomic "trailing_recv_remote_pivot" {
+              applySwap(thisLocalRow, 0, data, b);
+            }
           }
         }
 
@@ -124,6 +136,17 @@ mainmodule lu {
             }
             doPivotLocal(msg->row1, msg->row2);
           }
+          if (remoteSwap) {
+            atomic "beforeL_send_remote_pivot" {
+              CkEntryOptions opts;
+              opts.setPriority(thisIndex.x + 1);
+              thisProxy(otherRowIndex, thisIndex.y)
+              .sendPivotData(internalStep*BLKSIZE + pivotBlk, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
+            }
+            when sendPivotData[internalStep*BLKSIZE + pivotBlk](int index, int size, double data[size], double b) atomic "beforeL_recv_remote_pivot" {
+              applySwap(thisLocalRow, 0, data, b);
+            }
+          }
         }
         // Once all pivot info is processed, perform the row update
         when recvL[internalStep](blkMsg *mL) atomic "beforeL_schedule_computeU" {
@@ -150,6 +173,17 @@ mainmodule lu {
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) {
             atomic "below_recv_pivot" {}
             // Assume that row2 is always the non-diagonal row and that LU is row-major
+            if (msg->row2 / BLKSIZE == thisIndex.x) {
+              atomic "below_send_remote_pivot" {
+                CkEntryOptions opts;
+                opts.setPriority(-100000);
+                thisProxy(thisIndex.y, thisIndex.y)
+                .sendPivotData(internalStep*BLKSIZE + activeCol, BLKSIZE, &LU[getIndex(msg->row2 % BLKSIZE, 0)], bvec[msg->row2 % BLKSIZE], &opts);
+              }
+              when sendPivotData[internalStep*BLKSIZE + activeCol](int rowIndex, int size, double data[size], double b) atomic "below_recv_remote_pivot" {
+                applySwap(msg->row2 % BLKSIZE, 0, data, b);
+              }
+            }
           }
           // The diagonal chare also then sends out the post-pivoting row that can be used for updates
           when sendUSegment(UMsg* msg) atomic "below_recv_useg" {
@@ -179,7 +213,18 @@ mainmodule lu {
               atomic "later_recv_pivot" {
                 doPivotLocal(msg->row1, msg->row2);
               }
-	    }
+              if (remoteSwap) {
+                atomic "later_send_remote_pivot" {
+                  CkEntryOptions opts;
+                  opts.setPriority(thisIndex.x + numBlks + 1);
+                  thisProxy(otherRowIndex, thisIndex.y)
+                    .sendPivotData(currentStep*BLKSIZE + pivotBlk, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
+                }
+                when sendPivotData[currentStep*BLKSIZE + pivotBlk](int index, int size, double data[size], double b) atomic "later_recv_remote_pivot" {
+                  applySwap(thisLocalRow, 0, data, b);
+                }
+              }
+            }
           }
           atomic {
             currentStep++;
@@ -223,6 +268,14 @@ mainmodule lu {
         if (l.loc / BLKSIZE != thisIndex.x) {
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) atomic "diag_send_remote_pivot" {
             // Trigger swap of data
+            CkEntryOptions opts;
+            opts.setPriority(-1000000);
+            thisProxy(msg->row2 / BLKSIZE, thisIndex.y)
+            .sendPivotData(internalStep*BLKSIZE + activeCol, BLKSIZE, &LU[getIndex(msg->row1 % BLKSIZE, 0)], bvec[msg->row1 % BLKSIZE], &opts);
+          }
+          when sendPivotData[internalStep*BLKSIZE + activeCol](int rowIndex, int size,
+                                                               double data[size], double b) atomic "diag_receive_remote_pivot" {
+            applySwap(activeCol, 0, data, b);
           }
         } else {
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) atomic "diag_local_pivot" {
