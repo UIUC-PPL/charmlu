@@ -280,7 +280,7 @@ mainmodule lu {
         } else {
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) atomic "diag_local_pivot" {
             //DEBUG_PIVOT("swapLocal being called\n");
-            swapLocal(l.loc - BLKSIZE * thisIndex.x, activeCol);
+            //swapLocal(l.loc - BLKSIZE * thisIndex.x, activeCol);
           }
         }
 
