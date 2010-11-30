@@ -794,20 +794,15 @@ public:
     contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
   }
 
+    CrnStream blockStream, vecStream;
+
   void genBlock()
     {
-      MatGen rnd(seed_A);
+	CrnStream stream;
+	memcpy(&stream, &blockStream, sizeof(CrnStream));
 
-      // Skip the rows of blocks before this one
-      rnd.skipNDoubles(thisIndex.x * BLKSIZE * BLKSIZE * numBlks);
-      for (int row = 0; row < BLKSIZE; ++row) {
-	// Skip the blocks before this one in this row
-	rnd.skipNDoubles(thisIndex.y * BLKSIZE);
-	rnd.getNRndDoubles(BLKSIZE, LU + row*BLKSIZE);
-	// Skip the blocks after this one in this row
-	rnd.skipNDoubles((numBlks - thisIndex.y - 1) * BLKSIZE);
-      }
-
+	for (double *d = LU; d < LU + BLKSIZE*BLKSIZE; ++d)
+	    *d = CrnDouble(&stream);
     }
 
   void genVec(double *buf)
@@ -848,6 +843,7 @@ public:
      
     //VALIDATION: saved seed value to use for validation
     seed_A = 2998389;
+    CrnInitStream(&blockStream, seed_A + thisIndex.x*numBlks + thisIndex.y, 0);
     genBlock();
 
 #if 0
