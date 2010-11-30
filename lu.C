@@ -35,11 +35,6 @@ extern "C" {
 #elif USE_ACCELERATE_BLAS
 #include <Accelerate/Accelerate.h>
 
-#elif USE_ESSL
-#define _ESVCPTR
-#include <complex>
-#include <essl.h>
-
 #elif USE_GSL_H
 #include <gsl/gsl_cblas.h>
 
@@ -47,6 +42,11 @@ extern "C" {
 #error "No BLAS Header files included!"
 #endif
 
+#if USE_ESSL_TEST
+#define _ESVCPTR
+#include <complex>
+#include <essl.h>
+#endif
 
 #if USE_MEMALIGN
 #include <malloc.h>
@@ -974,7 +974,7 @@ public:
     //solve following rows based on previously solved rows
     //row indicates the row of U that is just solved
 
-#if USE_ESSL
+#if USE_ESSL_TEST
     dtrsm("L", "L", "N", "U", BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU, BLKSIZE);
 #else
     cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU, BLKSIZE);
