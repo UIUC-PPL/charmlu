@@ -7,7 +7,7 @@
 # To compile on order or faith(Ubuntu) use gsl:
 BLAS_INC  = -I$(GSL)/include -DUSE_GSL_H=1
 BLAS_LD   = -L$(GSL)/lib
-BLAS_LIBS = -lcblas
+BLAS_LIBS = -lgslcblas
 
 # To compile on hope (OSX):
 #BLAS_INC  = -DUSE_ACCELERATE_BLAS=1
