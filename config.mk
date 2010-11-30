@@ -1,7 +1,12 @@
 #------------------------------------------------
-# To compile on order or faith(Ubuntu):
-BLAS_INC  = -DUSE_CBLAS_H=1
-BLAS_LD   =
+# To compile on order or faith(Ubuntu) use cblas:
+#BLAS_INC  = -DUSE_CBLAS_H=1
+#BLAS_LD   =
+#BLAS_LIBS = -lcblas
+
+# To compile on order or faith(Ubuntu) use gsl:
+BLAS_INC  = -I$(GSL)/include -DUSE_GSL_H=1
+BLAS_LD   = -L$(GSL)/lib
 BLAS_LIBS = -lcblas
 
 # To compile on hope (OSX):

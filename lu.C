@@ -40,6 +40,8 @@ extern "C" {
 #include <complex>
 #include <essl.h>
 
+#elif USE_GSL_H
+#include <gsl/gsl_cblas.h>
 
 #else
 #error "No BLAS Header files included!"
