@@ -975,7 +975,7 @@ public:
     //row indicates the row of U that is just solved
 
 #if USE_ESSL_TEST
-    dtrsm("L", "L", "N", "U", BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU, BLKSIZE);
+    dtrsm("R", "U", "N", "U", BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU, BLKSIZE);
 #else
     cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU, BLKSIZE);
 #endif
@@ -1005,8 +1005,8 @@ public:
 #if USE_ESSL
     dgemm( "N", "N",
 	   BLKSIZE, BLKSIZE, BLKSIZE,
-	   -1.0, incomingL,
-	   BLKSIZE, incomingU, BLKSIZE,
+	   -1.0, incomingU,
+	   BLKSIZE, incomingL, BLKSIZE,
 	   1.0, LU, BLKSIZE);
 #else
     cblas_dgemm( CblasRowMajor,
