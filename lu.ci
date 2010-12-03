@@ -71,30 +71,30 @@ mainmodule lu {
       // before the diagonal chare on its row / column becomes active in the factorization process
       //-----------------------------------------------------------------------
       for (internalStep = 0; internalStep < min(thisIndex.x, thisIndex.y); internalStep++) {
-        // Receive and process each pivot selection sent out by the current diagonal block
-        for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
-          when doPivot[internalStep*BLKSIZE + pivotBlk](pivotMsg *msg) atomic "trailing_recv_pivot" {
-            if (msg->row1 != msg->row2) {
-              DEBUG_PIVOT("(%d, %d): TRAILING received doPivot for %d and %d, step = %d, tag = %d\n", thisIndex.x, thisIndex.y, msg->row1, msg->row2, internalStep, step);
-            }
-            doPivotLocal(msg->row1, msg->row2);
-          }
-          if (remoteSwap) {
-            atomic "trailing_send_remote_pivot" {
-              CkEntryOptions opts;
-              opts.setPriority(thisIndex.x + 1);
-              thisProxy(otherRowIndex, thisIndex.y)
-              .sendPivotData(internalStep*BLKSIZE + pivotBlk, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
-            }
-            when sendPivotData[internalStep*BLKSIZE + pivotBlk](int index, int size, double data[size], double b) atomic "trailing_recv_remote_pivot" {
-              applySwap(thisLocalRow, 0, data, b);
-            }
-          }
-        }
-
-        // Once all pending pivot ops from the current step of the computation are complete,
-        // receive the msgs carrying data for the trailing update from the current step
         overlap {
+	  // Receive and process each pivot selection sent out by the current diagonal block
+	  for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
+	    when doPivot[internalStep*BLKSIZE + pivotBlk](pivotMsg *msg) atomic "trailing_recv_pivot" {
+	      if (msg->row1 != msg->row2) {
+		DEBUG_PIVOT("(%d, %d): TRAILING received doPivot for %d and %d, step = %d, tag = %d\n", thisIndex.x, thisIndex.y, msg->row1, msg->row2, internalStep, step);
+	      }
+	      doPivotLocal(msg->row1, msg->row2);
+	    }
+	    if (remoteSwap) {
+	      atomic "trailing_send_remote_pivot" {
+		CkEntryOptions opts;
+		opts.setPriority(thisIndex.x + 1);
+		thisProxy(otherRowIndex, thisIndex.y)
+		  .sendPivotData(internalStep*BLKSIZE + pivotBlk, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
+	      }
+	      when sendPivotData[internalStep*BLKSIZE + pivotBlk](int index, int size, double data[size], double b) atomic "trailing_recv_remote_pivot" {
+		applySwap(thisLocalRow, 0, data, b);
+	      }
+	    }
+	  }
+
+	  // Once all pending pivot ops from the current step of the computation are complete,
+	  // receive the msgs carrying data for the trailing update from the current step
           when recvL[internalStep](blkMsg *mL) atomic
 	  { takeRef(mL); L = mL; }
           when recvU[internalStep](blkMsg *mU) atomic
