@@ -965,7 +965,10 @@ public:
     //row indicates the row of U that is just solved
 
 #if USE_ESSL
-    dtrsm("L", "L", "N", "U", BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU, BLKSIZE);
+    // givenL is implicitly transposed by telling dtrsm that it is a
+    // right, upper matrix. Since this also switches the order of
+    // multiplication, the transpose is output to LU.
+    dtrsm("R", "U", "N", "U", BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU, BLKSIZE);
 #else
     cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU, BLKSIZE);
 #endif
@@ -993,10 +996,12 @@ public:
     double *incomingU = givenUMsg->data;
 
 #if USE_ESSL
+    // By switching the order of incomingU and incomingL the transpose
+    // is applied implicitly: C' = B*A
     dgemm( "N", "N",
 	   BLKSIZE, BLKSIZE, BLKSIZE,
-	   -1.0, incomingL,
-	   BLKSIZE, incomingU, BLKSIZE,
+	   -1.0, incomingU,
+	   BLKSIZE, incomingL, BLKSIZE,
 	   1.0, LU, BLKSIZE);
 #else
     cblas_dgemm( CblasRowMajor,
