@@ -83,7 +83,7 @@ mainmodule lu {
 	    if (remoteSwap) {
 	      atomic "trailing_send_remote_pivot" {
 		CkEntryOptions opts;
-		opts.setPriority(thisIndex.x + 1);
+		opts.setPriority(thisIndex.x * BLKSIZE);
 		thisProxy(otherRowIndex, thisIndex.y)
 		  .sendPivotData(internalStep*BLKSIZE + pivotBlk, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
 	      }
@@ -103,11 +103,7 @@ mainmodule lu {
         // Schedule the trailing update for sometime later
         atomic "trailing_schedule_update" {
           CkEntryOptions opts;
-          if (thisIndex.x != thisIndex.y) {
-            opts.setPriority(10000000);
-          } else {
-            opts.setPriority(-1);
-          }
+	  opts.setPriority(thisIndex.x * BLKSIZE);
           thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep, &opts);
         }
         when processTrailingUpdate[internalStep](int step) atomic "trailing_update" {
@@ -139,7 +135,7 @@ mainmodule lu {
           if (remoteSwap) {
             atomic "beforeL_send_remote_pivot" {
               CkEntryOptions opts;
-              opts.setPriority(thisIndex.x + 1);
+              opts.setPriority(thisIndex.x * BLKSIZE);
               thisProxy(otherRowIndex, thisIndex.y)
               .sendPivotData(internalStep*BLKSIZE + pivotBlk, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
             }
@@ -153,7 +149,7 @@ mainmodule lu {
           CmiReference(UsrToEnv(mL));
           L = mL;
           CkEntryOptions opts;
-          opts.setPriority(thisIndex.x);
+          opts.setPriority(thisIndex.x * BLKSIZE);
           thisProxy(thisIndex.x, thisIndex.y).processComputeU(0, &opts);
         }
       }
@@ -176,7 +172,7 @@ mainmodule lu {
             if (msg->row2 / BLKSIZE == thisIndex.x) {
               atomic "below_send_remote_pivot" {
                 CkEntryOptions opts;
-                opts.setPriority(-100000);
+                opts.setPriority(-1);
                 thisProxy(thisIndex.y, thisIndex.y)
                 .sendPivotData(internalStep*BLKSIZE + activeCol, BLKSIZE, &LU[getIndex(msg->row2 % BLKSIZE, 0)], bvec[msg->row2 % BLKSIZE], &opts);
               }
@@ -216,7 +212,7 @@ mainmodule lu {
               if (remoteSwap) {
                 atomic "later_send_remote_pivot" {
                   CkEntryOptions opts;
-                  opts.setPriority(thisIndex.x + numBlks + 1);
+                  opts.setPriority(BLKSIZE * numBlks + 1);
                   thisProxy(otherRowIndex, thisIndex.y)
                     .sendPivotData(currentStep*BLKSIZE + pivotBlk, BLKSIZE, &LU[getIndex(thisLocalRow, 0)], bvec[thisLocalRow], &opts);
                 }
@@ -259,7 +255,7 @@ mainmodule lu {
         atomic "diag_send_pivot_active" {
           // Send pivot info to all chares that will care (below section)
           pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
-          *(int*)CkPriorityPtr(msg) = -100;
+          *(int*)CkPriorityPtr(msg) = -1;
 	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           pivotSection.doPivot(msg);
         }
@@ -269,7 +265,7 @@ mainmodule lu {
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) atomic "diag_send_remote_pivot" {
             // Trigger swap of data
             CkEntryOptions opts;
-            opts.setPriority(-1000000);
+            opts.setPriority(-1);
             thisProxy(msg->row2 / BLKSIZE, thisIndex.y)
             .sendPivotData(internalStep*BLKSIZE + activeCol, BLKSIZE, &LU[getIndex(msg->row1 % BLKSIZE, 0)], bvec[msg->row1 % BLKSIZE], &opts);
           }
@@ -288,7 +284,7 @@ mainmodule lu {
         atomic "diag_send_useg" {
           UMsg *msg = new(BLKSIZE - activeCol, sizeof(int)*8) UMsg;
           memcpy(msg->data, &LU[getIndex(activeCol, activeCol)], (BLKSIZE - activeCol) * sizeof(double));
-          *(int*)CkPriorityPtr(msg) = -10000;
+          *(int*)CkPriorityPtr(msg) = -1;
 	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           activePanel.sendUSegment(msg);
           thisProxy(thisIndex.x, thisIndex.y).diagUpdate(0);
@@ -301,7 +297,7 @@ mainmodule lu {
 	atomic "diag_send_pivot_right" {
           // Send pivot info to all chares that will care (below section)
           pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
-          *(int*)CkPriorityPtr(msg) = 100034384; //thisIndex.x + 5;
+          *(int*)CkPriorityPtr(msg) = (thisIndex.x + 1) * BLKSIZE;
 	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           pivotRightSection.doPivot(msg);
         }
@@ -309,7 +305,7 @@ mainmodule lu {
         atomic "diag_send_pivot_left" {
           // Send pivot info to all chares that will care (below section)
           pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
-          *(int*)CkPriorityPtr(msg) = 100000000;
+          *(int*)CkPriorityPtr(msg) = BLKSIZE * numBlks + 1;
 	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           pivotLeftSection.doPivot(msg);
         }
