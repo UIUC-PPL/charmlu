@@ -811,8 +811,8 @@ public:
       rnd.getNRndDoubles(BLKSIZE, buf);
     }
 
-    void init(int _whichMulticastStrategy, int _BLKSIZE, int _numBlks,
-	      int memThreshold, CProxy_LUMgr _mgr) {
+  void init(int _whichMulticastStrategy, int _BLKSIZE, int _numBlks,
+            int memThreshold, CProxy_LUMgr _mgr) {
     whichMulticastStrategy = _whichMulticastStrategy;
     BLKSIZE = _BLKSIZE;
     numBlks = _numBlks;
