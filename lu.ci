@@ -52,7 +52,7 @@ mainmodule lu {
     entry void prepareForPivotLR(rednSetupMsg *);
     entry void prepareForRowBeforeDiag(rednSetupMsg *);
     entry void prepareForRowAfterDiag(rednSetupMsg *);
-    entry void init(int whichMulticastStrategy, int, int, int memThreshold, CProxy_LUMgr);
+    entry void multicastRedns(int dummy);
     entry void initVec();
     entry void startValidation();
     entry [nokeep] void recvXvec(int size, double xvec[size]);
@@ -331,30 +331,36 @@ mainmodule lu {
     entry void beginBackward(int size, double preVec[size]);
     entry void recvSolveData(CkReductionMsg *m);
 
-    entry void multicastRedns() {
-      if (thisIndex.x >= thisIndex.y) {
-        when prepareForPivotRedn(rednSetupMsg *msg) atomic {
-          mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
-          CkGetSectionInfo(pivotCookie, msg);
-        }
-      }
-      if (thisIndex.x > thisIndex.y) {
-        when prepareForRowBeforeDiag(rednSetupMsg *msg) atomic {
-          mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
-          CkGetSectionInfo(rowBeforeCookie, msg);
-        }
-        when prepareForPivotRedn(rednSetupMsg *msg) atomic { }
-      } else if (thisIndex.x < thisIndex.y) {
-        when prepareForRowAfterDiag(rednSetupMsg *msg) atomic {
-          mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
-          CkGetSectionInfo(rowAfterCookie, msg);
-        }
-      }
-      for (ind = 0; ind < thisIndex.x-1; ind++) {
-        when prepareForPivotLR(rednSetupMsg *msg) atomic { }
-      }
+    entry void startup(int _whichMulticastStrategy, int _BLKSIZE, int _numBlks,
+                       int memThreshold, CProxy_LUMgr _mgr) {
       atomic {
-        contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
+        init(_whichMulticastStrategy, _BLKSIZE, _numBlks, memThreshold, _mgr);
+      }
+      when multicastRedns(int dummy) {
+        if (thisIndex.x >= thisIndex.y) {
+          when prepareForPivotRedn(rednSetupMsg *msg) atomic {
+            mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
+            CkGetSectionInfo(pivotCookie, msg);
+          }
+        }
+        if (thisIndex.x > thisIndex.y) {
+          when prepareForRowBeforeDiag(rednSetupMsg *msg) atomic {
+            mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
+            CkGetSectionInfo(rowBeforeCookie, msg);
+          }
+          when prepareForPivotRedn(rednSetupMsg *msg) atomic { }
+        } else if (thisIndex.x < thisIndex.y) {
+          when prepareForRowAfterDiag(rednSetupMsg *msg) atomic {
+            mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
+            CkGetSectionInfo(rowAfterCookie, msg);
+          }
+        }
+        for (ind = 0; ind < thisIndex.x-1; ind++) {
+          when prepareForPivotLR(rednSetupMsg *msg) atomic { }
+        }
+        atomic {
+          contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
+        }
       }
     };
 
