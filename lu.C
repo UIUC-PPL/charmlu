@@ -906,7 +906,7 @@ public:
         rednSetupMsg *rowAfterMsg = new rednSetupMsg(mcastMgrGID);
 
         pivotSection.prepareForPivotRedn(pivotMsg);
-        activePanel.prepareForPivotRedn(activePanelMsg);
+        activePanel.prepareForActivePanel(activePanelMsg);
         pivotLeftSection.prepareForPivotLR(pivotLeftMsg);
         pivotRightSection.prepareForPivotLR(pivotRightMsg);
         rowBeforeDiag.prepareForRowBeforeDiag(rowBeforeMsg);
