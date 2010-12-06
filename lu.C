@@ -411,7 +411,7 @@ public:
 
       workStarted = true;
     
-      luArrProxy.init(0, BLKSIZE, numBlks, memThreshold, mgr);
+      luArrProxy.startup(0, BLKSIZE, numBlks, memThreshold, mgr);
     }
   }
   
@@ -910,7 +910,7 @@ public:
         rowAfterDiag.prepareForRowAfterDiag(rowAfterMsg);
 
         if (thisIndex.x == 0) {
-          thisProxy.multicastRedns();
+          thisProxy.multicastRedns(0);
         }
     }
 
