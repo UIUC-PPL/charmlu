@@ -583,27 +583,23 @@ public:
 	  // solution sub-vector x is in variable bvec on the diagonals
 	  // variable b has the original b vector on the diagonals
 
-	  //Regenerate A and place into already allocated LU
-    genBlock();
-
 	  //Diagonals regenerate b and distribute x across entire column
 	  if(thisIndex.x == thisIndex.y)
 	  {
-		  b = new double[BLKSIZE];
-		  genVec(b);
 
 		  CProxySection_LUBlk col =
 				  CProxySection_LUBlk::ckNew(thisArrayID, 0, numBlks-1,
 						  1, thisIndex.y, thisIndex.y, 1);
 
-          col.recvXvec(BLKSIZE, bvec);
-          Ax = new double[BLKSIZE];
-
+		  col.recvXvec(BLKSIZE, bvec);
 	  }
   }
 
   //VALIDATION
   void recvXvec(int size, double* xvec) {
+      //Regenerate A and place into already allocated LU
+      genBlock();
+
 
 	  double *partial_b = new double[BLKSIZE];
 
@@ -640,8 +636,8 @@ public:
 
 	  //Clear bvec before first message processed for sum-reduction
 	  if(msgsRecvd == 0) {
-		  for(int i = 0; i < BLKSIZE; i++)
-			  Ax[i] = 0.0;
+	      Ax = new double[BLKSIZE];
+	      memset(Ax, 0, BLKSIZE*sizeof(double));
 	  }
 
 	  //Sum up messages
@@ -658,6 +654,8 @@ public:
 
   //VALIDATION
   void calcResiduals() {
+      b = new double[BLKSIZE];
+      genVec(b);
 	  double *residuals = new double[BLKSIZE];
 
 	  //diagonal elements that received sum-reduction perform b - A*x
