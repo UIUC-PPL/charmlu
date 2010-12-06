@@ -184,6 +184,7 @@ struct UMsg : public CMessage_UMsg, public CkMcastBaseMsg {
 };
 
 struct pivotMsg: public CMessage_pivotMsg, public CkMcastBaseMsg {
+    /// @todo: active row is the same as row 1, right? Delete if not needed
   int activeRow, row1, row2;
 
   pivotMsg(int activeRow_, int row1_, int row2_) :
