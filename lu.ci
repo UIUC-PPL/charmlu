@@ -281,10 +281,9 @@ mainmodule lu {
           }
         }
 
-        // Now, send the post-diagonal portion of the matrix block (a segment of U)
+        // Now, send the post-diagonal portion of the matrix row (a segment of U)
         atomic "diag_send_useg" {
-          UMsg *msg = new(BLKSIZE - activeCol, sizeof(int)*8) UMsg;
-          memcpy(msg->data, &LU[getIndex(activeCol, activeCol)], (BLKSIZE - activeCol) * sizeof(double));
+          UMsg *msg = new(BLKSIZE - activeCol, sizeof(int)*8) UMsg(BLKSIZE - activeCol, &LU[getIndex(activeCol, activeCol)]);
           *(int*)CkPriorityPtr(msg) = -1;
 	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           activePanel.sendUSegment(msg);

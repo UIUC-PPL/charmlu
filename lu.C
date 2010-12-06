@@ -179,8 +179,13 @@ struct blkMsg: public CMessage_blkMsg {
   }
 };
 
-struct UMsg : public CMessage_UMsg, public CkMcastBaseMsg {
-  double *data;
+class UMsg : public CMessage_UMsg, public CkMcastBaseMsg {
+    public:
+        UMsg(const int numElements, double *useg) {
+            memcpy(data, useg, numElements * sizeof(double));
+        }
+        /// The post-diagonal portion of the active row
+        double *data;
 };
 
 struct pivotMsg: public CMessage_pivotMsg, public CkMcastBaseMsg {
