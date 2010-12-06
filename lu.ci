@@ -49,6 +49,7 @@ mainmodule lu {
   array [2D] LUBlk {
     entry LUBlk(void);
     entry void prepareForPivotRedn(rednSetupMsg *);
+    entry void prepareForActivePanel(rednSetupMsg *);
     entry void prepareForPivotLR(rednSetupMsg *);
     entry void prepareForRowBeforeDiag(rednSetupMsg *);
     entry void prepareForRowAfterDiag(rednSetupMsg *);
@@ -344,7 +345,7 @@ mainmodule lu {
             mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
             CkGetSectionInfo(rowBeforeCookie, msg);
           }
-          when prepareForPivotRedn(rednSetupMsg *msg) atomic { }
+          when prepareForActivePanel(rednSetupMsg *msg) atomic { }
         } else if (thisIndex.x < thisIndex.y) {
           when prepareForRowAfterDiag(rednSetupMsg *msg) atomic {
             mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
