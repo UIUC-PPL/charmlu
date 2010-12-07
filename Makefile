@@ -86,6 +86,8 @@ regtest: all
 	$q$(CHARMC) $< && touch $@
 
 # Include the generated files containing dependency info
+ifneq ($(MAKECMDGOALS),clean)
 -include $(SRC:.C=.d)
 -include $(INTF:.ci=.di)
+endif
 
