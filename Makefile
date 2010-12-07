@@ -52,6 +52,16 @@ test: all
 	@echo "########################################################################################"
 	$(EXEC) $(EXECFLAGS) $(TARGET) $(ARGS)
 
+regtest: all
+	@echo "	########################################################################################"
+	@echo "Running a bunch of different inputs in a quick test for bugs"
+	$(EXEC) $(EXECFLAGS) $(TARGET)   48  48 500 1 | grep residual
+	$(EXEC) $(EXECFLAGS) $(TARGET)   48  24 500 1 | grep residual
+	$(EXEC) $(EXECFLAGS) $(TARGET)   48  16 500 1 | grep residual
+	$(EXEC) $(EXECFLAGS) $(TARGET)   48  12 500 1 | grep residual
+	$(EXEC) $(EXECFLAGS) $(TARGET) 1024 128 500 1 | grep residual
+	$(EXEC) $(EXECFLAGS) $(TARGET) 1024  64 500 1 | grep residual
+
 # A test program for getting essl working on BG/P
 #link-test-essl : link-test-essl.cxx
 #	/soft/apps/ibmcmp-jan2010/vacpp/bg/9.0/bin/bgxlc++ link-test-essl.cxx $(BLAS_INC) $(BLAS_LD)
