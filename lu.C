@@ -470,7 +470,7 @@ public:
 
 	DEBUG_PRINT("|A|inf = %e\n|b|inf = %e\n|x|inf = %e\n|Ax-b|inf = %e\n",maxvals[0],maxvals[1],maxvals[2],maxvals[3]);
 
-	CkPrintf("epsilon = %e\nr = %f\n",std::numeric_limits<double>::epsilon(),r);
+	CkPrintf("epsilon = %e\nresidual = %f\n",std::numeric_limits<double>::epsilon(),r);
 	if(r>16)
 		CkPrintf("=== WARNING: Scaled residual is greater than 16 - OUT OF SPEC ===\n");
 
