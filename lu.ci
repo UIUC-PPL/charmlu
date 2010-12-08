@@ -23,6 +23,10 @@ mainmodule lu {
 
   message pivotMsg;
 
+  message agglomeratedPivotsMsg {
+    std::pair<int,int> pivotRecs[];
+  };
+
   message rednSetupMsg;
 
   mainchare Main {
@@ -62,7 +66,8 @@ mainmodule lu {
     entry void colMax(CkReductionMsg *m);
     entry void sendPivotData(int rowIndex, int size, double data[size], double b);
     entry void doPivot(pivotMsg *msg);
-    entry void applyPivots(pivotMsg *msg);
+    entry void applyPivots(agglomeratedPivotsMsg *msg);
+    entry void acceptPivotData(int batchTag, int globalRow, int size, double data[size], double b);
     entry void sendUSegment(UMsg* msg);
     entry void diagUpdate(int);
 
@@ -72,38 +77,39 @@ mainmodule lu {
       // Each chare in the array has to process these many trailing updates
       // before the diagonal chare on its row / column becomes active in the factorization process
       //-----------------------------------------------------------------------
+      atomic { pivotBatchTag = 0; }
       for (internalStep = 0; internalStep < min(thisIndex.x, thisIndex.y); internalStep++) {
-        atomic { pivotBlk = 0; }
-        overlap {
-	  // Receive and process each pivot selection sent out by the current diagonal block
-	  while (pivotBlk < BLKSIZE) {
-	    when applyPivots[internalStep*BLKSIZE + pivotBlk](pivotMsg *msg) atomic "trailing_recv_pivot" {
-	      if (msg->row1 != msg->row2) {
-		DEBUG_PIVOT("(%d, %d): TRAILING received doPivot for %d and %d, step = %d, tag = %d\n", thisIndex.x, thisIndex.y, msg->row1, msg->row2, internalStep, step);
-	      }
-	      doPivotLocal(msg->row1, msg->row2);
-	    }
-	    if (remoteSwap) {
-	      atomic "trailing_send_remote_pivot" {
-		CkEntryOptions opts;
-		opts.setPriority(thisIndex.x * BLKSIZE);
-		thisProxy(otherRowIndex, thisIndex.y)
-		  .sendPivotData(internalStep*BLKSIZE + pivotBlk, BLKSIZE, &LU[thisLocalRow][0], bvec[thisLocalRow], &opts);
-	      }
-	      when sendPivotData[internalStep*BLKSIZE + pivotBlk](int index, int size, double data[size], double b) atomic "trailing_recv_remote_pivot" {
-		applySwap(thisLocalRow, 0, data, b);
-	      }
-	    }
-        atomic { pivotBlk++; }
-	  }
+          // Receive and process batches of pivot operations sent out by the current active diagonal chare
+          while (pivotBatchTag < (internalStep+1)*BLKSIZE) {
+              // Wait for msg carrying the next batch of pivot ops
+              when applyPivots[pivotBatchTag](agglomeratedPivotsMsg *msg) {
+                  // Send out any pivot data owned by this chare
+                  atomic { sendPendingPivots(msg); }
+                  // Wait for all incoming pivot data from this batch
+                  while (pendingIncomingPivots > 0)
+                  {
+                      when acceptPivotData[pivotBatchTag](int batchTag, int globalRow, int size, double data[size], double b) atomic {
+                          CkAssert(thisIndex.x == globalRow/BLKSIZE);
+                          applySwap(globalRow%BLKSIZE, 0, data, b);
+                          pendingIncomingPivots--;
+                          VERY_VERBOSE_PIVOT_AGGLOM("[%d,%d] received pivot row %d for batch %d. %d pending\n",
+                                              thisIndex.x, thisIndex.y,
+                                              globalRow, pivotBatchTag, pendingIncomingPivots);
+                      }
+                  }
+                  // Increment the batch tag to the next expected
+                  atomic { pivotBatchTag += msg->numRowsProcessed; }
+              }
+          }
 
-	  // Once all pending pivot ops from the current step of the computation are complete,
-	  // receive the msgs carrying data for the trailing update from the current step
-          when recvL[internalStep](blkMsg *mL) atomic
-	  { takeRef(mL); L = mL; }
-          when recvU[internalStep](blkMsg *mU) atomic
-	  { takeRef(mU); U = mU; }
-        }
+          overlap {
+              // Once all pending pivot ops from the current step of the computation are complete,
+              // receive the msgs carrying data for the trailing update from the current step
+              when recvL[internalStep](blkMsg *mL) atomic
+              { takeRef(mL); L = mL; }
+              when recvU[internalStep](blkMsg *mU) atomic
+              { takeRef(mU); U = mU; }
+          }
         // Schedule the trailing update for sometime later
         atomic "trailing_schedule_update" {
           CkEntryOptions opts;
@@ -129,26 +135,26 @@ mainmodule lu {
       // Above diagonal
       else if (thisIndex.x < thisIndex.y) {
         // Receive and process each pivot selection sent out by the current diagonal block
-        atomic { pivotBlk = 0; }
-        while (pivotBlk < BLKSIZE) {
-          when applyPivots[internalStep*BLKSIZE + pivotBlk](pivotMsg *msg) atomic "beforeL_recv_pivot" {
-            if (msg->row1 != msg->row2) {
-              DEBUG_PIVOT("(%d, %d): BEFOREL received doPivot for %d and %d, step = %d, tag = %d\n", thisIndex.x, thisIndex.y, msg->row1, msg->row2, internalStep, step);
-            }
-            doPivotLocal(msg->row1, msg->row2);
+        while (pivotBatchTag < (internalStep+1)*BLKSIZE) {
+          // Wait for msg carrying the next batch of pivot ops
+          when applyPivots[pivotBatchTag](agglomeratedPivotsMsg *msg) {
+              // Send out any pivot data owned by this chare
+              atomic { sendPendingPivots(msg); }
+              // Wait for all incoming pivot data from this batch
+              while (pendingIncomingPivots > 0)
+              {
+                  when acceptPivotData[pivotBatchTag](int batchTag, int globalRow, int size, double data[size], double b) atomic {
+                      CkAssert(thisIndex.x == globalRow/BLKSIZE);
+                      applySwap(globalRow%BLKSIZE, 0, data, b);
+                      pendingIncomingPivots--;
+                      VERY_VERBOSE_PIVOT_AGGLOM("[%d,%d] received pivot row %d for batch %d. %d pending\n",
+                                           thisIndex.x, thisIndex.y,
+                                           globalRow, pivotBatchTag, pendingIncomingPivots);
+                  }
+              }
+              // Increment the batch tag to the next expected
+              atomic { pivotBatchTag += msg->numRowsProcessed; }
           }
-          if (remoteSwap) {
-            atomic "beforeL_send_remote_pivot" {
-              CkEntryOptions opts;
-              opts.setPriority(thisIndex.x * BLKSIZE);
-              thisProxy(otherRowIndex, thisIndex.y)
-              .sendPivotData(internalStep*BLKSIZE + pivotBlk, BLKSIZE, &LU[thisLocalRow][0], bvec[thisLocalRow], &opts);
-            }
-            when sendPivotData[internalStep*BLKSIZE + pivotBlk](int index, int size, double data[size], double b) atomic "beforeL_recv_remote_pivot" {
-              applySwap(thisLocalRow, 0, data, b);
-            }
-          }
-          atomic { pivotBlk++; }
         }
         // Once all pivot info is processed, perform the row update
         when recvL[internalStep](blkMsg *mL) atomic "beforeL_schedule_computeU" {
@@ -299,14 +305,9 @@ mainmodule lu {
           diagonalUpdate(activeCol);
         }
 
-	atomic "diag_send_pivot_right" {
+    atomic "diag_record_pivots" {
         // Store the pivot information
         recordPivot(thisIndex.y*BLKSIZE + activeCol, l.loc);
-          // Send pivot info to all chares that will care (below section)
-          pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
-          *(int*)CkPriorityPtr(msg) = (thisIndex.x + 1) * BLKSIZE;
-	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
-          pivotRightSection.applyPivots(msg);
         }
 
         atomic "diag_send_pivot_left" {
@@ -316,6 +317,19 @@ mainmodule lu {
 	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           pivotLeftSection.doPivot(msg);
         }
+      }
+
+      atomic "diag_send_pivot_right" {
+          // Send pivot info to all chares that will care (below section)
+          VERBOSE_PIVOT_AGGLOM("[%d,%d] sending %d pivot operations in batch %d\n",
+                               thisIndex.x, thisIndex.y,
+                               pivotRecords.size(), pivotBatchTag);
+          for (std::map<int,int>::iterator itr = pivotRecords.begin(); itr != pivotRecords.end(); itr++)
+              VERBOSE_PIVOT_RECORDING("pivot: %d <-- %d\n",itr->first,itr->second);
+          agglomeratedPivotsMsg *msg = new(pivotRecords.size(), sizeof(int)*8) agglomeratedPivotsMsg(thisIndex.x*BLKSIZE, BLKSIZE, pivotRecords);
+          *(int*)CkPriorityPtr(msg) = (thisIndex.x + 1) * BLKSIZE;
+          CkSetQueueing(msg, CK_QUEUEING_IFIFO);
+          pivotRightSection.applyPivots(msg);
       }
 
       atomic "diag_multicast_L" {

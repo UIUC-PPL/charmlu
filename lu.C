@@ -75,10 +75,14 @@ CProxy_locker lg;
     #define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
     #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
     #define VERBOSE_PIVOT_RECORDING CkPrintf
+    #define VERBOSE_PIVOT_AGGLOM CkPrintf
+    #define VERY_VERBOSE_PIVOT_AGGLOM CkPrintf
 #else
     #define DEBUG_PRINT(...)
     #define DEBUG_PIVOT(...)
     #define VERBOSE_PIVOT_RECORDING
+    #define VERBOSE_PIVOT_AGGLOM
+    #define VERY_VERBOSE_PIVOT_AGGLOM
 #endif
 
 #include <cmath>
@@ -200,6 +204,26 @@ struct pivotMsg: public CMessage_pivotMsg, public CkMcastBaseMsg {
     CkSetRefNum(this, activeRow);
   }
 };
+
+
+class agglomeratedPivotsMsg: public CMessage_agglomeratedPivotsMsg, public CkMcastBaseMsg
+{
+    public:
+        int numRowsProcessed;
+        int numPivots;
+        std::pair<int,int> *pivotRecs;
+
+        agglomeratedPivotsMsg(const int _firstRowProcessed, const int _numRowsProcessed, const std::map<int,int> &records)
+        {
+            numRowsProcessed = _numRowsProcessed;
+            numPivots        = records.size();
+            int i=0;
+            for (std::map<int,int>::const_iterator itr = records.begin(); itr != records.end(); itr++)
+                pivotRecs[i++] = *itr;
+            CkSetRefNum(this, _firstRowProcessed);
+        }
+};
+
 
 #include "manager.h"
 
@@ -529,7 +553,9 @@ class LUBlk: public CBase_LUBlk {
   bool remoteSwap;
   locval l;
   int pivotBlk;
+  int pivotBatchTag;
   std::map<int,int> pivotRecords;
+  int pendingIncomingPivots;
 
   /// The sub-diagonal chare array section that will participate in pivot selection
   /// @note: Only the diagonal chares will create and mcast along this section
@@ -1233,7 +1259,34 @@ private:
       itr2 = (pivotRecords.insert( std::make_pair(r2,r2) ) ).first;
       // Swap the values (the actual rows living in these two positions)
       std::swap(itr1->second, itr2->second);
-      VERBOSE_PIVOT_RECORDING("pivot: %d <---> %d for %d records\n",r1,r2,pivotRecords.size());
+  }
+
+
+
+  void sendPendingPivots(agglomeratedPivotsMsg *msg)
+  {
+      VERBOSE_PIVOT_AGGLOM("[%d,%d] processing %d pivot ops in batch %d\n",
+              thisIndex.x, thisIndex.y, msg->numPivots, pivotBatchTag);
+      pendingIncomingPivots = 0;
+
+      std::pair<int,int> *records = msg->pivotRecs;
+      for (int i=0; i < msg->numPivots; i++)
+      {
+          // Get the row indices of the chares involved in this pivot op
+          int   toIndex = records[i].first  / BLKSIZE;
+          int fromIndex = records[i].second / BLKSIZE;
+          // If the pivot record says I'll be getting data, make sure I expect it
+          if (thisIndex.x == toIndex)
+              pendingIncomingPivots++;
+          // If the pivot record indicates that I own the required data, send it out
+          if (thisIndex.x == fromIndex)
+          {
+              int fromRow = msg->pivotRecs[i].second % BLKSIZE;
+              CkEntryOptions opts;
+              opts.setPriority(pivotBatchTag * BLKSIZE);
+              thisProxy(toIndex, thisIndex.y).acceptPivotData(pivotBatchTag, msg->pivotRecs[i].first, BLKSIZE, LU[fromRow], bvec[fromRow], &opts);
+          }
+      }
   }
 
 
