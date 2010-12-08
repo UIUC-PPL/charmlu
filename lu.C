@@ -14,6 +14,7 @@
 //#include <stdlib.h>
 #include <string.h>
 #include <iostream>
+#include <map>
 #include <algorithm>
 using std::min;
 //#include <pthread.h>
@@ -73,9 +74,11 @@ CProxy_locker lg;
 #ifdef CHARMLU_DEBUG
     #define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
     #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
+    #define VERBOSE_PIVOT_RECORDING CkPrintf
 #else
     #define DEBUG_PRINT(...)
     #define DEBUG_PIVOT(...)
+    #define VERBOSE_PIVOT_RECORDING
 #endif
 
 #include <cmath>
@@ -526,6 +529,7 @@ class LUBlk: public CBase_LUBlk {
   bool remoteSwap;
   locval l;
   int pivotBlk;
+  std::map<int,int> pivotRecords;
 
   /// The sub-diagonal chare array section that will participate in pivot selection
   /// @note: Only the diagonal chares will create and mcast along this section
@@ -1215,6 +1219,23 @@ private:
     }
     // else, I dont have any data affected by this pivot op
   }
+
+
+  /// Record the effect of a pivot operation in terms of actual row numbers
+  void recordPivot(const int r1, const int r2)
+  {
+      // If the two rows are the same, then dont record the pivot operation at all
+      if (r1 == r2) return;
+      std::map<int,int>::iterator itr1, itr2;
+      // The records for the two rows (already existing or freshly created)
+      itr1 = (pivotRecords.insert( std::make_pair(r1,r1) ) ).first;
+      itr2 = (pivotRecords.insert( std::make_pair(r2,r2) ) ).first;
+      // Swap the values (the actual rows living in these two positions)
+      std::swap(itr1->second, itr2->second);
+      VERBOSE_PIVOT_RECORDING("pivot: %d <---> %d for %d records\n",r1,r2,pivotRecords.size());
+  }
+
+
 
   //internal functions for creating messages to encapsulate the priority
   inline blkMsg* createABlkMsg() {

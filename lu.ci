@@ -242,9 +242,9 @@ mainmodule lu {
     };
 
     entry void processLU() {
+      atomic { pivotRecords.clear(); }
       // Process matrix column-by-column
       for (activeCol = 0; activeCol < BLKSIZE; ++activeCol) {
-
         atomic "diag_find_colmax" {
           // Find the local maximum in the active column
           l = findLocVal(activeCol, activeCol);
@@ -300,6 +300,8 @@ mainmodule lu {
         }
 
 	atomic "diag_send_pivot_right" {
+        // Store the pivot information
+        recordPivot(thisIndex.y*BLKSIZE + activeCol, l.loc);
           // Send pivot info to all chares that will care (below section)
           pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
           *(int*)CkPriorityPtr(msg) = (thisIndex.x + 1) * BLKSIZE;
