@@ -74,15 +74,15 @@ CProxy_locker lg;
 #ifdef CHARMLU_DEBUG
     #define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
     #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
-    #define VERBOSE_PIVOT_RECORDING CkPrintf
-    #define VERBOSE_PIVOT_AGGLOM CkPrintf
-    #define VERY_VERBOSE_PIVOT_AGGLOM CkPrintf
+    #define VERBOSE_PIVOT_RECORDING(...) CkPrintf(__VA_ARGS__)
+    #define VERBOSE_PIVOT_AGGLOM(...) CkPrintf(__VA_ARGS__)
+    #define VERY_VERBOSE_PIVOT_AGGLOM(...) CkPrintf(__VA_ARGS__)
 #else
     #define DEBUG_PRINT(...)
     #define DEBUG_PIVOT(...)
-    #define VERBOSE_PIVOT_RECORDING
-    #define VERBOSE_PIVOT_AGGLOM
-    #define VERY_VERBOSE_PIVOT_AGGLOM
+    #define VERBOSE_PIVOT_RECORDING(...)
+    #define VERBOSE_PIVOT_AGGLOM(...)
+    #define VERY_VERBOSE_PIVOT_AGGLOM(...)
 #endif
 
 #include <cmath>
