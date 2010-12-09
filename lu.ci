@@ -312,7 +312,7 @@ mainmodule lu {
         // Store the pivot information
         recordPivot(thisIndex.y*BLKSIZE + activeCol, l.loc);
         // at opportune steps, send out the agglomerated pivot ops
-        if ( shouldSendPivots() )
+        if ( shouldSendPivots() || activeCol == BLKSIZE-1)
             disseminateAgglomeratedPivots();
         }
 
