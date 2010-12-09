@@ -278,6 +278,7 @@ class Main : public CBase_Main {
   int whichMulticastStrategy;
   int mapping;
   int memThreshold;
+  int pivotBatchSize;
   bool solved, LUcomplete, workStarted;
   bool sentVectorData;
 
@@ -287,7 +288,7 @@ public:
     Main(CkArgMsg* m) : iteration(0), numIterations(1), solved(false), LUcomplete(false), workStarted(false), sentVectorData(false) {
 
     if (m->argc<4) {
-      CkPrintf("Usage: %s <matrix size> <block size> <mem threshold> [<iterations>]\n", m->argv[0]);
+      CkPrintf("Usage: %s <matrix size> <block size> <mem threshold> [<pivot batch size> <iterations>]\n", m->argv[0]);
       CkExit();
     }
 
@@ -295,20 +296,13 @@ public:
     BLKSIZE = atoi(m->argv[2]);
     memThreshold = atoi(m->argv[3]);
 
-    if (m->argc > 3) {
-      /*sscanf( m->argv[2], "%d", &strategy);
-	CkPrintf("CLI: strategy=%d\n", strategy);*/
-      
-      /*
-      sscanf( m->argv[2], "%d", &memThreshold);
-      CkPrintf("CLI: memThreshold=%dMB\n", memThreshold);
-      */
-
-
-      if (m->argc >= 5)
-	numIterations = atoi(m->argv[4]);
+    if (m->argc >= 5)
+        pivotBatchSize = atoi( m->argv[4] );
+    else
+        pivotBatchSize = BLKSIZE / 4;
+    if (m->argc >= 6)
+        numIterations = atoi(m->argv[5]);
       CkPrintf("CLI: numIterations=%d\n", numIterations);
-    }
 
     if (gMatSize%BLKSIZE!=0) {
       CkPrintf("The matrix size %d should be a multiple of block size %d!\n", gMatSize, BLKSIZE);
@@ -329,8 +323,8 @@ public:
     traceRegisterUserEvent("Remote Multicast Forwarding - preparing", 10001);
     traceRegisterUserEvent("Remote Multicast Forwarding - sends", 10002);
 
-    CkPrintf("Running LU on %d processors (%d nodes) on matrix %dX%d with control points\n",
-	     CkNumPes(), CmiNumNodes(), gMatSize, gMatSize);
+    CkPrintf("Running LU on %d processors (%d nodes) on matrix %dX%d with pivot batch size %d\n",
+	     CkNumPes(), CmiNumNodes(), gMatSize, gMatSize, pivotBatchSize);
 
     multicastStats[0] = ComlibRegister(new OneTimeRingMulticastStrategy() ); 
     multicastStats[1] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(2) ); 
@@ -444,7 +438,7 @@ public:
 
       workStarted = true;
     
-      luArrProxy.startup(0, BLKSIZE, numBlks, memThreshold, mgr);
+      luArrProxy.startup(0, BLKSIZE, numBlks, memThreshold, mgr, pivotBatchSize);
     }
   }
   
@@ -561,6 +555,8 @@ class LUBlk: public CBase_LUBlk {
   int numRowsSinceLastPivotSend ;
   /// The number of pending incoming remote pivots in a given batch
   int pendingIncomingPivots;
+  /// The suggested pivot batch size
+  int suggestedPivotBatchSize;
 
   /// The sub-diagonal chare array section that will participate in pivot selection
   /// @note: Only the diagonal chares will create and mcast along this section
@@ -851,11 +847,12 @@ public:
     }
 
   void init(int _whichMulticastStrategy, int _BLKSIZE, int _numBlks,
-            int memThreshold, CProxy_LUMgr _mgr) {
+            int memThreshold, CProxy_LUMgr _mgr, int _pivotBatchSize) {
     whichMulticastStrategy = _whichMulticastStrategy;
     BLKSIZE = _BLKSIZE;
     numBlks = _numBlks;
     mgr = _mgr.ckLocalBranch();
+    suggestedPivotBatchSize = _pivotBatchSize;
     
     // Set the schedulers memory usage threshold to the one based upon a control point
     schedAdaptMemThresholdMB = memThreshold;
@@ -1275,7 +1272,7 @@ private:
    */
   bool shouldSendPivots()
   {
-      return (numRowsSinceLastPivotSend >= BLKSIZE/4);
+      return (numRowsSinceLastPivotSend >= suggestedPivotBatchSize);
   }
 
 

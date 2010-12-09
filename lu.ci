@@ -342,9 +342,9 @@ mainmodule lu {
     entry void recvSolveData(CkReductionMsg *m);
 
     entry void startup(int _whichMulticastStrategy, int _BLKSIZE, int _numBlks,
-                       int memThreshold, CProxy_LUMgr _mgr) {
+                       int memThreshold, CProxy_LUMgr _mgr, int _pivotBatchSize) {
       atomic {
-        init(_whichMulticastStrategy, _BLKSIZE, _numBlks, memThreshold, _mgr);
+        init(_whichMulticastStrategy, _BLKSIZE, _numBlks, memThreshold, _mgr, _pivotBatchSize);
       }
       when multicastRedns(int dummy) {
         if (thisIndex.x >= thisIndex.y) {
