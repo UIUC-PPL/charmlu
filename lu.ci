@@ -248,7 +248,10 @@ mainmodule lu {
     };
 
     entry void processLU() {
-      atomic { pivotRecords.clear(); }
+      atomic {
+        CkAssert(pivotBatchTag == thisIndex.x*BLKSIZE);
+        pivotRecords.clear();
+      }
       // Process matrix column-by-column
       for (activeCol = 0; activeCol < BLKSIZE; ++activeCol) {
         atomic "diag_find_colmax" {
@@ -305,9 +308,12 @@ mainmodule lu {
           diagonalUpdate(activeCol);
         }
 
-    atomic "diag_record_pivots" {
+    atomic "diag_agglomerate_pivots" {
         // Store the pivot information
         recordPivot(thisIndex.y*BLKSIZE + activeCol, l.loc);
+        // at opportune steps, send out the agglomerated pivot ops
+        if ( shouldSendPivots() )
+            disseminateAgglomeratedPivots();
         }
 
         atomic "diag_send_pivot_left" {
@@ -317,19 +323,6 @@ mainmodule lu {
 	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           pivotLeftSection.doPivot(msg);
         }
-      }
-
-      atomic "diag_send_pivot_right" {
-          // Send pivot info to all chares that will care (below section)
-          VERBOSE_PIVOT_AGGLOM("[%d,%d] sending %d pivot operations in batch %d\n",
-                               thisIndex.x, thisIndex.y,
-                               pivotRecords.size(), pivotBatchTag);
-          for (std::map<int,int>::iterator itr = pivotRecords.begin(); itr != pivotRecords.end(); itr++)
-              VERBOSE_PIVOT_RECORDING("pivot: %d <-- %d\n",itr->first,itr->second);
-          agglomeratedPivotsMsg *msg = new(pivotRecords.size(), sizeof(int)*8) agglomeratedPivotsMsg(thisIndex.x*BLKSIZE, BLKSIZE, pivotRecords);
-          *(int*)CkPriorityPtr(msg) = (thisIndex.x + 1) * BLKSIZE;
-          CkSetQueueing(msg, CK_QUEUEING_IFIFO);
-          pivotRightSection.applyPivots(msg);
       }
 
       atomic "diag_multicast_L" {

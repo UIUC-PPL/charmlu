@@ -553,8 +553,13 @@ class LUBlk: public CBase_LUBlk {
   bool remoteSwap;
   locval l;
   int pivotBlk;
+  /// Tag for all msgs associated with a single batch of pivots
   int pivotBatchTag;
+  /// A map to store and optimize the pivot operations
   std::map<int,int> pivotRecords;
+  /// The number of rows factored since the last batch of pivots
+  int numRowsSinceLastPivotSend ;
+  /// The number of pending incoming remote pivots in a given batch
   int pendingIncomingPivots;
 
   /// The sub-diagonal chare array section that will participate in pivot selection
@@ -1251,6 +1256,7 @@ private:
   /// Record the effect of a pivot operation in terms of actual row numbers
   void recordPivot(const int r1, const int r2)
   {
+      numRowsSinceLastPivotSend++;
       // If the two rows are the same, then dont record the pivot operation at all
       if (r1 == r2) return;
       std::map<int,int>::iterator itr1, itr2;
@@ -1263,6 +1269,41 @@ private:
 
 
 
+  /** Is it time to send out the next batch of pivots
+   *
+   * @note: Any runtime adaptivity should be plugged here
+   */
+  bool shouldSendPivots()
+  {
+      return (numRowsSinceLastPivotSend >= BLKSIZE/4);
+  }
+
+
+
+  /// Periodically send out the agglomerated pivot operations
+  void disseminateAgglomeratedPivots()
+  {
+      VERBOSE_PIVOT_AGGLOM("[%d,%d] sending %d pivot operations in batch %d\n",
+              thisIndex.x, thisIndex.y, pivotRecords.size(), pivotBatchTag);
+      for (std::map<int,int>::iterator itr = pivotRecords.begin(); itr != pivotRecords.end(); itr++)
+      { VERBOSE_PIVOT_RECORDING("pivot: %d <-- %d\n",itr->first,itr->second); }
+
+      // Send the pivot ops to the right section (trailing sub-matrix chares + post-diagonal active row chares)
+      agglomeratedPivotsMsg *msg = new(pivotRecords.size(), sizeof(int)*8)
+                                  agglomeratedPivotsMsg(pivotBatchTag, numRowsSinceLastPivotSend, pivotRecords);
+      *(int*)CkPriorityPtr(msg) = (thisIndex.x + 1) * BLKSIZE;
+      CkSetQueueing(msg, CK_QUEUEING_IFIFO);
+      pivotRightSection.applyPivots(msg);
+
+      // Prepare for the next batch of agglomeration
+      pivotRecords.clear();
+      pivotBatchTag += numRowsSinceLastPivotSend;
+      numRowsSinceLastPivotSend = 0;
+  }
+
+
+
+  /// Given a set of pivot ops, send out participating row chunks that you own
   void sendPendingPivots(agglomeratedPivotsMsg *msg)
   {
       VERBOSE_PIVOT_AGGLOM("[%d,%d] processing %d pivot ops in batch %d\n",
@@ -1290,7 +1331,6 @@ private:
   }
 
 
-
   //internal functions for creating messages to encapsulate the priority
   inline blkMsg* createABlkMsg() {
     blkMsg *msg = mgr->createBlockMessage(thisIndex.x, thisIndex.y,
@@ -1298,6 +1338,8 @@ private:
     msg->setMsgData(LU[0], internalStep, BLKSIZE);
     return msg;
   }
+
+
 
   locval findLocVal(int startRow, int col, locval first = locval()) {
     locval l = first;
@@ -1308,6 +1350,8 @@ private:
       }
     return l;
   }
+
+
 
   // Local multiplier computation and update after U is sent to the blocks below
   void diagonalUpdate(int col) {
