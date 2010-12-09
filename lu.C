@@ -1173,6 +1173,7 @@ private:
     void applySwap(int row, int offset, double *data, double b) {
       DEBUG_PIVOT("(%d, %d): remote pivot inserted at %d\n", thisIndex.x, thisIndex.y, row);
       bvec[row] = b;
+      ///@todo: This should be a memcpy
     for (int col = offset; col < BLKSIZE; ++col)
       LU[row][ col] = data[col - offset];
   }
