@@ -206,14 +206,14 @@ struct pivotMsg: public CMessage_pivotMsg, public CkMcastBaseMsg {
 };
 
 
-class agglomeratedPivotsMsg: public CMessage_agglomeratedPivotsMsg, public CkMcastBaseMsg
+class pivotSequencesMsg: public CMessage_pivotSequencesMsg, public CkMcastBaseMsg
 {
     public:
         int numRowsProcessed;
         int numPivots;
         std::pair<int,int> *pivotRecs;
 
-        agglomeratedPivotsMsg(const int _firstRowProcessed, const int _numRowsProcessed, const std::map<int,int> &records)
+        pivotSequencesMsg(const int _firstRowProcessed, const int _numRowsProcessed, const std::map<int,int> &records)
         {
             numRowsProcessed = _numRowsProcessed;
             numPivots        = records.size();
@@ -1287,8 +1287,8 @@ private:
       { VERBOSE_PIVOT_RECORDING("pivot: %d <-- %d\n",itr->first,itr->second); }
 
       // Send the pivot ops to the right section (trailing sub-matrix chares + post-diagonal active row chares)
-      agglomeratedPivotsMsg *msg = new(pivotRecords.size(), sizeof(int)*8)
-                                  agglomeratedPivotsMsg(pivotBatchTag, numRowsSinceLastPivotSend, pivotRecords);
+      pivotSequencesMsg *msg = new(pivotRecords.size(), sizeof(int)*8)
+                                  pivotSequencesMsg(pivotBatchTag, numRowsSinceLastPivotSend, pivotRecords);
       *(int*)CkPriorityPtr(msg) = (thisIndex.x + 1) * BLKSIZE;
       CkSetQueueing(msg, CK_QUEUEING_IFIFO);
       pivotRightSection.applyPivots(msg);
@@ -1302,7 +1302,7 @@ private:
 
 
   /// Given a set of pivot ops, send out participating row chunks that you own
-  void sendPendingPivots(agglomeratedPivotsMsg *msg)
+  void sendPendingPivots(pivotSequencesMsg *msg)
   {
       VERBOSE_PIVOT_AGGLOM("[%d,%d] processing %d pivot ops in batch %d\n",
               thisIndex.x, thisIndex.y, msg->numPivots, pivotBatchTag);

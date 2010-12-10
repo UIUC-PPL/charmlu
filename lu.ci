@@ -23,7 +23,7 @@ mainmodule lu {
 
   message pivotMsg;
 
-  message agglomeratedPivotsMsg {
+  message pivotSequencesMsg {
     std::pair<int,int> pivotRecs[];
   };
 
@@ -66,7 +66,7 @@ mainmodule lu {
     entry void colMax(CkReductionMsg *m);
     entry void sendPivotData(int rowIndex, int size, double data[size], double b);
     entry void doPivot(pivotMsg *msg);
-    entry void applyPivots(agglomeratedPivotsMsg *msg);
+    entry void applyPivots(pivotSequencesMsg *msg);
     entry void acceptPivotData(int batchTag, int globalRow, int size, double data[size], double b);
     entry void sendUSegment(UMsg* msg);
     entry void diagUpdate(int);
@@ -82,7 +82,7 @@ mainmodule lu {
           // Receive and process batches of pivot operations sent out by the current active diagonal chare
           while (pivotBatchTag < (internalStep+1)*BLKSIZE) {
               // Wait for msg carrying the next batch of pivot ops
-              when applyPivots[pivotBatchTag](agglomeratedPivotsMsg *msg) {
+              when applyPivots[pivotBatchTag](pivotSequencesMsg *msg) {
                   // Send out any pivot data owned by this chare
                   atomic { sendPendingPivots(msg); }
                   // Wait for all incoming pivot data from this batch
@@ -137,7 +137,7 @@ mainmodule lu {
         // Receive and process each pivot selection sent out by the current diagonal block
         while (pivotBatchTag < (internalStep+1)*BLKSIZE) {
           // Wait for msg carrying the next batch of pivot ops
-          when applyPivots[pivotBatchTag](agglomeratedPivotsMsg *msg) {
+          when applyPivots[pivotBatchTag](pivotSequencesMsg *msg) {
               // Send out any pivot data owned by this chare
               atomic { sendPendingPivots(msg); }
               // Wait for all incoming pivot data from this batch
