@@ -1213,6 +1213,7 @@ private:
     bvec[row1] = bvec[row2];
     bvec[row2] = buf;
     // Swap the row of A (LU)
+    //@todo: replace with memcpy
     for (int col = offset; col < BLKSIZE; col++) {
       buf = LU[row1][col];
       LU[row1][col] = LU[row2][col];
