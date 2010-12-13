@@ -75,14 +75,12 @@ CProxy_locker lg;
 #ifdef CHARMLU_DEBUG
     #define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
     #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
-    #define VERBOSE_PIVOT_RECORDING(...) CkPrintf(__VA_ARGS__)
-    #define VERBOSE_PIVOT_AGGLOM(...) CkPrintf(__VA_ARGS__)
     #define VERY_VERBOSE_PIVOT_AGGLOM(...) CkPrintf(__VA_ARGS__)
+    #define VERBOSE_PIVOT_RECORDING
+    #define VERBOSE_PIVOT_AGGLOM
 #else
     #define DEBUG_PRINT(...)
     #define DEBUG_PIVOT(...)
-    #define VERBOSE_PIVOT_RECORDING(...)
-    #define VERBOSE_PIVOT_AGGLOM(...)
     #define VERY_VERBOSE_PIVOT_AGGLOM(...)
 #endif
 
@@ -1280,8 +1278,11 @@ private:
   /// Periodically send out the agglomerated pivot operations
   void disseminateAgglomeratedPivots()
   {
-      VERBOSE_PIVOT_AGGLOM("[%d,%d] announcing %d pivot operations in batch %d\n",
-              thisIndex.x, thisIndex.y, pivotRecords.size(), pivotBatchTag);
+      #if defined(VERBOSE_PIVOT_RECORDING) || defined(VERBOSE_PIVOT_AGGLOM)
+          std::stringstream pivotLog;
+          pivotLog<<"["<<thisIndex.x<<","<<thisIndex.y<<"]"
+                  <<" announcing "<<pivotRecords.size()<<" pivot operations in batch "<<pivotBatchTag<<std::endl;
+      #endif
 
       // Create and initialize a msg to carry the pivot sequences
       pivotSequencesMsg *msg = new(numRowsSinceLastPivotSend+1, numRowsSinceLastPivotSend*2, sizeof(int)*8)
@@ -1295,15 +1296,21 @@ private:
       std::map<int,int>::iterator itr = pivotRecords.begin();
       while (itr != pivotRecords.end())
       {
-          VERBOSE_PIVOT_RECORDING("\n");
+          #ifdef VERBOSE_PIVOT_RECORDING
+            pivotLog<<std::endl;
+          #endif
           msg->seqIndex[++seqNo] = i;
           int chainStart = itr->first;
           msg->pivotSequence[i++] = chainStart;
-          VERBOSE_PIVOT_RECORDING("%d ", chainStart);
+          #ifdef VERBOSE_PIVOT_RECORDING
+            pivotLog<<chainStart;
+          #endif
           while (itr->second != chainStart)
           {
               msg->pivotSequence[i++] = itr->second;
-              VERBOSE_PIVOT_RECORDING("<-- %d ", itr->second);
+              #ifdef VERBOSE_PIVOT_RECORDING
+                  pivotLog<<" <-- "<<itr->second;
+              #endif
               std::map<int,int>::iterator prev = itr;
               itr = pivotRecords.find(itr->second);
               pivotRecords.erase(prev);
@@ -1313,7 +1320,9 @@ private:
       }
       msg->seqIndex[++seqNo] = i; ///< @note: Just so that we know where the last sequence ends
       msg->numSequences = seqNo;
-      VERBOSE_PIVOT_RECORDING("\n");
+      #if defined(VERBOSE_PIVOT_RECORDING) || defined(VERBOSE_PIVOT_AGGLOM)
+          CkPrintf("%s\n", pivotLog.str().c_str());
+      #endif
 
       // Send the pivot ops to the right section (trailing sub-matrix chares + post-diagonal active row chares)
       *(int*)CkPriorityPtr(msg) = (thisIndex.x + 1) * BLKSIZE;
@@ -1330,10 +1339,12 @@ private:
   /// Given a set of pivot ops, send out participating row chunks that you own
   void sendPendingPivots(pivotSequencesMsg *msg)
   {
-      std::stringstream pivotLog;
-      pivotLog<<"["<<thisIndex.x<<","<<thisIndex.y<<"]"
-              <<" processing "<<msg->numSequences
-              <<" pivot sequences in batch "<<pivotBatchTag;
+      #ifdef VERBOSE_PIVOT_AGGLOM
+          std::stringstream pivotLog;
+          pivotLog<<"["<<thisIndex.x<<","<<thisIndex.y<<"]"
+                  <<" processing "<<msg->numSequences
+                  <<" pivot sequences in batch "<<pivotBatchTag;
+      #endif
 
       pendingIncomingPivots = 0;
 
@@ -1344,12 +1355,14 @@ private:
       // Parse each sequence independently
       for (int i=0; i < numSequences; i++)
       {
+          #ifdef VERBOSE_PIVOT_AGGLOM
+              pivotLog<<"\n["<<thisIndex.x<<","<<thisIndex.y<<"] sequence "<<i<<": ";
+          #endif
+
           // Find the location of this sequence in the msg buffer
           int *first      = pivotSequence + idx[i];
           int *beyondLast = pivotSequence + idx[i+1];
           CkAssert(beyondLast - first >= 2);
-
-          pivotLog<<"\n["<<thisIndex.x<<","<<thisIndex.y<<"] sequence "<<i<<": ";
 
           // Identify a remote row in the pivot sequence as a point at which to
           // start and stop processing the circular pivot sequence
@@ -1370,8 +1383,9 @@ private:
               if (NULL == tmpBuf) tmpBuf = new double[BLKSIZE];
               memcpy(tmpBuf, LU[*ringStart%BLKSIZE], BLKSIZE*sizeof(double));
               tmpB = bvec[*ringStart%BLKSIZE];
-
-              pivotLog<<"tmp <-cpy- "<<*ringStart<<"; ";
+              #ifdef VERBOSE_PIVOT_AGGLOM
+                  pivotLog<<"tmp <-cpy- "<<*ringStart<<"; ";
+              #endif
           }
 
           // Process all the pivot operations in the circular sequence
@@ -1389,7 +1403,9 @@ private:
                   if (toChareIdx == thisIndex.x)
                   {
                       applySwap(*to%BLKSIZE, 0, LU[fromLocal], bvec[fromLocal]);
-                      pivotLog<<*to<<" <-cpy- "<<*from<<"; ";
+                      #ifdef VERBOSE_PIVOT_AGGLOM
+                          pivotLog<<*to<<" <-cpy- "<<*from<<"; ";
+                      #endif
                   }
                   // else, send a msg
                   else
@@ -1397,7 +1413,9 @@ private:
                       CkEntryOptions opts;
                       opts.setPriority(thisIndex.y * BLKSIZE);
                       thisProxy(toChareIdx, thisIndex.y).acceptPivotData(pivotBatchTag, *to, BLKSIZE, LU[fromLocal], bvec[fromLocal], &opts);
-                      pivotLog<<*to<<" <-msg- "<<*from<<"; ";
+                      #ifdef VERBOSE_PIVOT_AGGLOM
+                          pivotLog<<*to<<" <-msg- "<<*from<<"; ";
+                      #endif
                   }
               }
               // else, the source data is remote
@@ -1407,11 +1425,17 @@ private:
                   if (*to / BLKSIZE == thisIndex.x)
                   {
                       pendingIncomingPivots++;
-                      pivotLog<<*to<<" <-inwd- "<<*from<<"; ";
+                      #ifdef VERBOSE_PIVOT_AGGLOM
+                          pivotLog<<*to<<" <-inwd- "<<*from<<"; ";
+                      #endif
                   }
                   // else, i dont worry about this portion of the exchange sequence which is completely remote
                   else
-                  { pivotLog<<*to<<" <-noop- "<<*from<<"; "; }
+                  {
+                      #ifdef VERBOSE_PIVOT_AGGLOM
+                          pivotLog<<*to<<" <-noop- "<<*from<<"; ";
+                      #endif
+                  }
               }
               // Setup a circular traversal of the pivot sequence
               if (++to == beyondLast)
@@ -1423,13 +1447,17 @@ private:
           if (isSequenceLocal)
           {
               applySwap(*(beyondLast-1)%BLKSIZE, 0, tmpBuf, tmpB);
-              pivotLog<<*(beyondLast-1)<<"<-cpy- tmp "<<"; ";
+              #ifdef VERBOSE_PIVOT_AGGLOM
+                  pivotLog<<*(beyondLast-1)<<"<-cpy- tmp "<<"; ";
+              #endif
           }
 
       } // end for loop through all sequences
 
       if (tmpBuf) delete [] tmpBuf;
-      VERBOSE_PIVOT_AGGLOM("%s\n",pivotLog.str().c_str());
+      #ifdef VERBOSE_PIVOT_AGGLOM
+          CkPrintf("%s\n",pivotLog.str().c_str());
+      #endif
   }
 
 
