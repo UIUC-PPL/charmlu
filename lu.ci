@@ -24,7 +24,8 @@ mainmodule lu {
   message pivotMsg;
 
   message pivotSequencesMsg {
-    std::pair<int,int> pivotRecs[];
+      int seqIndex[];
+      int pivotSequence[];
   };
 
   message rednSetupMsg;

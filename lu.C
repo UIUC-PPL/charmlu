@@ -14,6 +14,7 @@
 //#include <stdlib.h>
 #include <string.h>
 #include <iostream>
+#include <sstream>
 #include <map>
 #include <algorithm>
 using std::min;
@@ -210,16 +211,14 @@ class pivotSequencesMsg: public CMessage_pivotSequencesMsg, public CkMcastBaseMs
 {
     public:
         int numRowsProcessed;
-        int numPivots;
-        std::pair<int,int> *pivotRecs;
+        int numSequences;
+        int *seqIndex;
+        int *pivotSequence;
 
-        pivotSequencesMsg(const int _firstRowProcessed, const int _numRowsProcessed, const std::map<int,int> &records)
+        pivotSequencesMsg(const int _firstRowProcessed, const int _numRowsProcessed)
         {
             numRowsProcessed = _numRowsProcessed;
-            numPivots        = records.size();
-            int i=0;
-            for (std::map<int,int>::const_iterator itr = records.begin(); itr != records.end(); itr++)
-                pivotRecs[i++] = *itr;
+            numSequences     = 0;
             CkSetRefNum(this, _firstRowProcessed);
         }
 };
@@ -1281,14 +1280,42 @@ private:
   /// Periodically send out the agglomerated pivot operations
   void disseminateAgglomeratedPivots()
   {
-      VERBOSE_PIVOT_AGGLOM("[%d,%d] sending %d pivot operations in batch %d\n",
+      VERBOSE_PIVOT_AGGLOM("[%d,%d] announcing %d pivot operations in batch %d\n",
               thisIndex.x, thisIndex.y, pivotRecords.size(), pivotBatchTag);
-      for (std::map<int,int>::iterator itr = pivotRecords.begin(); itr != pivotRecords.end(); itr++)
-      { VERBOSE_PIVOT_RECORDING("pivot: %d <-- %d\n",itr->first,itr->second); }
+
+      // Create and initialize a msg to carry the pivot sequences
+      pivotSequencesMsg *msg = new(numRowsSinceLastPivotSend+1, numRowsSinceLastPivotSend*2, sizeof(int)*8)
+                                  pivotSequencesMsg(pivotBatchTag, numRowsSinceLastPivotSend);
+      msg->numSequences = 0;
+      memset(msg->seqIndex,      0, numRowsSinceLastPivotSend);
+      memset(msg->pivotSequence, 0, numRowsSinceLastPivotSend*2);
+
+      /// Parse the pivot operations and construct optimized pivot sequences
+      int seqNo =-1, i = 0;
+      std::map<int,int>::iterator itr = pivotRecords.begin();
+      while (itr != pivotRecords.end())
+      {
+          VERBOSE_PIVOT_RECORDING("\n");
+          msg->seqIndex[++seqNo] = i;
+          int chainStart = itr->first;
+          msg->pivotSequence[i++] = chainStart;
+          VERBOSE_PIVOT_RECORDING("%d ", chainStart);
+          while (itr->second != chainStart)
+          {
+              msg->pivotSequence[i++] = itr->second;
+              VERBOSE_PIVOT_RECORDING("<-- %d ", itr->second);
+              std::map<int,int>::iterator prev = itr;
+              itr = pivotRecords.find(itr->second);
+              pivotRecords.erase(prev);
+          }
+          pivotRecords.erase(itr);
+          itr = pivotRecords.begin();
+      }
+      msg->seqIndex[++seqNo] = i; ///< @note: Just so that we know where the last sequence ends
+      msg->numSequences = seqNo;
+      VERBOSE_PIVOT_RECORDING("\n");
 
       // Send the pivot ops to the right section (trailing sub-matrix chares + post-diagonal active row chares)
-      pivotSequencesMsg *msg = new(pivotRecords.size(), sizeof(int)*8)
-                                  pivotSequencesMsg(pivotBatchTag, numRowsSinceLastPivotSend, pivotRecords);
       *(int*)CkPriorityPtr(msg) = (thisIndex.x + 1) * BLKSIZE;
       CkSetQueueing(msg, CK_QUEUEING_IFIFO);
       pivotRightSection.applyPivots(msg);
@@ -1300,32 +1327,109 @@ private:
   }
 
 
-
   /// Given a set of pivot ops, send out participating row chunks that you own
   void sendPendingPivots(pivotSequencesMsg *msg)
   {
-      VERBOSE_PIVOT_AGGLOM("[%d,%d] processing %d pivot ops in batch %d\n",
-              thisIndex.x, thisIndex.y, msg->numPivots, pivotBatchTag);
+      std::stringstream pivotLog;
+      pivotLog<<"["<<thisIndex.x<<","<<thisIndex.y<<"]"
+              <<" processing "<<msg->numSequences
+              <<" pivot sequences in batch "<<pivotBatchTag;
+
       pendingIncomingPivots = 0;
 
-      std::pair<int,int> *records = msg->pivotRecs;
-      for (int i=0; i < msg->numPivots; i++)
+      int *pivotSequence = msg->pivotSequence, *idx = msg->seqIndex;
+      int numSequences = msg->numSequences;
+      double *tmpBuf = NULL, tmpB;
+
+      // Parse each sequence independently
+      for (int i=0; i < numSequences; i++)
       {
-          // Get the row indices of the chares involved in this pivot op
-          int   toIndex = records[i].first  / BLKSIZE;
-          int fromIndex = records[i].second / BLKSIZE;
-          // If the pivot record says I'll be getting data, make sure I expect it
-          if (thisIndex.x == toIndex)
-              pendingIncomingPivots++;
-          // If the pivot record indicates that I own the required data, send it out
-          if (thisIndex.x == fromIndex)
+          // Find the location of this sequence in the msg buffer
+          int *first      = pivotSequence + idx[i];
+          int *beyondLast = pivotSequence + idx[i+1];
+          CkAssert(beyondLast - first >= 2);
+
+          pivotLog<<"\n["<<thisIndex.x<<","<<thisIndex.y<<"] sequence "<<i<<": ";
+
+          // Identify a remote row in the pivot sequence as a point at which to
+          // start and stop processing the circular pivot sequence
+          int *ringStart = first;
+          while ( (*ringStart / BLKSIZE == thisIndex.x) && (ringStart < beyondLast) )
+              ringStart++;
+          int *ringStop = ringStart;
+
+          // If there are no remote rows in the sequence, we *have* to use a tmp buffer
+          // The tmp buffer will now complete the circular sequence
+          bool isSequenceLocal = false;
+          if (ringStart == beyondLast)
           {
-              int fromRow = msg->pivotRecs[i].second % BLKSIZE;
-              CkEntryOptions opts;
-              opts.setPriority(pivotBatchTag * BLKSIZE);
-              thisProxy(toIndex, thisIndex.y).acceptPivotData(pivotBatchTag, msg->pivotRecs[i].first, BLKSIZE, LU[fromRow], bvec[fromRow], &opts);
+              isSequenceLocal = true;
+              ringStart = first;
+              ringStop  = beyondLast - 1;
+
+              if (NULL == tmpBuf) tmpBuf = new double[BLKSIZE];
+              memcpy(tmpBuf, LU[*ringStart%BLKSIZE], BLKSIZE*sizeof(double));
+              tmpB = bvec[*ringStart%BLKSIZE];
+
+              pivotLog<<"tmp <-cpy- "<<*ringStart<<"; ";
           }
-      }
+
+          // Process all the pivot operations in the circular sequence
+          int *to = ringStart;
+          do
+          {
+              int *from        = (to+1 == beyondLast) ? first : to + 1;
+              int fromChareIdx = *from / BLKSIZE;
+              // If the current source row in the pivot sequence belongs to me, send it
+              if (fromChareIdx == thisIndex.x)
+              {
+                  int toChareIdx = *to / BLKSIZE;
+                  int fromLocal  = *from % BLKSIZE;
+                  // If you're sending to yourself, memcopy
+                  if (toChareIdx == thisIndex.x)
+                  {
+                      applySwap(*to%BLKSIZE, 0, LU[fromLocal], bvec[fromLocal]);
+                      pivotLog<<*to<<" <-cpy- "<<*from<<"; ";
+                  }
+                  // else, send a msg
+                  else
+                  {
+                      CkEntryOptions opts;
+                      opts.setPriority(thisIndex.y * BLKSIZE);
+                      thisProxy(toChareIdx, thisIndex.y).acceptPivotData(pivotBatchTag, *to, BLKSIZE, LU[fromLocal], bvec[fromLocal], &opts);
+                      pivotLog<<*to<<" <-msg- "<<*from<<"; ";
+                  }
+              }
+              // else, the source data is remote
+              else
+              {
+                  // if the current destination row belongs to me, make sure I expect the remote data
+                  if (*to / BLKSIZE == thisIndex.x)
+                  {
+                      pendingIncomingPivots++;
+                      pivotLog<<*to<<" <-inwd- "<<*from<<"; ";
+                  }
+                  // else, i dont worry about this portion of the exchange sequence which is completely remote
+                  else
+                  { pivotLog<<*to<<" <-noop- "<<*from<<"; "; }
+              }
+              // Setup a circular traversal of the pivot sequence
+              if (++to == beyondLast)
+                  to = first;
+          } while (to != ringStop); // Keep going till you complete the ring
+
+          // If the sequence was completely local, complete the circular sequence
+          // by copying the temp buffer back into the matrix block
+          if (isSequenceLocal)
+          {
+              applySwap(*(beyondLast-1)%BLKSIZE, 0, tmpBuf, tmpB);
+              pivotLog<<*(beyondLast-1)<<"<-cpy- tmp "<<"; ";
+          }
+
+      } // end for loop through all sequences
+
+      if (tmpBuf) delete [] tmpBuf;
+      VERBOSE_PIVOT_AGGLOM("%s\n",pivotLog.str().c_str());
   }
 
 
