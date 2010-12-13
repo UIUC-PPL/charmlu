@@ -130,7 +130,8 @@ mainmodule lu {
 
       // On chare array diagonal
       if (thisIndex.x == thisIndex.y) atomic {
-        ckout << "Block " << thisIndex.x << " queueing local LU at internalStep " << internalStep<<endl;
+        ckout << "--------------------------------------------------------------------"<<endl
+              <<"Block " << thisIndex.x << " queueing local LU at internalStep " << internalStep<<endl;
         thisProxy(thisIndex.x, thisIndex.y).processLU();
       }
       // Above diagonal
