@@ -28,6 +28,12 @@ mainmodule lu {
       int pivotSequence[];
   };
 
+  message pivotRowsMsg {
+      int    rowNum[];
+      double rows[];
+      double rhs[];
+  };
+
   message rednSetupMsg;
 
   mainchare Main {
@@ -68,7 +74,7 @@ mainmodule lu {
     entry void sendPivotData(int rowIndex, int size, double data[size], double b);
     entry void doPivot(pivotMsg *msg);
     entry void applyPivots(pivotSequencesMsg *msg);
-    entry void acceptPivotData(int batchTag, int globalRow, int size, double data[size], double b);
+    entry void acceptPivotData(pivotRowsMsg *msg);
     entry void sendUSegment(UMsg* msg);
     entry void diagUpdate(int);
 
@@ -89,13 +95,16 @@ mainmodule lu {
                   // Wait for all incoming pivot data from this batch
                   while (pendingIncomingPivots > 0)
                   {
-                      when acceptPivotData[pivotBatchTag](int batchTag, int globalRow, int size, double data[size], double b) atomic {
-                          CkAssert(thisIndex.x == globalRow/BLKSIZE);
-                          applySwap(globalRow%BLKSIZE, 0, data, b);
-                          pendingIncomingPivots--;
-                          VERY_VERBOSE_PIVOT_AGGLOM("[%d,%d] received pivot row %d for batch %d. %d pending\n",
-                                              thisIndex.x, thisIndex.y,
-                                              globalRow, pivotBatchTag, pendingIncomingPivots);
+                      when acceptPivotData[pivotBatchTag](pivotRowsMsg *aMsg) atomic {
+                          for (int i = 0; i < aMsg->nRows; i++)
+                          {
+                              CkAssert(thisIndex.x == aMsg->rowNum[i]/BLKSIZE);
+                              applySwap(aMsg->rowNum[i]%BLKSIZE, 0, &(aMsg->rows[i*BLKSIZE]), aMsg->rhs[i]);
+                              pendingIncomingPivots--;
+                              VERY_VERBOSE_PIVOT_AGGLOM("[%d,%d] received pivot row %d for batch %d. %d pending\n",
+                                  thisIndex.x, thisIndex.y, aMsg->rowNum[i], pivotBatchTag, pendingIncomingPivots);
+                          }
+                          delete aMsg;
                       }
                   }
                   // Increment the batch tag to the next expected
@@ -145,13 +154,16 @@ mainmodule lu {
               // Wait for all incoming pivot data from this batch
               while (pendingIncomingPivots > 0)
               {
-                  when acceptPivotData[pivotBatchTag](int batchTag, int globalRow, int size, double data[size], double b) atomic {
-                      CkAssert(thisIndex.x == globalRow/BLKSIZE);
-                      applySwap(globalRow%BLKSIZE, 0, data, b);
-                      pendingIncomingPivots--;
-                      VERY_VERBOSE_PIVOT_AGGLOM("[%d,%d] received pivot row %d for batch %d. %d pending\n",
-                                           thisIndex.x, thisIndex.y,
-                                           globalRow, pivotBatchTag, pendingIncomingPivots);
+                  when acceptPivotData[pivotBatchTag](pivotRowsMsg *aMsg) atomic {
+                      for (int i = 0; i < aMsg->nRows; i++)
+                      {
+                          CkAssert(thisIndex.x == aMsg->rowNum[i]/BLKSIZE);
+                          applySwap(aMsg->rowNum[i]%BLKSIZE, 0, &(aMsg->rows[i*BLKSIZE]), aMsg->rhs[i]);
+                          pendingIncomingPivots--;
+                          VERY_VERBOSE_PIVOT_AGGLOM("[%d,%d] received pivot row %d for batch %d. %d pending\n",
+                              thisIndex.x, thisIndex.y, aMsg->rowNum[i], pivotBatchTag, pendingIncomingPivots);
+                      }
+                      delete aMsg;
                   }
               }
               // Increment the batch tag to the next expected

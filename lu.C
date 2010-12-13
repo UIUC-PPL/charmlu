@@ -222,6 +222,35 @@ class pivotSequencesMsg: public CMessage_pivotSequencesMsg, public CkMcastBaseMs
 };
 
 
+
+class pivotRowsMsg: public CMessage_pivotRowsMsg, public CkMcastBaseMsg
+{
+    public:
+        int nRows;
+        int blockSize;
+        int *rowNum;
+        double *rows;
+        double *rhs;
+
+
+        pivotRowsMsg(const int _blockSize, const int _refNum):
+            nRows(0), blockSize(_blockSize)
+        {
+            CkSetRefNum(this, _refNum);
+        }
+
+
+        void copyRow(const int rNum, const double *row, const double b)
+        {
+            rowNum[nRows]    = rNum;
+            rhs[nRows]       = b;
+            memcpy(&rows[nRows*blockSize], row, blockSize*sizeof(double));
+            nRows++;
+        }
+};
+
+
+
 #include "manager.h"
 
 class rednSetupMsg: public CkMcastBaseMsg, public CMessage_rednSetupMsg
@@ -1410,9 +1439,11 @@ private:
                   // else, send a msg
                   else
                   {
-                      CkEntryOptions opts;
-                      opts.setPriority(thisIndex.y * BLKSIZE);
-                      thisProxy(toChareIdx, thisIndex.y).acceptPivotData(pivotBatchTag, *to, BLKSIZE, LU[fromLocal], bvec[fromLocal], &opts);
+                      pivotRowsMsg *sendMsg = new(1, 1*BLKSIZE, 1, sizeof(int)*8) pivotRowsMsg(BLKSIZE, pivotBatchTag);
+                      *(int*)CkPriorityPtr(msg) = thisIndex.y * BLKSIZE;
+                      CkSetQueueing(msg, CK_QUEUEING_IFIFO);
+                      sendMsg->copyRow(*to, LU[fromLocal], bvec[fromLocal]);
+                      thisProxy(toChareIdx, thisIndex.y).acceptPivotData(sendMsg);
                       #ifdef VERBOSE_PIVOT_AGGLOM
                           pivotLog<<*to<<" <-msg- "<<*from<<"; ";
                       #endif
