@@ -1225,27 +1225,18 @@ public:
 private:
 
   // Copy received pivot data into its place in this block
-    void applySwap(int row, int offset, double *data, double b) {
+  void applySwap(int row, int offset, double *data, double b) {
       DEBUG_PIVOT("(%d, %d): remote pivot inserted at %d\n", thisIndex.x, thisIndex.y, row);
       bvec[row] = b;
-      ///@todo: This should be a memcpy
-    for (int col = offset; col < BLKSIZE; ++col)
-      LU[row][ col] = data[col - offset];
+      memcpy( &(LU[row][offset]), data, sizeof(double)*(BLKSIZE-offset) );
   }
 
   // Exchange local data
   void swapLocal(int row1, int row2, int offset=0) {
-    double buf;
-    buf = bvec[row1];
-    bvec[row1] = bvec[row2];
-    bvec[row2] = buf;
-    // Swap the row of A (LU)
-    //@todo: replace with memcpy
-    for (int col = offset; col < BLKSIZE; col++) {
-      buf = LU[row1][col];
-      LU[row1][col] = LU[row2][col];
-      LU[row2][col] = buf;
-    }
+    if (row1 == row2) return;
+    std::swap(bvec[row1], bvec[row2]);
+    /// @todo: Is this better or is it better to do 3 memcpys
+    std::swap_ranges( &(LU[row1][offset]), &(LU[row1][BLKSIZE]), &(LU[row2][offset]) );
   }
 
   void doPivotLocal(int row1, int row2) {
