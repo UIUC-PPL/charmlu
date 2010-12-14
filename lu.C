@@ -1384,6 +1384,24 @@ private:
                   <<" pivot sequences in batch "<<pivotBatchTag;
       #endif
 
+      // Preallocate msgs that are big enough to carry all data I'll be sending to other chares
+      pivotRowsMsg* outgoingPivotMsgs[numBlks];
+      int *numMsgsTo = &( msg->xchangeMatrix[thisIndex.x*numBlks] );
+      for (int i=0; i< numBlks; i++)
+      {
+          // If this other chare expects row data from me
+          if ( numMsgsTo[i] > 0 && thisIndex.x != i)
+          {
+              // Create a big enough msg to carry all the rows I'll be sending to this chare
+              outgoingPivotMsgs[i] = new(numMsgsTo[i], numMsgsTo[i]*BLKSIZE, numMsgsTo[i], sizeof(int)*8)
+                                        pivotRowsMsg(BLKSIZE, pivotBatchTag);
+              *(int*)CkPriorityPtr(msg) = thisIndex.y * BLKSIZE;
+              CkSetQueueing(msg, CK_QUEUEING_IFIFO);
+          }
+          else
+              outgoingPivotMsgs[i] = NULL;
+      }
+
       pendingIncomingPivots = 0;
 
       int *pivotSequence = msg->pivotSequence, *idx = msg->seqIndex;
@@ -1445,14 +1463,10 @@ private:
                           pivotLog<<*to<<" <-cpy- "<<*from<<"; ";
                       #endif
                   }
-                  // else, send a msg
+                  // else, copy the data into the appropriate msg
                   else
                   {
-                      pivotRowsMsg *sendMsg = new(1, 1*BLKSIZE, 1, sizeof(int)*8) pivotRowsMsg(BLKSIZE, pivotBatchTag);
-                      *(int*)CkPriorityPtr(msg) = thisIndex.y * BLKSIZE;
-                      CkSetQueueing(msg, CK_QUEUEING_IFIFO);
-                      sendMsg->copyRow(*to, LU[fromLocal], bvec[fromLocal]);
-                      thisProxy(toChareIdx, thisIndex.y).acceptPivotData(sendMsg);
+                      outgoingPivotMsgs[*to/BLKSIZE]->copyRow(*to, LU[fromLocal], bvec[fromLocal]);
                       #ifdef VERBOSE_PIVOT_AGGLOM
                           pivotLog<<*to<<" <-msg- "<<*from<<"; ";
                       #endif
@@ -1493,6 +1507,11 @@ private:
           }
 
       } // end for loop through all sequences
+
+      // Send out all the msgs carrying pivot data to other chares
+      for (int i=0; i< numBlks; i++)
+          if ( numMsgsTo[i] > 0 && thisIndex.x != i)
+              thisProxy(i, thisIndex.y).acceptPivotData(outgoingPivotMsgs[i]);
 
       if (tmpBuf) delete [] tmpBuf;
       #ifdef VERBOSE_PIVOT_AGGLOM
