@@ -1318,8 +1318,8 @@ private:
       pivotSequencesMsg *msg = new(numRowsSinceLastPivotSend+1, numRowsSinceLastPivotSend*2, numBlks*numBlks, sizeof(int)*8)
                                   pivotSequencesMsg(pivotBatchTag, numRowsSinceLastPivotSend);
       msg->numSequences = 0;
-      memset(msg->seqIndex,      0, numRowsSinceLastPivotSend);
-      memset(msg->pivotSequence, 0, numRowsSinceLastPivotSend*2);
+      memset(msg->seqIndex,      0, sizeof(int) * numRowsSinceLastPivotSend );
+      memset(msg->pivotSequence, 0, sizeof(int) * numRowsSinceLastPivotSend*2 );
       memset(msg->xchangeMatrix, 0, sizeof(int) * numBlks * numBlks );
 
       /// Parse the pivot operations and construct optimized pivot sequences
