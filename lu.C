@@ -212,6 +212,7 @@ class pivotSequencesMsg: public CMessage_pivotSequencesMsg, public CkMcastBaseMs
         int numSequences;
         int *seqIndex;
         int *pivotSequence;
+        int *xchangeMatrix;
 
         pivotSequencesMsg(const int _firstRowProcessed, const int _numRowsProcessed)
         {
@@ -1314,11 +1315,12 @@ private:
       #endif
 
       // Create and initialize a msg to carry the pivot sequences
-      pivotSequencesMsg *msg = new(numRowsSinceLastPivotSend+1, numRowsSinceLastPivotSend*2, sizeof(int)*8)
+      pivotSequencesMsg *msg = new(numRowsSinceLastPivotSend+1, numRowsSinceLastPivotSend*2, numBlks*numBlks, sizeof(int)*8)
                                   pivotSequencesMsg(pivotBatchTag, numRowsSinceLastPivotSend);
       msg->numSequences = 0;
       memset(msg->seqIndex,      0, numRowsSinceLastPivotSend);
       memset(msg->pivotSequence, 0, numRowsSinceLastPivotSend*2);
+      memset(msg->xchangeMatrix, 0, sizeof(int) * numBlks * numBlks );
 
       /// Parse the pivot operations and construct optimized pivot sequences
       int seqNo =-1, i = 0;
@@ -1336,14 +1338,21 @@ private:
           #endif
           while (itr->second != chainStart)
           {
-              msg->pivotSequence[i++] = itr->second;
+              msg->pivotSequence[i] = itr->second;
               #ifdef VERBOSE_PIVOT_RECORDING
                   pivotLog<<" <-- "<<itr->second;
               #endif
+              // If the data flows across chares, the sender should know, so it can size its msgs
+              int fromIdx = msg->pivotSequence[i]   / BLKSIZE;
+              int toIdx   = msg->pivotSequence[i-1] / BLKSIZE;
+              msg->xchangeMatrix[fromIdx*numBlks + toIdx]++;
+
               std::map<int,int>::iterator prev = itr;
               itr = pivotRecords.find(itr->second);
               pivotRecords.erase(prev);
+              i++;
           }
+          msg->xchangeMatrix[(chainStart/BLKSIZE)*numBlks + (itr->first/BLKSIZE)]++;
           pivotRecords.erase(itr);
           itr = pivotRecords.begin();
       }

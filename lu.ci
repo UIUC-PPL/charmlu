@@ -26,6 +26,7 @@ mainmodule lu {
   message pivotSequencesMsg {
       int seqIndex[];
       int pivotSequence[];
+      int xchangeMatrix[];
   };
 
   message pivotRowsMsg {
