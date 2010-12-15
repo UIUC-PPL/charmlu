@@ -92,11 +92,11 @@ mainmodule lu {
               // Wait for msg carrying the next batch of pivot ops
               when applyPivots[pivotBatchTag](pivotSequencesMsg *msg) {
                   // Send out any pivot data owned by this chare
-                  atomic { sendPendingPivots(msg); }
+                  atomic "sendOutgoingPivots_trailingChare" { sendPendingPivots(msg); }
                   // Wait for all incoming pivot data from this batch
                   while (pendingIncomingPivots > 0)
                   {
-                      when acceptPivotData[pivotBatchTag](pivotRowsMsg *aMsg) atomic {
+                      when acceptPivotData[pivotBatchTag](pivotRowsMsg *aMsg) atomic "acceptIncomingPivots_trailingChare" {
                           for (int i = 0; i < aMsg->nRows; i++)
                           {
                               CkAssert(thisIndex.x == aMsg->rowNum[i]/BLKSIZE);
@@ -154,11 +154,11 @@ mainmodule lu {
           // Wait for msg carrying the next batch of pivot ops
           when applyPivots[pivotBatchTag](pivotSequencesMsg *msg) {
               // Send out any pivot data owned by this chare
-              atomic { sendPendingPivots(msg); }
+              atomic "sendOutgoingPivots_activeRowChare" { sendPendingPivots(msg); }
               // Wait for all incoming pivot data from this batch
               while (pendingIncomingPivots > 0)
               {
-                  when acceptPivotData[pivotBatchTag](pivotRowsMsg *aMsg) atomic {
+                  when acceptPivotData[pivotBatchTag](pivotRowsMsg *aMsg) atomic "acceptIncomingPivots_activeRowChare" {
                       for (int i = 0; i < aMsg->nRows; i++)
                       {
                           CkAssert(thisIndex.x == aMsg->rowNum[i]/BLKSIZE);
