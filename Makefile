@@ -43,7 +43,7 @@ $(TARGET): $(OBJ)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 clean:
-	$(RM) $(wildcard *.decl.h *.def.h *.d *.di *.o *.log *.projrc *.sts *.stamp) $(TARGET) charmrun 
+	$(RM) $(wildcard *.decl.h *.def.h *.d *.di *.o *.projrc *.sts *.stamp) $(TARGET) charmrun
 
 again: 
 	$(MAKE) clean; $(MAKE)
