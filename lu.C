@@ -494,7 +494,7 @@ class LUBlk: public CBase_LUBlk {
   CProxySection_LUBlk belowLeft, belowRight;
 
   /// Variables used during factorization
-  double **LU;
+  double *LU;
 
   int BLKSIZE, numBlks;
   blkMsg *L, *U;
@@ -611,11 +611,11 @@ public:
 
 	  //Perform local dgemv
 #if USE_ESSL
-    dgemv("T", BLKSIZE, BLKSIZE, 1.0, LU[0], BLKSIZE, xvec, 1, 0.0, partial_b, 1);
+    dgemv("T", BLKSIZE, BLKSIZE, 1.0, LU, BLKSIZE, xvec, 1, 0.0, partial_b, 1);
 #else
     cblas_dgemv( CblasRowMajor, CblasNoTrans,
-              BLKSIZE, BLKSIZE, 1.0, LU[0],
-              BLKSIZE, xvec, 1, 0.0, partial_b, 1);
+    		  BLKSIZE, BLKSIZE, 1.0, LU,
+    		  BLKSIZE, xvec, 1, 0.0, partial_b, 1);
 #endif
 
     //sum-reduction of result across row with diagonal element as target
@@ -624,7 +624,7 @@ public:
     //if you are not the diagonal, find your max A value and contribute
     if(thisIndex.x != thisIndex.y) {
     	//find local max of A
-        double A_max = infNorm(BLKSIZE * BLKSIZE, LU[0]);
+    	double A_max = infNorm(BLKSIZE * BLKSIZE, LU);
     	DEBUG_PRINT("[%d,%d] A_max  = %e\n",thisIndex.x,thisIndex.y,A_max);
 
     	double maxvals[4];
@@ -672,7 +672,7 @@ public:
 	  }
 
 	  //find local max values
-	  double A_max = infNorm(BLKSIZE * BLKSIZE, LU[0]);
+	  double A_max = infNorm(BLKSIZE * BLKSIZE, LU);
 	  double b_max = infNorm(BLKSIZE, b);
 	  double x_max = infNorm(BLKSIZE, bvec);
 	  double res_max = infNorm(BLKSIZE, residuals);
@@ -802,7 +802,7 @@ public:
 	CrnStream stream;
 	memcpy(&stream, &blockStream, sizeof(CrnStream));
 
-	for (double *d = LU[0]; d < LU[0] + BLKSIZE*BLKSIZE; ++d)
+	for (double *d = LU; d < LU + BLKSIZE*BLKSIZE; ++d)
 	    *d = CrnDouble(&stream);
     }
 
@@ -830,18 +830,12 @@ public:
 			 // are safe to use here.
 
 #if USE_MEMALIGN
-    LU    = (double**) memalign(128, BLKSIZE*sizeof(double*) );
+    LU = (double*)memalign(128, BLKSIZE*BLKSIZE*sizeof(double) );
+    //	 CkPrintf("LU mod 128 = %lu\n", ((unsigned long)LU) % 128);
     CkAssert(LU != NULL);
-    LU[0] = (double*)  memalign(128, BLKSIZE*BLKSIZE*sizeof(double) );
-    CkAssert(LU[0] != NULL);
 #else
-    LU    = new double* [BLKSIZE];
-    LU[0] = new double  [BLKSIZE*BLKSIZE];
+    LU = new double[BLKSIZE*BLKSIZE];
 #endif
-
-    // Initialize the pointers to the rows of the matrix block
-    for (int i=1; i<BLKSIZE; i++)
-        LU[i] = LU[0] + i*BLKSIZE;
 
     internalStep = 0;  
      
@@ -930,10 +924,8 @@ public:
   ~LUBlk() {
     //CkPrintf("freeing LuBlk\n");
 #if USE_MEMALIGN
-    free(LU[0]);
     free(LU);
 #else
-    delete [] LU[0];
     delete [] LU;
 #endif
     LU = NULL;
@@ -983,9 +975,9 @@ public:
     // givenL is implicitly transposed by telling dtrsm that it is a
     // right, upper matrix. Since this also switches the order of
     // multiplication, the transpose is output to LU.
-    dtrsm("R", "U", "N", "U", BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU[0], BLKSIZE);
+    dtrsm("R", "U", "N", "U", BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU, BLKSIZE);
 #else
-    cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU[0], BLKSIZE);
+    cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU, BLKSIZE);
 #endif
   }
 
@@ -997,9 +989,9 @@ public:
     DEBUG_PRINT("elem[%d,%d]::computeL called at step %d\n", thisIndex.x, thisIndex.y, internalStep);
 
 #if USE_ESSL
-    dtrsm("R", "U", "N", "N", BLKSIZE, BLKSIZE, 1.0, givenU, BLKSIZE, LU[0], BLKSIZE);
+    dtrsm("R", "U", "N", "N", BLKSIZE, BLKSIZE, 1.0, givenU, BLKSIZE, LU, BLKSIZE);
 #else
-    cblas_dtrsm(CblasRowMajor, CblasRight, CblasUpper, CblasNoTrans, CblasNonUnit, BLKSIZE, BLKSIZE, 1.0, givenU, BLKSIZE, LU[0], BLKSIZE);
+    cblas_dtrsm(CblasRowMajor, CblasRight, CblasUpper, CblasNoTrans, CblasNonUnit, BLKSIZE, BLKSIZE, 1.0, givenU, BLKSIZE, LU, BLKSIZE);
 #endif
   }
 
@@ -1017,14 +1009,14 @@ public:
 	   BLKSIZE, BLKSIZE, BLKSIZE,
 	   -1.0, incomingU,
 	   BLKSIZE, incomingL, BLKSIZE,
-	   1.0, LU[0], BLKSIZE);
+	   1.0, LU, BLKSIZE);
 #else
     cblas_dgemm( CblasRowMajor,
 		 CblasNoTrans, CblasNoTrans,
 		 BLKSIZE, BLKSIZE, BLKSIZE,
 		 -1.0, incomingL,
 		 BLKSIZE, incomingU, BLKSIZE,
-		 1.0, LU[0], BLKSIZE);
+		 1.0, LU, BLKSIZE);
 #endif
   }
 
@@ -1093,6 +1085,10 @@ public:
     DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
   }
 
+  int inline getIndex(int i, int j) {
+    return i * BLKSIZE + j;
+  }
+
   void localSolve(double *xvec, double *preVec) {
       for (int i = 0; i < BLKSIZE; i++) {
         xvec[i] = 0.0;
@@ -1100,7 +1096,7 @@ public:
       
       for (int i = 0; i < BLKSIZE; i++) {
         for (int j = 0; j < BLKSIZE; j++) {
-          xvec[i] += LU[i][j] * preVec[j];
+          xvec[i] += LU[getIndex(i,j)] * preVec[j];
         }
       }
   }
@@ -1108,7 +1104,7 @@ public:
   void localForward(double *xvec) {
     for (int i = 0; i < BLKSIZE; i++) {
       for (int j = 0; j < i; j++) {
-	xvec[i] -= LU[i][j] * xvec[j];
+	xvec[i] -= LU[getIndex(i,j)] * xvec[j];
       }
     }
   }
@@ -1116,9 +1112,9 @@ public:
   void localBackward(double *xvec) {
     for (int i = BLKSIZE-1; i >= 0; i--) {
       for (int j = i+1; j < BLKSIZE; j++) {
-	xvec[i] -= LU[i][j] * xvec[j];
+	xvec[i] -= LU[getIndex(i,j)] * xvec[j];
       }
-      xvec[i] /= LU[i][i];
+      xvec[i] /= LU[getIndex(i,i)];
     }
   }
 
@@ -1154,7 +1150,7 @@ public:
 
     for (int i = 0; i < BLKSIZE; i++) {
       for (int j = 0; j < BLKSIZE; j++) {
-	fprintf(file, "%f ", LU[i][j]);
+	fprintf(file, "%f ", LU[getIndex(i,j)]);
       }
       fprintf(file, "\n");
     }
@@ -1170,7 +1166,7 @@ private:
       DEBUG_PIVOT("(%d, %d): remote pivot inserted at %d\n", thisIndex.x, thisIndex.y, row);
       bvec[row] = b;
     for (int col = offset; col < BLKSIZE; ++col)
-      LU[row][ col] = data[col - offset];
+      LU[getIndex(row, col)] = data[col - offset];
   }
 
   // Exchange local data
@@ -1181,9 +1177,9 @@ private:
     bvec[row2] = buf;
     // Swap the row of A (LU)
     for (int col = offset; col < BLKSIZE; col++) {
-      buf = LU[row1][col];
-      LU[row1][col] = LU[row2][col];
-      LU[row2][col] = buf;
+      buf = LU[getIndex(row1, col)];
+      LU[getIndex(row1, col)] = LU[getIndex(row2, col)];
+      LU[getIndex(row2, col)] = buf;
     }
   }
 
@@ -1220,15 +1216,15 @@ private:
   inline blkMsg* createABlkMsg() {
     blkMsg *msg = mgr->createBlockMessage(thisIndex.x, thisIndex.y,
                                           internalStep, sizeof(int)*8);
-    msg->setMsgData(LU[0], internalStep, BLKSIZE);
+    msg->setMsgData(LU, internalStep, BLKSIZE);
     return msg;
   }
 
   locval findLocVal(int startRow, int col, locval first = locval()) {
     locval l = first;
     for (int row = startRow; row < BLKSIZE; row++)
-      if ( fabs(LU[row][col]) > fabs(l.val) ) {
-        l.val = LU[row][col];
+      if ( fabs(LU[getIndex(row, col)]) > fabs(l.val) ) {
+        l.val = LU[getIndex(row, col)];
         l.loc = row + BLKSIZE * thisIndex.x;
       }
     return l;
@@ -1237,13 +1233,13 @@ private:
   // Local multiplier computation and update after U is sent to the blocks below
   void diagonalUpdate(int col) {
     // Pivoting is done, so the diagonal entry better not be zero; else the matrix is singular
-    if (fabs(LU[col][col]) <= 100 * std::numeric_limits<double>::epsilon() )
+    if (fabs(LU[getIndex(col,col)]) <= 100 * std::numeric_limits<double>::epsilon() )
         CkAbort("Diagonal element very small despite pivoting. Is the matrix singular??");
 
-    computeMultipliers(LU[col][col],col+1,col);
+    computeMultipliers(LU[getIndex(col,col)],col+1,col);
     for(int k=col+1;k<BLKSIZE;k++) {
       for(int j=col+1; j<BLKSIZE; j++) {
-        LU[j][k] = LU[j][k] - LU[j][col] * LU[col][k];
+        LU[getIndex(j,k)] = LU[getIndex(j,k)] - LU[getIndex(j,col)] * LU[getIndex(col, k)];
       }
     }
   }
@@ -1252,10 +1248,10 @@ private:
   //  starting at [row, col]
   void computeMultipliers(double a_kk, int row, int col) {
 #if 0
-      cblas_dscal(BLKSIZE-row, 1/a_kk, &LU[row][col], BLKSIZE);
+      cblas_dscal(BLKSIZE-row, 1/a_kk, &LU[getIndex(row,col)], BLKSIZE);
 #else
     for(int i = row; i<BLKSIZE;i++)
-      LU[i][col] = LU[i][col]/a_kk;
+      LU[getIndex(i,col)] = LU[getIndex(i,col)]/a_kk;
 #endif
   }
 
@@ -1266,14 +1262,14 @@ private:
 #if 0
       cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
 		  BLKSIZE, BLKSIZE-(col+1), 1,
-		  -1.0, &LU[0][col], BLKSIZE,
+		  -1.0, &LU[getIndex(0,col)], BLKSIZE,
 		  U+1, BLKSIZE,
-		  1.0, &LU[0][col+1], BLKSIZE);
+		  1.0, &LU[getIndex(0,col+1)], BLKSIZE);
 #else
     for(int k=col+1;k<BLKSIZE;k++) {
       for(int j=0; j<BLKSIZE; j++) {
         //U[k] might need to be U[j]?
-        LU[j][k] =  LU[j][k] - LU[j][col]*U[k-col];
+        LU[getIndex(j,k)] =  LU[getIndex(j,k)] - LU[getIndex(j,col)]*U[k-col];
       }
     }
 #endif
