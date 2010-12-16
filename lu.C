@@ -1346,7 +1346,7 @@ private:
       #endif
 
       // Send the pivot ops to the right section (trailing sub-matrix chares + post-diagonal active row chares)
-      *(int*)CkPriorityPtr(msg) = (thisIndex.x + 1) * BLKSIZE;
+      *(int*)CkPriorityPtr(msg) = (thisIndex.y + 1) * BLKSIZE;
       CkSetQueueing(msg, CK_QUEUEING_IFIFO);
       pivotRightSection.applyPivots(msg);
 

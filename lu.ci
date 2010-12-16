@@ -126,7 +126,7 @@ mainmodule lu {
         // Schedule the trailing update for sometime later
         atomic "trailing_schedule_update" {
           CkEntryOptions opts;
-	  opts.setPriority(thisIndex.x * BLKSIZE);
+	  opts.setPriority(thisIndex.y * BLKSIZE);
           thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep, &opts);
         }
         when processTrailingUpdate[internalStep](int step) atomic "trailing_update" {
@@ -181,7 +181,7 @@ mainmodule lu {
           CmiReference(UsrToEnv(mL));
           L = mL;
           CkEntryOptions opts;
-          opts.setPriority(thisIndex.x * BLKSIZE);
+          opts.setPriority(thisIndex.y * BLKSIZE);
           thisProxy(thisIndex.x, thisIndex.y).processComputeU(0, &opts);
         }
       }
