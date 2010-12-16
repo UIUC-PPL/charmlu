@@ -1375,13 +1375,36 @@ private:
                   <<" pivot sequences in batch "<<pivotBatchTag;
       #endif
 
-      // Preallocate msgs that are big enough to carry all data I'll be sending to other chares
+      int *pivotSequence = msg->pivotSequence, *idx = msg->seqIndex;
+      int numSequences = msg->numSequences;
+
+      // Count the number of rows that I send to each chare
+      int numMsgsTo[numBlks];
+      memset(numMsgsTo, 0, sizeof(int)*numBlks);
+      for (int i=0; i< numSequences; i++)
+      {
+          for (int j=idx[i]; j<idx[i+1]; j++)
+          {
+              int recverIdx = pivotSequence[j]/BLKSIZE;
+              int senderIdx =-1;
+              // circular traversal of pivot sequence
+              if (j < idx[i+1]-1)
+                  senderIdx = pivotSequence[j+1]/BLKSIZE;
+              else
+                  senderIdx = pivotSequence[idx[i]]/BLKSIZE;
+              // If I am the sending to another chare
+              if (thisIndex.x == senderIdx && thisIndex.x != recverIdx)
+                  numMsgsTo[recverIdx]++;
+          }
+      }
+
+      // Preallocate msgs that are big enough to carry the rows I'll be sending to each of the other chares
       pivotRowsMsg* outgoingPivotMsgs[numBlks];
-      int *numMsgsTo = &( msg->xchangeMatrix[thisIndex.x*numBlks] );
+      memset(outgoingPivotMsgs, 0, sizeof(pivotRowsMsg*) * numBlks);
       for (int i=0; i< numBlks; i++)
       {
           // If this other chare expects row data from me
-          if ( numMsgsTo[i] > 0 && thisIndex.x != i)
+          if ( numMsgsTo[i] > 0)
           {
               // Create a big enough msg to carry all the rows I'll be sending to this chare
               outgoingPivotMsgs[i] = new(numMsgsTo[i], numMsgsTo[i]*BLKSIZE, numMsgsTo[i], sizeof(int)*8)
@@ -1389,14 +1412,9 @@ private:
               *(int*)CkPriorityPtr(msg) = thisIndex.y * BLKSIZE;
               CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           }
-          else
-              outgoingPivotMsgs[i] = NULL;
       }
 
       pendingIncomingPivots = 0;
-
-      int *pivotSequence = msg->pivotSequence, *idx = msg->seqIndex;
-      int numSequences = msg->numSequences;
       double *tmpBuf = NULL, tmpB;
 
       // Parse each sequence independently
