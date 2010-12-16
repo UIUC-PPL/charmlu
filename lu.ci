@@ -278,6 +278,7 @@ mainmodule lu {
       atomic {
         CkAssert(pivotBatchTag == thisIndex.x*BLKSIZE);
         pivotRecords.clear();
+        numRowsSinceLastPivotSend = 0;
       }
       // Process matrix column-by-column
       for (activeCol = 0; activeCol < BLKSIZE; ++activeCol) {
