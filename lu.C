@@ -1511,7 +1511,7 @@ private:
 
       // Send out all the msgs carrying pivot data to other chares
       for (int i=0; i< numBlks; i++)
-          if ( numMsgsTo[i] > 0 && thisIndex.x != i)
+          if (numMsgsTo[i] > 0)
               thisProxy(i, thisIndex.y).acceptPivotData(outgoingPivotMsgs[i]);
 
       if (tmpBuf) delete [] tmpBuf;
