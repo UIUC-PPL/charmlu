@@ -166,7 +166,8 @@ mainmodule lu {
 
             // Contribute to a reduction along the pivot section to identify the pivot row
             // The pivot section includes all sub-diagonal chares along the active column of the chare array
-            mcastMgr->contribute(sizeof(locval), &l, LocValReducer, pivotCookie);
+	    CkCallback cb(CkIndex_LUBlk::colMax(0), thisProxy(thisIndex.y, thisIndex.y));
+            mcastMgr->contribute(sizeof(locval), &l, LocValReducer, pivotCookie, cb);
           }
           // Once pivot is identified, and diagonal chare sends out the pivot update
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) {
@@ -246,70 +247,92 @@ mainmodule lu {
           // Find the local maximum in the active column
           l = findLocVal(activeCol, activeCol);
           // Contribute to a redn along the pivot section to identify the pivot row
-          mcastMgr->contribute(sizeof(locval), &l, LocValReducer, pivotCookie);
+	  CkCallback cb(CkIndex_LUBlk::colMax(0), thisProxy(thisIndex.y, thisIndex.y));
+          mcastMgr->contribute(sizeof(locval), &l, LocValReducer, pivotCookie, cb);
+	  if (thisIndex.x == 128) {
+	    CkPrintf("mcastMgr-contribute\n");
+	  }
         }
 
         // Find the pivot row
         when colMax(CkReductionMsg *m) atomic "diag_found_colmax" {
+	  if (thisIndex.x == 128) {CkPrintf("when colMax\n");}
           l = *(locval *)(m->getData());
+	  if (thisIndex.x == 128) {CkPrintf("finished colMax\n");}
         }
 
         // Share the pivot info with the appropriate array section
         atomic "diag_send_pivot_active" {
+	  if (thisIndex.x == 128) {CkPrintf("diag_send_pivot_active\n");}
           // Send pivot info to all chares that will care (below section)
           pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
           *(int*)CkPriorityPtr(msg) = -1;
 	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           pivotSection.doPivot(msg);
+	  if (thisIndex.x == 128) {CkPrintf("pivotSection.doPivot\n");}
         }
 
         // If required chunk of pivot row is not with me (but in a chare below me)
         if (l.loc / BLKSIZE != thisIndex.x) {
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) atomic "diag_send_remote_pivot" {
+	    if (thisIndex.x == 128) {CkPrintf("when doPivot\n");}
             // Trigger swap of data
             CkEntryOptions opts;
             opts.setPriority(-1);
             thisProxy(msg->row2 / BLKSIZE, thisIndex.y)
             .sendPivotData(internalStep*BLKSIZE + activeCol, BLKSIZE, &LU[getIndex(msg->row1 % BLKSIZE, 0)], bvec[msg->row1 % BLKSIZE], &opts);
+	    if (thisIndex.x == 128) {CkPrintf("sendPivotData\n");}
           }
           when sendPivotData[internalStep*BLKSIZE + activeCol](int rowIndex, int size,
                                                                double data[size], double b) atomic "diag_receive_remote_pivot" {
+	    if (thisIndex.x == 128) {CkPrintf("when sendPivotData\n");}
             applySwap(activeCol, 0, data, b);
+	    if (thisIndex.x == 128) {CkPrintf("applySwap\n");}
           }
         } else {
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) atomic "diag_local_pivot" {
+	    if (thisIndex.x == 128) {CkPrintf("when doPivot local\n");}
             //DEBUG_PIVOT("swapLocal being called\n");
             swapLocal(l.loc - BLKSIZE * thisIndex.x, activeCol);
+	    if (thisIndex.x == 128) {CkPrintf("swapLocal\n");}
           }
         }
 
         // Now, send the post-diagonal portion of the matrix row (a segment of U)
         atomic "diag_send_useg" {
+	  if (thisIndex.x == 128) {CkPrintf("diag_send_useg\n");}
           UMsg *msg = new(BLKSIZE - activeCol, sizeof(int)*8) UMsg(BLKSIZE - activeCol, &LU[getIndex(activeCol, activeCol)]);
           *(int*)CkPriorityPtr(msg) = -1;
 	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           activePanel.sendUSegment(msg);
           thisProxy(thisIndex.x, thisIndex.y).diagUpdate(0);
+	  if (thisIndex.x == 128) {CkPrintf("diagUpdate\n");}
         }
 
         when diagUpdate(int a) atomic "diag_update" {
+	  if (thisIndex.x == 128) {CkPrintf("when diagUpdate\n");}
           diagonalUpdate(activeCol);
+	  if (thisIndex.x == 128) {CkPrintf("diagonalUpdate\n");}
         }
 
 	atomic "diag_send_pivot_right" {
+	  if (thisIndex.x == 128) {CkPrintf("diag_send_pivot_right\n");}
           // Send pivot info to all chares that will care (below section)
           pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
           *(int*)CkPriorityPtr(msg) = (thisIndex.x + 1) * BLKSIZE;
 	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           pivotRightSection.doPivot(msg);
+	  if (thisIndex.x == 128) {CkPrintf("pivotRightSection.doPivot\n");}
         }
 
         atomic "diag_send_pivot_left" {
+	  if (thisIndex.x == 128) {CkPrintf("diag_send_pivot_left\n");}
           // Send pivot info to all chares that will care (below section)
           pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
           *(int*)CkPriorityPtr(msg) = BLKSIZE * numBlks + 1;
 	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           pivotLeftSection.doPivot(msg);
+	  if (thisIndex.x == 128) {CkPrintf("pivotLeftSection.doPivot\n");}
         }
       }
 
