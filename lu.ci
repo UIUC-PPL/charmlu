@@ -333,7 +333,7 @@ mainmodule lu {
         recordPivot(thisIndex.y*BLKSIZE + activeCol, l.loc);
         // at opportune steps, send out the agglomerated pivot ops
         if ( shouldSendPivots() || activeCol == BLKSIZE-1)
-            disseminateAgglomeratedPivots();
+            announceAgglomeratedPivots();
         }
 
         atomic "diag_send_pivot_left" {

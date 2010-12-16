@@ -1296,7 +1296,7 @@ private:
 
 
   /// Periodically send out the agglomerated pivot operations
-  void disseminateAgglomeratedPivots()
+  void announceAgglomeratedPivots()
   {
       #if defined(VERBOSE_PIVOT_RECORDING) || defined(VERBOSE_PIVOT_AGGLOM)
           std::stringstream pivotLog;
