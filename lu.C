@@ -1558,11 +1558,9 @@ private:
         CkAbort("Diagonal element very small despite pivoting. Is the matrix singular??");
 
     computeMultipliers(LU[col][col],col+1,col);
-    for(int k=col+1;k<BLKSIZE;k++) {
-      for(int j=col+1; j<BLKSIZE; j++) {
-        LU[j][k] = LU[j][k] - LU[j][col] * LU[col][k];
-      }
-    }
+    for(int j=col+1; j<BLKSIZE; j++)
+        for(int k=col+1;k<BLKSIZE;k++)
+            LU[j][k] -= LU[j][col] * LU[col][k];
   }
 
   /// Compute the multipliers based on the pivot value from the diagonal chare
@@ -1587,12 +1585,9 @@ private:
 		  U+1, BLKSIZE,
 		  1.0, &LU[0][col+1], BLKSIZE);
 #else
-    for(int k=col+1;k<BLKSIZE;k++) {
-      for(int j=0; j<BLKSIZE; j++) {
-        //U[k] might need to be U[j]?
-        LU[j][k] =  LU[j][k] - LU[j][col]*U[k-col];
-      }
-    }
+    for(int j=0; j < BLKSIZE; j++)
+        for(int k=col+1; k<BLKSIZE; k++)
+            LU[j][k] -=  LU[j][col]*U[k-col];
 #endif
   }
 
