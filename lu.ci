@@ -232,12 +232,11 @@ mainmodule lu {
         }
         atomic "below_send_L" {
           multicastRecvL();
-          currentStep = internalStep+1;
         }
-	// TODO: index with currentStep
-        for (ind = 0;  ind < thisIndex.x - thisIndex.y; ind++) {
+
+        for (internalStep++;  internalStep <= thisIndex.x; internalStep++) {
           for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
-            when doPivot[currentStep*BLKSIZE + pivotBlk](pivotMsg *msg) {
+            when doPivot[internalStep*BLKSIZE + pivotBlk](pivotMsg *msg) {
               atomic "later_recv_pivot" {
                 doPivotLocal(msg->row1, msg->row2);
               }
@@ -246,16 +245,13 @@ mainmodule lu {
                   CkEntryOptions opts;
                   opts.setPriority(BLKSIZE * numBlks + 1);
                   thisProxy(otherRowIndex, thisIndex.y)
-                    .sendPivotData(currentStep*BLKSIZE + pivotBlk, BLKSIZE, &LU[thisLocalRow][0], bvec[thisLocalRow], &opts);
+                    .sendPivotData(internalStep*BLKSIZE + pivotBlk, BLKSIZE, &LU[thisLocalRow][0], bvec[thisLocalRow], &opts);
                 }
-                when sendPivotData[currentStep*BLKSIZE + pivotBlk](int index, int size, double data[size], double b) atomic "later_recv_remote_pivot" {
+                when sendPivotData[internalStep*BLKSIZE + pivotBlk](int index, int size, double data[size], double b) atomic "later_recv_remote_pivot" {
                   applySwap(thisLocalRow, 0, data, b);
                 }
               }
             }
-          }
-          atomic {
-            currentStep++;
           }
         }
       }

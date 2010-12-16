@@ -545,7 +545,7 @@ class LUBlk: public CBase_LUBlk {
 
   int BLKSIZE, numBlks;
   blkMsg *L, *U;
-  int internalStep, activeCol, currentStep, ind;
+  int internalStep, activeCol, ind;
 
   LUMgr *mgr;
 
