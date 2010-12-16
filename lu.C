@@ -69,6 +69,7 @@ int traceSolveLocalLU;
 bool doPrioritize;
 ComlibInstanceHandle multicastStats[4];
 CProxy_locker lg;
+CProxy_LUBlk luArrProxy;
 
 #ifdef CHARMLU_DEBUG
     #define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
@@ -88,7 +89,13 @@ class locval {
         int loc;
 };
 
-void doExit(void *) { CkExit(); }
+void doExit(void *) {
+  CkExit();
+}
+
+void printValues(void *) {
+  luArrProxy.printValues(CkCallback(doExit));
+}
 
 CkReductionMsg *maxLocVal(int nMsg, CkReductionMsg **msgs)
 {
@@ -256,8 +263,6 @@ class Main : public CBase_Main {
   bool solved, LUcomplete, workStarted;
   bool sentVectorData;
 
-  CProxy_LUBlk luArrProxy;
-
 public:
     Main(CkArgMsg* m) : iteration(0), numIterations(1), solved(false), LUcomplete(false), workStarted(false), sentVectorData(false) {
 
@@ -324,7 +329,7 @@ public:
     lg = CProxy_locker::ckNew();
 
     thisProxy.iterationCompleted();
-    CkStartQD(CkCallback(doExit));
+    CkStartQD(CkCallback(printValues));
   }
 
   void finishInit() {
@@ -585,6 +590,12 @@ public:
 
     testdgemm();*/
 
+  }
+
+  void printValues(CkCallback cb) {
+    CkPrintf("%d: (%d, %d): internalStep = %d, activeCol = %d\n", CkMyPe(), thisIndex.x, thisIndex.y,
+	     internalStep, activeCol);
+    contribute(cb);
   }
 
   //VALIDATION
