@@ -232,26 +232,37 @@ mainmodule lu {
         }
         atomic "below_send_L" {
           multicastRecvL();
+          pivotBatchTag += BLKSIZE;
         }
 
         for (internalStep++;  internalStep <= thisIndex.x; internalStep++) {
-          for (pivotBlk = 0; pivotBlk < BLKSIZE; pivotBlk++) {
-            when doPivot[internalStep*BLKSIZE + pivotBlk](pivotMsg *msg) {
-              atomic "later_recv_pivot" {
-                doPivotLocal(msg->row1, msg->row2);
+          // Receive and process batches of pivot operations sent out by the current active diagonal chare
+          while (pivotBatchTag < (internalStep+1)*BLKSIZE) {
+              // Wait for msg carrying the next batch of pivot ops
+              when applyPivots[pivotBatchTag](pivotSequencesMsg *msg) {
+                  // Send out any pivot data owned by this chare
+                  atomic "sendOutgoingPivots_leftSectionChare" { sendPendingPivots(msg); }
+                  // Wait for all incoming pivot data from this batch
+                  while (pendingIncomingPivots > 0)
+                  {
+                      when acceptPivotData[pivotBatchTag](pivotRowsMsg *aMsg) atomic "acceptIncomingPivots_leftSectionChare" {
+                          for (int i = 0; i < aMsg->nRows; i++)
+                          {
+                              CkAssert(thisIndex.x == aMsg->rowNum[i]/BLKSIZE);
+                              applySwap(aMsg->rowNum[i]%BLKSIZE, 0, &(aMsg->rows[i*BLKSIZE]), aMsg->rhs[i]);
+                              pendingIncomingPivots--;
+                              VERY_VERBOSE_PIVOT_AGGLOM("[%d,%d] received pivot row %d for batch %d. %d pending\n",
+                                  thisIndex.x, thisIndex.y, aMsg->rowNum[i], pivotBatchTag, pendingIncomingPivots);
+                          }
+                          delete aMsg;
+                      }
+                  }
+                  // Increment the batch tag to the next expected
+                  atomic {
+                      pivotBatchTag += msg->numRowsProcessed;
+                      delete msg;
+                  }
               }
-              if (remoteSwap) {
-                atomic "later_send_remote_pivot" {
-                  CkEntryOptions opts;
-                  opts.setPriority(BLKSIZE * numBlks + 1);
-                  thisProxy(otherRowIndex, thisIndex.y)
-                    .sendPivotData(internalStep*BLKSIZE + pivotBlk, BLKSIZE, &LU[thisLocalRow][0], bvec[thisLocalRow], &opts);
-                }
-                when sendPivotData[internalStep*BLKSIZE + pivotBlk](int index, int size, double data[size], double b) atomic "later_recv_remote_pivot" {
-                  applySwap(thisLocalRow, 0, data, b);
-                }
-              }
-            }
           }
         }
       }
@@ -330,14 +341,6 @@ mainmodule lu {
         // at opportune steps, send out the agglomerated pivot ops
         if ( shouldSendPivots() || activeCol == BLKSIZE-1)
             announceAgglomeratedPivots();
-        }
-
-        atomic "diag_send_pivot_left" {
-          // Send pivot info to all chares that will care (below section)
-          pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
-          *(int*)CkPriorityPtr(msg) = BLKSIZE * numBlks + 1;
-	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
-          pivotLeftSection.doPivot(msg);
         }
       }
 

@@ -1345,10 +1345,17 @@ private:
           CkPrintf("%s\n", pivotLog.str().c_str());
       #endif
 
+      // Make a copy of the msg for the left section too
+      pivotSequencesMsg *leftMsg = (pivotSequencesMsg*) CkCopyMsg((void**)&msg);
+
       // Send the pivot ops to the right section (trailing sub-matrix chares + post-diagonal active row chares)
       *(int*)CkPriorityPtr(msg) = (thisIndex.y + 1) * BLKSIZE;
       CkSetQueueing(msg, CK_QUEUEING_IFIFO);
       pivotRightSection.applyPivots(msg);
+      // Send the pivot ops to the left section (left of activeColumn and below activeRow)
+      *(int*)CkPriorityPtr(leftMsg) = BLKSIZE * numBlks + 1;
+      CkSetQueueing(leftMsg, CK_QUEUEING_IFIFO);
+      pivotLeftSection.applyPivots(leftMsg);
 
       // Prepare for the next batch of agglomeration
       pivotRecords.clear();
@@ -1401,7 +1408,8 @@ private:
               // Create a big enough msg to carry all the rows I'll be sending to this chare
               outgoingPivotMsgs[i] = new(numMsgsTo[i], numMsgsTo[i]*BLKSIZE, numMsgsTo[i], sizeof(int)*8)
                                         pivotRowsMsg(BLKSIZE, pivotBatchTag);
-              *(int*)CkPriorityPtr(msg) = thisIndex.y * BLKSIZE;
+              // Set a priority thats a function of your location wrt to the critical path
+              *(int*)CkPriorityPtr(msg) = (thisIndex.y<internalStep)? numBlks*BLKSIZE : thisIndex.y * BLKSIZE;
               CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           }
       }
