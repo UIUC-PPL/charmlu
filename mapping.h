@@ -62,14 +62,14 @@ public:
   
 
   void setMapping(int x, int y, int pe){
-    CkAssert(y*numBlks+x < mappingSize);
-    mapping[y*numBlks+x] = pe;
+    CkAssert(x*numBlks+y < mappingSize);
+    mapping[x*numBlks+y] = pe;
     peLoads[pe] += workLoad(x, y);
   }
 
   int getMapping(int x, int y){
-    CkAssert(y*numBlks+x < mappingSize);
-    return mapping[y*numBlks+x];
+    CkAssert(x*numBlks+y < mappingSize);
+    return mapping[x*numBlks+y];
   }
 
   /** build and store the mapping once */
@@ -89,15 +89,15 @@ public:
     // go along first row
     int step = 0;
     for(int i=1;i<numsteps-step;i++){
-      int x = i + step;
-      int y = step;
+      int x = step;
+      int y = i + step;
       setMapping(x, y, minLoadedPE() );
     }
     
     // visit first corner & column
     for(int i=0;i<numsteps-step;i++){
-      int y = i + step;
-      int x = step;
+      int x = i + step;
+      int y = step;
       setMapping(x, y, minLoadedPE() );
     }
     
@@ -105,15 +105,15 @@ public:
       
       // go along row
       for(int i=1;i<numsteps-step;i++){
-	int x = i + step;
-	int y = step;
+	int x = step;
+	int y = i + step;
 	setMapping(x, y, minLoadedPE() );
       }
       
       // visit corner & column
       for(int i=0;i<numsteps-step;i++){
-	int y = i + step;
-	int x = step;
+	int x = i + step;
+	int y = step;
 	setMapping(x, y, minLoadedPE() );
       }
       
