@@ -259,3 +259,29 @@ public:
 	return (m % (r*CkNumPes()))/r;
     }
 };
+
+
+
+// Implement a mapping that tiles a 2D processor tile in the 2D chare array
+class PE2DTilingMap: public LUMap {
+    public:
+        PE2DTilingMap(int _peTileRows, int _peTileCols):
+            peRows(_peTileRows), peCols(_peTileCols)
+        {
+            if (peRows * peCols != CkNumPes())
+                CkAbort("Your PE tile dimensions dont match the number of PEs!!");
+        }
+
+        int procNum(int arrayHdl, const CkArrayIndex &idx) {
+            int *coor = (int*) idx.data();
+            int XwithinPEtile = coor[0] % peRows;
+            int YwithinPEtile = coor[1] % peCols;
+            int peNum = YwithinPEtile * peRows + XwithinPEtile;
+            CkAssert(peNum < CkNumPes());
+            return peNum;
+        }
+
+    private:
+        const int peRows, peCols;
+};
+
