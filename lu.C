@@ -435,7 +435,7 @@ public:
       }
     
     
-      mapping = 2;
+      mapping = 1;
 
       char note[200];
       sprintf(note, "*** New iteration: block size = %d, mapping = %d %s, multicast = %d, memthreshold = %d MB", 
@@ -452,7 +452,7 @@ public:
 	opts.setMap(CProxy_BlockCyclicMap::ckNew());
 	break;
       case 1:
-        opts.setMap(CProxy_LUBalancedSnakeMap2::ckNew(numBlks, BLKSIZE));
+        opts.setMap(CProxy_LUBalancedSnakeMap::ckNew(numBlks, BLKSIZE));
 	break;
       case 2:
 	  opts.setMap(CProxy_RealBlockCyclicMap::ckNew(1, numBlks));
