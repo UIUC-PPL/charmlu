@@ -435,7 +435,7 @@ public:
       }
     
     
-      mapping = 1;
+      mapping = 3;
 
       char note[200];
       sprintf(note, "*** New iteration: block size = %d, mapping = %d %s, multicast = %d, memthreshold = %d MB", 
@@ -457,6 +457,9 @@ public:
       case 2:
 	  opts.setMap(CProxy_RealBlockCyclicMap::ckNew(1, numBlks));
 	  break;
+      case 3:
+          opts.setMap( CProxy_PE2DTilingMap::ckNew(3,2) );
+          break;
       }
       CProxy_LUMgr mgr = CProxy_PrioLU::ckNew(BLKSIZE, gMatSize);
 
