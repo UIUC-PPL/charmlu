@@ -83,25 +83,13 @@ public:
     for(int i=0;i<numProcs;i++)
       peLoads[i]=0;
     
-    const int numsteps=numBlks;
-    
-
-    // go along first row
-    int step = 0;
-    for(int y = step+1; y < numsteps; y++)
-        setMapping(step, y, minLoadedPE() );
-    
-    // visit first corner & column
-    for(int x = step; x < numsteps; x++)
-        setMapping(x, step, minLoadedPE() );
-    
-    for(int step = numsteps-1; step >= 1; step--) {
-        // go along row
-        for(int y = step+1; y < numsteps; y++)
-            setMapping(step, y, minLoadedPE() );
+    for(int step = numBlks-1; step >= 0; step--) {
         // visit corner & column
-        for(int x = step; x < numsteps; x++)
+        for(int x = step; x < numBlks; x++)
             setMapping(x, step, minLoadedPE() );
+        // go along row
+        for(int y = step+1; y < numBlks; y++)
+            setMapping(step, y, minLoadedPE() );
     }
   }
   
