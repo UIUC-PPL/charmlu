@@ -88,37 +88,21 @@ public:
 
     // go along first row
     int step = 0;
-    for(int i=1;i<numsteps-step;i++){
-      int x = step;
-      int y = i + step;
-      setMapping(x, y, minLoadedPE() );
-    }
+    for(int y = step+1; y < numsteps; y++)
+        setMapping(step, y, minLoadedPE() );
     
     // visit first corner & column
-    for(int i=0;i<numsteps-step;i++){
-      int x = i + step;
-      int y = step;
-      setMapping(x, y, minLoadedPE() );
-    }
+    for(int x = step; x < numsteps; x++)
+        setMapping(x, step, minLoadedPE() );
     
-    for(int step=numsteps-1;step>=1;step--){
-      
-      // go along row
-      for(int i=1;i<numsteps-step;i++){
-	int x = step;
-	int y = i + step;
-	setMapping(x, y, minLoadedPE() );
-      }
-      
-      // visit corner & column
-      for(int i=0;i<numsteps-step;i++){
-	int x = i + step;
-	int y = step;
-	setMapping(x, y, minLoadedPE() );
-      }
-      
+    for(int step = numsteps-1; step >= 1; step--) {
+        // go along row
+        for(int y = step+1; y < numsteps; y++)
+            setMapping(step, y, minLoadedPE() );
+        // visit corner & column
+        for(int x = step; x < numsteps; x++)
+            setMapping(x, step, minLoadedPE() );
     }
-    
   }
   
   int minLoadedPE(){
