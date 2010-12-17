@@ -14,6 +14,8 @@
 //#include <stdlib.h>
 #include <string.h>
 #include <iostream>
+#include <sstream>
+#include <map>
 #include <algorithm>
 using std::min;
 //#include <pthread.h>
@@ -73,9 +75,13 @@ CProxy_locker lg;
 #ifdef CHARMLU_DEBUG
     #define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
     #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
+    #define VERY_VERBOSE_PIVOT_AGGLOM(...) CkPrintf(__VA_ARGS__)
+    #define VERBOSE_PIVOT_RECORDING
+    #define VERBOSE_PIVOT_AGGLOM
 #else
     #define DEBUG_PRINT(...)
     #define DEBUG_PIVOT(...)
+    #define VERY_VERBOSE_PIVOT_AGGLOM(...)
 #endif
 
 #include <cmath>
@@ -198,6 +204,53 @@ struct pivotMsg: public CMessage_pivotMsg, public CkMcastBaseMsg {
   }
 };
 
+
+class pivotSequencesMsg: public CMessage_pivotSequencesMsg, public CkMcastBaseMsg
+{
+    public:
+        int numRowsProcessed;
+        int numSequences;
+        int *seqIndex;
+        int *pivotSequence;
+
+        pivotSequencesMsg(const int _firstRowProcessed, const int _numRowsProcessed)
+        {
+            numRowsProcessed = _numRowsProcessed;
+            numSequences     = 0;
+            CkSetRefNum(this, _firstRowProcessed);
+        }
+};
+
+
+
+class pivotRowsMsg: public CMessage_pivotRowsMsg, public CkMcastBaseMsg
+{
+    public:
+        int nRows;
+        int blockSize;
+        int *rowNum;
+        double *rows;
+        double *rhs;
+
+
+        pivotRowsMsg(const int _blockSize, const int _refNum):
+            nRows(0), blockSize(_blockSize)
+        {
+            CkSetRefNum(this, _refNum);
+        }
+
+
+        void copyRow(const int rNum, const double *row, const double b)
+        {
+            rowNum[nRows]    = rNum;
+            rhs[nRows]       = b;
+            memcpy(&rows[nRows*blockSize], row, blockSize*sizeof(double));
+            nRows++;
+        }
+};
+
+
+
 #include "manager.h"
 
 class rednSetupMsg: public CkMcastBaseMsg, public CMessage_rednSetupMsg
@@ -251,6 +304,7 @@ class Main : public CBase_Main {
   int whichMulticastStrategy;
   int mapping;
   int memThreshold;
+  int pivotBatchSize;
   bool solved, LUcomplete, workStarted;
   bool sentVectorData;
 
@@ -260,7 +314,7 @@ public:
     Main(CkArgMsg* m) : iteration(0), numIterations(1), solved(false), LUcomplete(false), workStarted(false), sentVectorData(false) {
 
     if (m->argc<4) {
-      CkPrintf("Usage: %s <matrix size> <block size> <mem threshold> [<iterations>]\n", m->argv[0]);
+      CkPrintf("Usage: %s <matrix size> <block size> <mem threshold> [<pivot batch size> <iterations>]\n", m->argv[0]);
       CkExit();
     }
 
@@ -268,20 +322,13 @@ public:
     BLKSIZE = atoi(m->argv[2]);
     memThreshold = atoi(m->argv[3]);
 
-    if (m->argc > 3) {
-      /*sscanf( m->argv[2], "%d", &strategy);
-	CkPrintf("CLI: strategy=%d\n", strategy);*/
-      
-      /*
-      sscanf( m->argv[2], "%d", &memThreshold);
-      CkPrintf("CLI: memThreshold=%dMB\n", memThreshold);
-      */
-
-
-      if (m->argc >= 5)
-	numIterations = atoi(m->argv[4]);
+    if (m->argc >= 5)
+        pivotBatchSize = atoi( m->argv[4] );
+    else
+        pivotBatchSize = BLKSIZE / 4;
+    if (m->argc >= 6)
+        numIterations = atoi(m->argv[5]);
       CkPrintf("CLI: numIterations=%d\n", numIterations);
-    }
 
     if (gMatSize%BLKSIZE!=0) {
       CkPrintf("The matrix size %d should be a multiple of block size %d!\n", gMatSize, BLKSIZE);
@@ -302,8 +349,8 @@ public:
     traceRegisterUserEvent("Remote Multicast Forwarding - preparing", 10001);
     traceRegisterUserEvent("Remote Multicast Forwarding - sends", 10002);
 
-    CkPrintf("Running LU on %d processors (%d nodes) on matrix %dX%d with control points\n",
-	     CkNumPes(), CmiNumNodes(), gMatSize, gMatSize);
+    CkPrintf("Running LU on %d processors (%d nodes) on matrix %dX%d with pivot batch size %d\n",
+	     CkNumPes(), CmiNumNodes(), gMatSize, gMatSize, pivotBatchSize);
 
     multicastStats[0] = ComlibRegister(new OneTimeRingMulticastStrategy() ); 
     multicastStats[1] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(2) ); 
@@ -417,7 +464,7 @@ public:
 
       workStarted = true;
     
-      luArrProxy.startup(0, BLKSIZE, numBlks, memThreshold, mgr);
+      luArrProxy.startup(0, BLKSIZE, numBlks, memThreshold, mgr, pivotBatchSize);
     }
   }
   
@@ -498,7 +545,7 @@ class LUBlk: public CBase_LUBlk {
 
   int BLKSIZE, numBlks;
   blkMsg *L, *U;
-  int internalStep, activeCol, currentStep, ind;
+  int internalStep, activeCol, ind;
 
   LUMgr *mgr;
 
@@ -526,6 +573,16 @@ class LUBlk: public CBase_LUBlk {
   bool remoteSwap;
   locval l;
   int pivotBlk;
+  /// Tag for all msgs associated with a single batch of pivots
+  int pivotBatchTag;
+  /// A map to store and optimize the pivot operations
+  std::map<int,int> pivotRecords;
+  /// The number of rows factored since the last batch of pivots
+  int numRowsSinceLastPivotSend ;
+  /// The number of pending incoming remote pivots in a given batch
+  int pendingIncomingPivots;
+  /// The suggested pivot batch size
+  int suggestedPivotBatchSize;
 
   /// The sub-diagonal chare array section that will participate in pivot selection
   /// @note: Only the diagonal chares will create and mcast along this section
@@ -816,11 +873,12 @@ public:
     }
 
   void init(int _whichMulticastStrategy, int _BLKSIZE, int _numBlks,
-            int memThreshold, CProxy_LUMgr _mgr) {
+            int memThreshold, CProxy_LUMgr _mgr, int _pivotBatchSize) {
     whichMulticastStrategy = _whichMulticastStrategy;
     BLKSIZE = _BLKSIZE;
     numBlks = _numBlks;
     mgr = _mgr.ckLocalBranch();
+    suggestedPivotBatchSize = _pivotBatchSize;
     
     // Set the schedulers memory usage threshold to the one based upon a control point
     schedAdaptMemThresholdMB = memThreshold;
@@ -1166,25 +1224,18 @@ public:
 private:
 
   // Copy received pivot data into its place in this block
-    void applySwap(int row, int offset, double *data, double b) {
+  void applySwap(int row, int offset, double *data, double b) {
       DEBUG_PIVOT("(%d, %d): remote pivot inserted at %d\n", thisIndex.x, thisIndex.y, row);
       bvec[row] = b;
-    for (int col = offset; col < BLKSIZE; ++col)
-      LU[row][ col] = data[col - offset];
+      memcpy( &(LU[row][offset]), data, sizeof(double)*(BLKSIZE-offset) );
   }
 
   // Exchange local data
   void swapLocal(int row1, int row2, int offset=0) {
-    double buf;
-    buf = bvec[row1];
-    bvec[row1] = bvec[row2];
-    bvec[row2] = buf;
-    // Swap the row of A (LU)
-    for (int col = offset; col < BLKSIZE; col++) {
-      buf = LU[row1][col];
-      LU[row1][col] = LU[row2][col];
-      LU[row2][col] = buf;
-    }
+    if (row1 == row2) return;
+    std::swap(bvec[row1], bvec[row2]);
+    /// @todo: Is this better or is it better to do 3 memcpys
+    std::swap_ranges( &(LU[row1][offset]), &(LU[row1][BLKSIZE]), &(LU[row2][offset]) );
   }
 
   void doPivotLocal(int row1, int row2) {
@@ -1216,6 +1267,268 @@ private:
     // else, I dont have any data affected by this pivot op
   }
 
+
+  /// Record the effect of a pivot operation in terms of actual row numbers
+  void recordPivot(const int r1, const int r2)
+  {
+      numRowsSinceLastPivotSend++;
+      // If the two rows are the same, then dont record the pivot operation at all
+      if (r1 == r2) return;
+      std::map<int,int>::iterator itr1, itr2;
+      // The records for the two rows (already existing or freshly created)
+      itr1 = (pivotRecords.insert( std::make_pair(r1,r1) ) ).first;
+      itr2 = (pivotRecords.insert( std::make_pair(r2,r2) ) ).first;
+      // Swap the values (the actual rows living in these two positions)
+      std::swap(itr1->second, itr2->second);
+  }
+
+
+
+  /** Is it time to send out the next batch of pivots
+   *
+   * @note: Any runtime adaptivity should be plugged here
+   */
+  bool shouldSendPivots()
+  {
+      return (numRowsSinceLastPivotSend >= suggestedPivotBatchSize);
+  }
+
+
+
+  /// Periodically send out the agglomerated pivot operations
+  void announceAgglomeratedPivots()
+  {
+      #if defined(VERBOSE_PIVOT_RECORDING) || defined(VERBOSE_PIVOT_AGGLOM)
+          std::stringstream pivotLog;
+          pivotLog<<"["<<thisIndex.x<<","<<thisIndex.y<<"]"
+                  <<" announcing "<<pivotRecords.size()<<" pivot operations in batch "<<pivotBatchTag<<std::endl;
+      #endif
+
+      // Create and initialize a msg to carry the pivot sequences
+      pivotSequencesMsg *msg = new(numRowsSinceLastPivotSend+1, numRowsSinceLastPivotSend*2, sizeof(int)*8)
+                                  pivotSequencesMsg(pivotBatchTag, numRowsSinceLastPivotSend);
+      msg->numSequences = 0;
+      memset(msg->seqIndex,      0, sizeof(int) * numRowsSinceLastPivotSend );
+      memset(msg->pivotSequence, 0, sizeof(int) * numRowsSinceLastPivotSend*2 );
+
+      /// Parse the pivot operations and construct optimized pivot sequences
+      int seqNo =-1, i = 0;
+      std::map<int,int>::iterator itr = pivotRecords.begin();
+      while (itr != pivotRecords.end())
+      {
+          #ifdef VERBOSE_PIVOT_RECORDING
+            pivotLog<<std::endl;
+          #endif
+          msg->seqIndex[++seqNo] = i;
+          int chainStart = itr->first;
+          msg->pivotSequence[i++] = chainStart;
+          #ifdef VERBOSE_PIVOT_RECORDING
+            pivotLog<<chainStart;
+          #endif
+          while (itr->second != chainStart)
+          {
+              msg->pivotSequence[i] = itr->second;
+              #ifdef VERBOSE_PIVOT_RECORDING
+                  pivotLog<<" <-- "<<itr->second;
+              #endif
+              std::map<int,int>::iterator prev = itr;
+              itr = pivotRecords.find(itr->second);
+              pivotRecords.erase(prev);
+              i++;
+          }
+          pivotRecords.erase(itr);
+          itr = pivotRecords.begin();
+      }
+      msg->seqIndex[++seqNo] = i; ///< @note: Just so that we know where the last sequence ends
+      msg->numSequences = seqNo;
+      #if defined(VERBOSE_PIVOT_RECORDING) || defined(VERBOSE_PIVOT_AGGLOM)
+          CkPrintf("%s\n", pivotLog.str().c_str());
+      #endif
+
+      // Make a copy of the msg for the left section too
+      pivotSequencesMsg *leftMsg = (pivotSequencesMsg*) CkCopyMsg((void**)&msg);
+
+      // Send the pivot ops to the right section (trailing sub-matrix chares + post-diagonal active row chares)
+      *(int*)CkPriorityPtr(msg) = (thisIndex.y + 1) * BLKSIZE;
+      CkSetQueueing(msg, CK_QUEUEING_IFIFO);
+      pivotRightSection.applyPivots(msg);
+      // Send the pivot ops to the left section (left of activeColumn and below activeRow)
+      *(int*)CkPriorityPtr(leftMsg) = BLKSIZE * numBlks + 1;
+      CkSetQueueing(leftMsg, CK_QUEUEING_IFIFO);
+      pivotLeftSection.applyPivots(leftMsg);
+
+      // Prepare for the next batch of agglomeration
+      pivotRecords.clear();
+      pivotBatchTag += numRowsSinceLastPivotSend;
+      numRowsSinceLastPivotSend = 0;
+  }
+
+
+  /// Given a set of pivot ops, send out participating row chunks that you own
+  void sendPendingPivots(pivotSequencesMsg *msg)
+  {
+      #ifdef VERBOSE_PIVOT_AGGLOM
+          std::stringstream pivotLog;
+          pivotLog<<"["<<thisIndex.x<<","<<thisIndex.y<<"]"
+                  <<" processing "<<msg->numSequences
+                  <<" pivot sequences in batch "<<pivotBatchTag;
+      #endif
+
+      int *pivotSequence = msg->pivotSequence, *idx = msg->seqIndex;
+      int numSequences = msg->numSequences;
+
+      // Count the number of rows that I send to each chare
+      int numMsgsTo[numBlks];
+      memset(numMsgsTo, 0, sizeof(int)*numBlks);
+      for (int i=0; i< numSequences; i++)
+      {
+          for (int j=idx[i]; j<idx[i+1]; j++)
+          {
+              int recverIdx = pivotSequence[j]/BLKSIZE;
+              int senderIdx =-1;
+              // circular traversal of pivot sequence
+              if (j < idx[i+1]-1)
+                  senderIdx = pivotSequence[j+1]/BLKSIZE;
+              else
+                  senderIdx = pivotSequence[idx[i]]/BLKSIZE;
+              // If I am the sending to another chare
+              if (thisIndex.x == senderIdx && thisIndex.x != recverIdx)
+                  numMsgsTo[recverIdx]++;
+          }
+      }
+
+      // Preallocate msgs that are big enough to carry the rows I'll be sending to each of the other chares
+      pivotRowsMsg* outgoingPivotMsgs[numBlks];
+      memset(outgoingPivotMsgs, 0, sizeof(pivotRowsMsg*) * numBlks);
+      for (int i=0; i< numBlks; i++)
+      {
+          // If this other chare expects row data from me
+          if ( numMsgsTo[i] > 0)
+          {
+              // Create a big enough msg to carry all the rows I'll be sending to this chare
+              outgoingPivotMsgs[i] = new(numMsgsTo[i], numMsgsTo[i]*BLKSIZE, numMsgsTo[i], sizeof(int)*8)
+                                        pivotRowsMsg(BLKSIZE, pivotBatchTag);
+              // Set a priority thats a function of your location wrt to the critical path
+              *(int*)CkPriorityPtr(msg) = (thisIndex.y<internalStep)? numBlks*BLKSIZE : thisIndex.y * BLKSIZE;
+              CkSetQueueing(msg, CK_QUEUEING_IFIFO);
+          }
+      }
+
+      pendingIncomingPivots = 0;
+      double *tmpBuf = NULL, tmpB;
+
+      // Parse each sequence independently
+      for (int i=0; i < numSequences; i++)
+      {
+          #ifdef VERBOSE_PIVOT_AGGLOM
+              pivotLog<<"\n["<<thisIndex.x<<","<<thisIndex.y<<"] sequence "<<i<<": ";
+          #endif
+
+          // Find the location of this sequence in the msg buffer
+          int *first      = pivotSequence + idx[i];
+          int *beyondLast = pivotSequence + idx[i+1];
+          CkAssert(beyondLast - first >= 2);
+
+          // Identify a remote row in the pivot sequence as a point at which to
+          // start and stop processing the circular pivot sequence
+          int *ringStart = first;
+          while ( (*ringStart / BLKSIZE == thisIndex.x) && (ringStart < beyondLast) )
+              ringStart++;
+          int *ringStop = ringStart;
+
+          // If there are no remote rows in the sequence, we *have* to use a tmp buffer
+          // The tmp buffer will now complete the circular sequence
+          bool isSequenceLocal = false;
+          if (ringStart == beyondLast)
+          {
+              isSequenceLocal = true;
+              ringStart = first;
+              ringStop  = beyondLast - 1;
+
+              if (NULL == tmpBuf) tmpBuf = new double[BLKSIZE];
+              memcpy(tmpBuf, LU[*ringStart%BLKSIZE], BLKSIZE*sizeof(double));
+              tmpB = bvec[*ringStart%BLKSIZE];
+              #ifdef VERBOSE_PIVOT_AGGLOM
+                  pivotLog<<"tmp <-cpy- "<<*ringStart<<"; ";
+              #endif
+          }
+
+          // Process all the pivot operations in the circular sequence
+          int *to = ringStart;
+          do
+          {
+              int *from        = (to+1 == beyondLast) ? first : to + 1;
+              int fromChareIdx = *from / BLKSIZE;
+              // If the current source row in the pivot sequence belongs to me, send it
+              if (fromChareIdx == thisIndex.x)
+              {
+                  int toChareIdx = *to / BLKSIZE;
+                  int fromLocal  = *from % BLKSIZE;
+                  // If you're sending to yourself, memcopy
+                  if (toChareIdx == thisIndex.x)
+                  {
+                      applySwap(*to%BLKSIZE, 0, LU[fromLocal], bvec[fromLocal]);
+                      #ifdef VERBOSE_PIVOT_AGGLOM
+                          pivotLog<<*to<<" <-cpy- "<<*from<<"; ";
+                      #endif
+                  }
+                  // else, copy the data into the appropriate msg
+                  else
+                  {
+                      outgoingPivotMsgs[*to/BLKSIZE]->copyRow(*to, LU[fromLocal], bvec[fromLocal]);
+                      #ifdef VERBOSE_PIVOT_AGGLOM
+                          pivotLog<<*to<<" <-msg- "<<*from<<"; ";
+                      #endif
+                  }
+              }
+              // else, the source data is remote
+              else
+              {
+                  // if the current destination row belongs to me, make sure I expect the remote data
+                  if (*to / BLKSIZE == thisIndex.x)
+                  {
+                      pendingIncomingPivots++;
+                      #ifdef VERBOSE_PIVOT_AGGLOM
+                          pivotLog<<*to<<" <-inwd- "<<*from<<"; ";
+                      #endif
+                  }
+                  // else, i dont worry about this portion of the exchange sequence which is completely remote
+                  else
+                  {
+                      #ifdef VERBOSE_PIVOT_AGGLOM
+                          pivotLog<<*to<<" <-noop- "<<*from<<"; ";
+                      #endif
+                  }
+              }
+              // Setup a circular traversal of the pivot sequence
+              if (++to == beyondLast)
+                  to = first;
+          } while (to != ringStop); // Keep going till you complete the ring
+
+          // If the sequence was completely local, complete the circular sequence
+          // by copying the temp buffer back into the matrix block
+          if (isSequenceLocal)
+          {
+              applySwap(*(beyondLast-1)%BLKSIZE, 0, tmpBuf, tmpB);
+              #ifdef VERBOSE_PIVOT_AGGLOM
+                  pivotLog<<*(beyondLast-1)<<"<-cpy- tmp "<<"; ";
+              #endif
+          }
+
+      } // end for loop through all sequences
+
+      // Send out all the msgs carrying pivot data to other chares
+      for (int i=0; i< numBlks; i++)
+          if (numMsgsTo[i] > 0)
+              thisProxy(i, thisIndex.y).acceptPivotData(outgoingPivotMsgs[i]);
+
+      if (tmpBuf) delete [] tmpBuf;
+      #ifdef VERBOSE_PIVOT_AGGLOM
+          CkPrintf("%s\n",pivotLog.str().c_str());
+      #endif
+  }
+
+
   //internal functions for creating messages to encapsulate the priority
   inline blkMsg* createABlkMsg() {
     blkMsg *msg = mgr->createBlockMessage(thisIndex.x, thisIndex.y,
@@ -1223,6 +1536,8 @@ private:
     msg->setMsgData(LU[0], internalStep, BLKSIZE);
     return msg;
   }
+
+
 
   locval findLocVal(int startRow, int col, locval first = locval()) {
     locval l = first;
@@ -1234,6 +1549,8 @@ private:
     return l;
   }
 
+
+
   // Local multiplier computation and update after U is sent to the blocks below
   void diagonalUpdate(int col) {
     // Pivoting is done, so the diagonal entry better not be zero; else the matrix is singular
@@ -1241,11 +1558,9 @@ private:
         CkAbort("Diagonal element very small despite pivoting. Is the matrix singular??");
 
     computeMultipliers(LU[col][col],col+1,col);
-    for(int k=col+1;k<BLKSIZE;k++) {
-      for(int j=col+1; j<BLKSIZE; j++) {
-        LU[j][k] = LU[j][k] - LU[j][col] * LU[col][k];
-      }
-    }
+    for(int j=col+1; j<BLKSIZE; j++)
+        for(int k=col+1;k<BLKSIZE;k++)
+            LU[j][k] -= LU[j][col] * LU[col][k];
   }
 
   /// Compute the multipliers based on the pivot value from the diagonal chare
@@ -1270,12 +1585,9 @@ private:
 		  U+1, BLKSIZE,
 		  1.0, &LU[0][col+1], BLKSIZE);
 #else
-    for(int k=col+1;k<BLKSIZE;k++) {
-      for(int j=0; j<BLKSIZE; j++) {
-        //U[k] might need to be U[j]?
-        LU[j][k] =  LU[j][k] - LU[j][col]*U[k-col];
-      }
-    }
+    for(int j=0; j < BLKSIZE; j++)
+        for(int k=col+1; k<BLKSIZE; k++)
+            LU[j][k] -=  LU[j][col]*U[k-col];
 #endif
   }
 
