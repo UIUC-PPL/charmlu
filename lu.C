@@ -458,7 +458,7 @@ public:
 	  opts.setMap(CProxy_RealBlockCyclicMap::ckNew(1, numBlks));
 	  break;
       case 3:
-          opts.setMap( CProxy_PE2DTilingMap::ckNew(3,2) );
+          opts.setMap( CProxy_PE2DTilingMap::ckNew() );
           break;
       }
       CProxy_LUMgr mgr = CProxy_PrioLU::ckNew(BLKSIZE, gMatSize);
