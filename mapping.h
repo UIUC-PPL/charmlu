@@ -265,27 +265,10 @@ public:
 // Implement a mapping that tiles a 2D processor tile in the 2D chare array
 class PE2DTilingMap: public LUMap {
     public:
-        PE2DTilingMap()
+        PE2DTilingMap(int _peRows, int _peCols):
+            peRows(_peRows), peCols(_peCols)
         {
-            // Identify two factors that can be used as the tile dimensions for the PE tile
-            int factor1 = sqrt(CkNumPes());
-            while ( (CkNumPes() % factor1 != 0) && (factor1 > 0) )
-                factor1--;
-            if (factor1 == 0)
-                CkAbort("Couldn't identify a factor of numPEs to represent the PEs as a 2D tile");
-
-            int factor2 = CkNumPes() / factor1;
-
-            // Set the tile dimensions
-            peRows = (factor1 >= factor2) ? factor1 : factor2;
-            peCols = CkNumPes() / peRows;
-
-            if (peRows * peCols != CkNumPes())
-                CkAbort("The identified tile dimensions dont match the number of PEs!!");
-
-            #ifdef VERBOSE_MAPPING
-                if (CkMyPe() == 0) CkPrintf("PE Tile size = %d x %d", peRows, peCols);
-            #endif
+            CkAssert(peRows > 0 && peCols > 0);
         }
 
         int procNum(int arrayHdl, const CkArrayIndex &idx) {
@@ -298,6 +281,6 @@ class PE2DTilingMap: public LUMap {
         }
 
     private:
-        int peRows, peCols;
+        const int peRows, peCols;
 };
 

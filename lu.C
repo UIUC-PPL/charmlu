@@ -458,8 +458,12 @@ public:
 	  opts.setMap(CProxy_RealBlockCyclicMap::ckNew(1, numBlks));
 	  break;
       case 3:
-          opts.setMap( CProxy_PE2DTilingMap::ckNew() );
+      {
+          std::pair<int,int> tileDims = computePETileDimensions();
+          CkPrintf("PE Tile size = %d x %d\n", tileDims.first, tileDims.second);
+          opts.setMap( CProxy_PE2DTilingMap::ckNew(tileDims.first, tileDims.second) );
           break;
+      }
       }
       CProxy_LUMgr mgr = CProxy_PrioLU::ckNew(BLKSIZE, gMatSize);
 
@@ -470,6 +474,29 @@ public:
       luArrProxy.startup(0, BLKSIZE, numBlks, memThreshold, mgr, pivotBatchSize);
     }
   }
+
+
+  std::pair<int,int> computePETileDimensions()
+  {
+      // Identify two factors that can be used as the tile dimensions for the PE tile
+      int factor1 = sqrt(CkNumPes());
+      while ( (CkNumPes() % factor1 != 0) && (factor1 > 0) )
+          factor1--;
+      if (factor1 == 0)
+          CkAbort("Couldn't identify a factor of numPEs to represent the PEs as a 2D tile");
+
+      int factor2 = CkNumPes() / factor1;
+
+      // Set the tile dimensions
+      int numPErows = (factor1 >= factor2) ? factor1 : factor2;
+      int numPEcols = CkNumPes() / numPErows;
+
+      if (numPErows * numPEcols != CkNumPes())
+          CkAbort("The identified tile dimensions dont match the number of PEs!!");
+
+      return std::make_pair(numPErows, numPEcols);
+  }
+
   
   void outputStats() {
     double endTime = CmiWallTimer();
