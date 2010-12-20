@@ -187,12 +187,22 @@ mainmodule lu {
       }
       // Below diagonal
       else {
+        atomic {
+            // Find the pivot candidate for just the first column in the block
+            pivotCandidate = findLocVal(0, 0);
+            pendingUmsg = NULL;
+        }
         // Work in the active column of the chare array proceeds column-by-column through the matrix
         for (activeCol = 0; activeCol < BLKSIZE; activeCol++) {
           atomic "below_find_pivot" {
-            pivotCandidate = findLocVal(0, activeCol);
             // Contribute to a reduction along the active panel to identify the pivot row
             mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
+            // Delayed update using the U segment from the prev activeCol iteration
+            if (pendingUmsg) {
+                updateLsubBlock(activeCol-1, pendingUmsg->data, 2);
+                delete pendingUmsg;
+                pendingUmsg = NULL;
+            }
           }
           // Once pivot is identified, and diagonal chare sends out the pivot update
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) {
@@ -211,8 +221,10 @@ mainmodule lu {
           }
           // The diagonal chare also then sends out the post-pivoting row that can be used for updates
           when sendUSegment(UMsg* anUmsg) atomic "below_recv_useg" {
-            // Compute multipliers and update all trailing columns in the same block
-            updateLsubBlock(activeCol, anUmsg->data);
+            // Compute multipliers and update just one column to find the next candidate pivot
+            pivotCandidate = computeMultipliersAndFindColMax(activeCol, anUmsg->data);
+            // Save the Umsg for later use
+            pendingUmsg = anUmsg;
           }
         }
         atomic "below_send_L" {

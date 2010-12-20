@@ -678,6 +678,9 @@ class LUBlk: public CBase_LUBlk {
   /// A pointer to the local branch of the multicast manager group that handles the pivot section comm
   CkMulticastMgr *mcastMgr;
 
+  /// Pointer to a U msg indicating a pending L sub-block update. Used only in L chares
+  UMsg *pendingUmsg;
+
   LUBlk_SDAG_CODE
 
   // The following declarations are used for optimization and
@@ -1639,25 +1642,55 @@ private:
 
 
 
-  /// Compute the multipliers based on the pivot value in the received
-  /// row of U and update the sub-block of this L block
-  void updateLsubBlock(int col, double* U) {
+  /// Update the sub-block of this L block starting at specified
+  /// offset from the active column
+  void updateLsubBlock(int activeCol, double* U, int offset=1) {
       // Should only get called on L blocks
       CkAssert(thisIndex.x > thisIndex.y);
 #if 0
-      cblas_dscal(BLKSIZE, 1/U[0], &LU[0][col], BLKSIZE);
       cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
-		  BLKSIZE, BLKSIZE-(col+1), 1,
-		  -1.0, &LU[0][col], BLKSIZE,
-		  U+1, BLKSIZE,
-		  1.0, &LU[0][col+1], BLKSIZE);
+		  BLKSIZE, BLKSIZE-(activeCol+offset), 1,
+		  -1.0, &LU[0][activeCol], BLKSIZE,
+		  U+offset, BLKSIZE,
+		  1.0, &LU[0][activeCol+offset], BLKSIZE);
 #else
-      for(int j = 0; j < BLKSIZE; j++) {
-          LU[j][col] = LU[j][col] / U[0];
-          for(int k = col+1; k<BLKSIZE; k++)
-              LU[j][k] -=  LU[j][col] * U[k-col];
-      }
+      for(int j = 0; j < BLKSIZE; j++)
+          for(int k = activeCol+offset; k<BLKSIZE; k++)
+              LU[j][k] -=  LU[j][activeCol] * U[k-activeCol];
 #endif
+  }
+
+
+  /// Compute the multipliers based on the pivot value in the
+  /// received row of U and also find the candidate pivot in
+  /// the immediate next column (after updating it simultaneously)
+  locval computeMultipliersAndFindColMax(int col, double *U)
+  {
+      // Should only get called on L blocks
+      CkAssert(thisIndex.x > thisIndex.y);
+      locval maxVal;
+
+      if (col < BLKSIZE -1) {
+          for (int j = 0; j < BLKSIZE; j++) {
+              // Compute the multiplier
+              LU[j][col]    = LU[j][col] / U[0];
+              // Update the immediate next column
+              LU[j][col+1] -= LU[j][col] * U[1];
+              // Update the max value thus far
+              if ( fabs(LU[j][col+1]) > fabs(maxVal.val) ) {
+                  maxVal.val = LU[j][col+1];
+                  maxVal.loc = j;
+              }
+          }
+          // Convert local row num to global rownum
+          maxVal.loc += thisIndex.x*BLKSIZE;
+      }
+      else {
+          for (int j = 0; j < BLKSIZE; j++)
+              LU[j][col]    = LU[j][col] / U[0];
+      }
+
+      return maxVal;
   }
 
 };
