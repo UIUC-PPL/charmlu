@@ -192,14 +192,11 @@ mainmodule lu {
           atomic "below_find_pivot" {
             // Find the local maximum in the active column
             locval l = findLocVal(0, activeCol);
-
-            // Contribute to a reduction along the pivot section to identify the pivot row
-            // The pivot section includes all sub-diagonal chares along the active column of the chare array
+            // Contribute to a reduction along the active panel to identify the pivot row
             mcastMgr->contribute(sizeof(locval), &l, LocValReducer, pivotCookie);
           }
           // Once pivot is identified, and diagonal chare sends out the pivot update
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) {
-            atomic "below_recv_pivot" {}
             // Assume that row2 is always the non-diagonal row and that LU is row-major
             if (msg->row2 / BLKSIZE == thisIndex.x) {
               atomic "below_send_remote_pivot" {
@@ -214,19 +211,9 @@ mainmodule lu {
             }
           }
           // The diagonal chare also then sends out the post-pivoting row that can be used for updates
-          when sendUSegment(UMsg* msg) atomic "below_recv_useg" {
-            // Compute the multipliers using the diagonal element
-            // Update all trailing columns in the same block based on the multipliers and Usegment
-            updateLsubBlock(activeCol, msg->data);
-
-            // Options: this SDAG code (or something like it)
-            // Somehow this needs to be overlapped with the maxCol sends
-            //for (int innercol = 1; innercol < BLKSIZE; innercol++) {
-            //thisProxy(thisIndex.x, thisIndex.y).updateRemCols(innercol);
-            //}
-            //when updateRemCols(int icol) atomic {
-            //doUpdate();
-            //}
+          when sendUSegment(UMsg* anUmsg) atomic "below_recv_useg" {
+            // Compute multipliers and update all trailing columns in the same block
+            updateLsubBlock(activeCol, anUmsg->data);
           }
         }
         atomic "below_send_L" {
