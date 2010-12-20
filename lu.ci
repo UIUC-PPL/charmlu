@@ -190,10 +190,9 @@ mainmodule lu {
         // Work in the active column of the chare array proceeds column-by-column through the matrix
         for (activeCol = 0; activeCol < BLKSIZE; activeCol++) {
           atomic "below_find_pivot" {
-            // Find the local maximum in the active column
-            locval l = findLocVal(0, activeCol);
+            pivotCandidate = findLocVal(0, activeCol);
             // Contribute to a reduction along the active panel to identify the pivot row
-            mcastMgr->contribute(sizeof(locval), &l, LocValReducer, pivotCookie);
+            mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
           }
           // Once pivot is identified, and diagonal chare sends out the pivot update
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) {
@@ -270,27 +269,27 @@ mainmodule lu {
       for (activeCol = 0; activeCol < BLKSIZE; ++activeCol) {
         atomic "diag_find_colmax" {
           // Find the local maximum in the active column
-          l = findLocVal(activeCol, activeCol);
+          pivotCandidate = findLocVal(activeCol, activeCol);
           // Contribute to a redn along the pivot section to identify the pivot row
-          mcastMgr->contribute(sizeof(locval), &l, LocValReducer, pivotCookie);
+          mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
         }
 
         // Find the pivot row
         when colMax(CkReductionMsg *m) atomic "diag_found_colmax" {
-          l = *(locval *)(m->getData());
+          pivotCandidate = *(locval *)(m->getData());
         }
 
         // Share the pivot info with the appropriate array section
         atomic "diag_send_pivot_active" {
           // Send pivot info to all chares that will care (below section)
-          pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
+          pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, pivotCandidate.loc);
           *(int*)CkPriorityPtr(msg) = -1;
 	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           pivotSection.doPivot(msg);
         }
 
         // If required chunk of pivot row is not with me (but in a chare below me)
-        if (l.loc / BLKSIZE != thisIndex.x) {
+        if (pivotCandidate.loc / BLKSIZE != thisIndex.x) {
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) atomic "diag_send_remote_pivot" {
             // Trigger swap of data
             CkEntryOptions opts;
@@ -305,7 +304,7 @@ mainmodule lu {
         } else {
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) atomic "diag_local_pivot" {
             //DEBUG_PIVOT("swapLocal being called\n");
-            swapLocal(l.loc - BLKSIZE * thisIndex.x, activeCol);
+            swapLocal(pivotCandidate.loc - BLKSIZE * thisIndex.x, activeCol);
           }
         }
 
@@ -324,7 +323,7 @@ mainmodule lu {
 
     atomic "diag_agglomerate_pivots" {
         // Store the pivot information
-        recordPivot(thisIndex.y*BLKSIZE + activeCol, l.loc);
+        recordPivot(thisIndex.y*BLKSIZE + activeCol, pivotCandidate.loc);
         // at opportune steps, send out the agglomerated pivot ops
         if ( shouldSendPivots() || activeCol == BLKSIZE-1)
             announceAgglomeratedPivots();

@@ -641,7 +641,8 @@ class LUBlk: public CBase_LUBlk {
   int row1Index, row2Index, localRow1, localRow2,
     otherRowIndex, thisLocalRow, globalThisRow, globalOtherRow;
   bool remoteSwap;
-  locval l;
+  // Stores the local column max which is a candidate for that column's pivot element
+  locval pivotCandidate;
   int pivotBlk;
   /// Tag for all msgs associated with a single batch of pivots
   int pivotBatchTag;
