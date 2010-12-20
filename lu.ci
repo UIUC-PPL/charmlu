@@ -216,9 +216,8 @@ mainmodule lu {
           // The diagonal chare also then sends out the post-pivoting row that can be used for updates
           when sendUSegment(UMsg* msg) atomic "below_recv_useg" {
             // Compute the multipliers using the diagonal element
-            computeMultipliers(msg->data[0], 0, activeCol);
             // Update all trailing columns in the same block based on the multipliers and Usegment
-            updateAllCols(activeCol, msg->data);
+            updateLsubBlock(activeCol, msg->data);
 
             // Options: this SDAG code (or something like it)
             // Somehow this needs to be overlapped with the maxCol sends

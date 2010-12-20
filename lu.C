@@ -1621,43 +1621,41 @@ private:
 
 
 
-  // Local multiplier computation and update after U is sent to the blocks below
+  /// Compute the multipliers and update the trailing sub-block
   void diagonalUpdate(int col) {
+      // Only diagonal chares should use this method
+      CkAssert(thisIndex.x == thisIndex.y);
     // Pivoting is done, so the diagonal entry better not be zero; else the matrix is singular
     if (fabs(LU[col][col]) <= 100 * std::numeric_limits<double>::epsilon() )
         CkAbort("Diagonal element very small despite pivoting. Is the matrix singular??");
 
-    computeMultipliers(LU[col][col],col+1,col);
-    for(int j=col+1; j<BLKSIZE; j++)
+    for(int j=col+1; j<BLKSIZE; j++) {
+        LU[j][col] = LU[j][col]/ LU[col][col];
         for(int k=col+1;k<BLKSIZE;k++)
             LU[j][k] -= LU[j][col] * LU[col][k];
+    }
   }
 
-  /// Compute the multipliers based on the pivot value from the diagonal chare
-  //  starting at [row, col]
-  void computeMultipliers(double a_kk, int row, int col) {
-#if 0
-      cblas_dscal(BLKSIZE-row, 1/a_kk, &LU[row][col], BLKSIZE);
-#else
-    for(int i = row; i<BLKSIZE;i++)
-      LU[i][col] = LU[i][col]/a_kk;
-#endif
-  }
 
-  /// Update the values in the columns ahead of the active column within the
-  // pivot section based on the Usegment and the multipliers
-  void updateAllCols(int col, double* U) {
-    //TODO: Replace with DGEMM
+
+  /// Compute the multipliers based on the pivot value in the received
+  /// row of U and update the sub-block of this L block
+  void updateLsubBlock(int col, double* U) {
+      // Should only get called on L blocks
+      CkAssert(thisIndex.x > thisIndex.y);
 #if 0
+      cblas_dscal(BLKSIZE, 1/U[0], &LU[0][col], BLKSIZE);
       cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
 		  BLKSIZE, BLKSIZE-(col+1), 1,
 		  -1.0, &LU[0][col], BLKSIZE,
 		  U+1, BLKSIZE,
 		  1.0, &LU[0][col+1], BLKSIZE);
 #else
-    for(int j=0; j < BLKSIZE; j++)
-        for(int k=col+1; k<BLKSIZE; k++)
-            LU[j][k] -=  LU[j][col]*U[k-col];
+      for(int j = 0; j < BLKSIZE; j++) {
+          LU[j][col] = LU[j][col] / U[0];
+          for(int k = col+1; k<BLKSIZE; k++)
+              LU[j][k] -=  LU[j][col] * U[k-col];
+      }
 #endif
   }
 
