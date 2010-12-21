@@ -75,7 +75,7 @@ mainmodule lu {
     entry void doPivot(pivotMsg *msg);
     entry void applyPivots(pivotSequencesMsg *msg);
     entry void acceptPivotData(pivotRowsMsg *msg);
-    entry void sendUSegment(UMsg* msg);
+    entry [nokeep] void sendUSegment(UMsg* msg);
     entry void diagUpdate(int);
 
     // Describes the control flow for all (super, sub and on diagonal) LU chares
@@ -200,7 +200,7 @@ mainmodule lu {
             // Delayed update using the U segment from the prev activeCol iteration
             if (pendingUmsg) {
                 updateLsubBlock(activeCol-1, pendingUmsg->data, 2);
-                delete pendingUmsg;
+                dropRef(pendingUmsg);
                 pendingUmsg = NULL;
             }
           }
@@ -225,10 +225,11 @@ mainmodule lu {
             pivotCandidate = computeMultipliersAndFindColMax(activeCol, anUmsg->data);
             // Save the Umsg for later use
             pendingUmsg = anUmsg;
+            takeRef(pendingUmsg);
           }
         }
         atomic "below_send_L" {
-          if (pendingUmsg) delete pendingUmsg;
+          if (pendingUmsg) dropRef(pendingUmsg);
           multicastRecvL();
           pivotBatchTag += BLKSIZE;
         }
