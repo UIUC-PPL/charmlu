@@ -1220,7 +1220,7 @@ public:
     DEBUG_PRINT("[%d] chare %d,%d is top block this step, multicast U\n", CkMyPe(), thisIndex.x, thisIndex.y);
     multicastRecvU(); //broadcast the newly computed U downwards to the blocks in the same column
     
-    CmiFree(UsrToEnv(L));
+    dropRef(L);
     
     DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
   }

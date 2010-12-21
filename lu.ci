@@ -178,7 +178,7 @@ mainmodule lu {
         }
         // Once all pivot info is processed, perform the row update
         when recvL[internalStep](blkMsg *mL) atomic "beforeL_schedule_computeU" {
-          CmiReference(UsrToEnv(mL));
+          takeRef(mL);
           L = mL;
           CkEntryOptions opts;
           opts.setPriority(thisIndex.y * BLKSIZE);
