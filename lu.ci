@@ -228,6 +228,7 @@ mainmodule lu {
           }
         }
         atomic "below_send_L" {
+          if (pendingUmsg) delete pendingUmsg;
           multicastRecvL();
           pivotBatchTag += BLKSIZE;
         }
