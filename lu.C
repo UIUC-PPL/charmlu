@@ -284,12 +284,12 @@ struct locker : public CBase_locker {
     locker() { lock = CmiCreateLock(); }
 };
 
-static inline void takeRef(blkMsg *m) {
+static inline void takeRef(void *m) {
     CmiLock(lock);
     CmiReference(UsrToEnv(m));
     CmiUnlock(lock);
 }
-static inline void dropRef(blkMsg *m) {
+static inline void dropRef(void *m) {
     CmiLock(lock);
     CmiFree(UsrToEnv(m));
     CmiUnlock(lock);
