@@ -300,14 +300,10 @@ class Main : public CBase_Main {
   double startTime;
   int iteration;
   int numIterations;
-  int numBlks;
 
   int gMatSize;
-  int BLKSIZE;
   int whichMulticastStrategy;
   int mapping;
-  int memThreshold;
-  int pivotBatchSize;
   bool solved, LUcomplete, workStarted;
   bool sentVectorData;
 
@@ -322,27 +318,22 @@ public:
     }
 
     gMatSize = atoi(m->argv[1]);
-    BLKSIZE = atoi(m->argv[2]);
-    memThreshold = atoi(m->argv[3]);
+    luCfg.blockSize = atoi(m->argv[2]);
+    luCfg.memThreshold   = atoi(m->argv[3]);
 
     if (m->argc >= 5)
-        pivotBatchSize = atoi( m->argv[4] );
+        luCfg.pivotBatchSize = atoi( m->argv[4] );
     else
-        pivotBatchSize = BLKSIZE / 4;
+        luCfg.pivotBatchSize = luCfg.blockSize / 4;
     if (m->argc >= 6)
         numIterations = atoi(m->argv[5]);
       CkPrintf("CLI: numIterations=%d\n", numIterations);
 
-    if (gMatSize%BLKSIZE!=0) {
-      CkPrintf("The matrix size %d should be a multiple of block size %d!\n", gMatSize, BLKSIZE);
+    if (gMatSize%luCfg.blockSize!=0) {
+      CkPrintf("The matrix size %d should be a multiple of block size %d!\n", gMatSize, luCfg.blockSize);
       CkExit();
     }
-    numBlks = gMatSize / BLKSIZE;
-
-    luCfg.blockSize = BLKSIZE;
-    luCfg.numBlocks = numBlks;
-    luCfg.pivotBatchSize = pivotBatchSize;
-    luCfg.memThreshold   = memThreshold;
+    luCfg.numBlocks = gMatSize / luCfg.blockSize;
 
     mainProxy = thisProxy;
     doPrioritize = false;
@@ -358,7 +349,7 @@ public:
     traceRegisterUserEvent("Remote Multicast Forwarding - sends", 10002);
 
     CkPrintf("Running LU on %d processors (%d nodes) on matrix %dX%d with pivot batch size %d\n",
-	     CkNumPes(), CmiNumNodes(), gMatSize, gMatSize, pivotBatchSize);
+	     CkNumPes(), CmiNumNodes(), gMatSize, gMatSize, luCfg.pivotBatchSize);
 
     multicastStats[0] = ComlibRegister(new OneTimeRingMulticastStrategy() ); 
     multicastStats[1] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(2) ); 
@@ -447,12 +438,12 @@ public:
 
       char note[200];
       sprintf(note, "*** New iteration: block size = %d, mapping = %d %s, multicast = %d, memthreshold = %d MB", 
-	      BLKSIZE, mapping, mapping == 1 ? "Balanced Snake" : "Block Cylic", whichMulticastStrategy, memThreshold);
+	      luCfg.blockSize, mapping, mapping == 1 ? "Balanced Snake" : "Block Cylic", whichMulticastStrategy, luCfg.memThreshold);
       traceUserSuppliedNote(note);
       CkPrintf("%s\n", note);
       fflush(stdout);
     
-      CkArrayOptions opts(numBlks, numBlks);
+      CkArrayOptions opts(luCfg.numBlocks, luCfg.numBlocks);
       opts.setAnytimeMigration(false)
 	  .setStaticInsertion(true);
       switch (mapping) {
@@ -460,10 +451,10 @@ public:
 	opts.setMap(CProxy_BlockCyclicMap::ckNew());
 	break;
       case 1:
-        opts.setMap(CProxy_LUBalancedSnakeMap::ckNew(numBlks, BLKSIZE));
+        opts.setMap(CProxy_LUBalancedSnakeMap::ckNew(luCfg.numBlocks, luCfg.blockSize));
 	break;
       case 2:
-	  opts.setMap(CProxy_RealBlockCyclicMap::ckNew(1, numBlks));
+	  opts.setMap(CProxy_RealBlockCyclicMap::ckNew(1, luCfg.numBlocks));
 	  break;
       case 3:
       {
@@ -473,7 +464,7 @@ public:
           break;
       }
       }
-      CProxy_LUMgr mgr = CProxy_PrioLU::ckNew(BLKSIZE, gMatSize);
+      CProxy_LUMgr mgr = CProxy_PrioLU::ckNew(luCfg.blockSize, gMatSize);
 
       luArrProxy = CProxy_LUBlk::ckNew(opts);
 
@@ -521,7 +512,7 @@ public:
 
     double flops = ((double)flopCount)	/ duration; // floating point ops per second
     double gflops = flops / 1000000000.0; // Giga fp ops per second
-    std::cout << "RESULT procs: \t" << CkNumPes() << "\tblock size:\t" << BLKSIZE << "\tGFlops:\t" << gflops << "\tTime(s):\t" << duration << std::endl;
+    std::cout << "RESULT procs: \t" << CkNumPes() << "\tblock size:\t" << luCfg.blockSize << "\tGFlops:\t" << gflops << "\tTime(s):\t" << duration << std::endl;
 
     double HPL_flop_count =  (2.0/3.0*n*n*n+3.0/2.0*n*n)/duration ;
     double HPL_gflops =	 HPL_flop_count / 1000000000.0; // Giga fp ops per second
@@ -549,7 +540,7 @@ public:
 	int reducedArrSize=msg->getSize() / sizeof(double);
 	double *maxvals=(double *) msg->getData();
 
-	double n = BLKSIZE * numBlks;
+	double n = luCfg.blockSize * luCfg.numBlocks;
 
 	double r = maxvals[3]/((maxvals[0]*maxvals[2]+maxvals[1])*n*std::numeric_limits<double>::epsilon());
 
@@ -573,6 +564,9 @@ public:
   }
 
 };
+
+
+
 
 class LUBlk: public CBase_LUBlk {
 
