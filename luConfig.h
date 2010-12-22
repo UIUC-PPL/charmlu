@@ -7,6 +7,7 @@ class LUConfig {
     public:
         LUConfig():
             blockSize(0), numBlocks(0), pivotBatchSize(0),
+            mappingScheme(0), peTileRows(0), peTileCols(0),
             memThreshold(0)
         {}
 
@@ -16,6 +17,10 @@ class LUConfig {
             p | blockSize;
             p | numBlocks;
             p | pivotBatchSize;
+
+            p | mappingScheme;
+            p | peTileRows;
+            p | peTileCols;
 
             p | memThreshold;
         }
@@ -28,6 +33,12 @@ class LUConfig {
         int numBlocks;
         /// The number of pivots to agglomerate into one batch
         int pivotBatchSize;
+        /// The mapping logic that has to be used
+        int mappingScheme;
+        /// The num of PEs in the PEtile
+        int peTileRows;
+        /// The num of rows in the PEtile
+        int peTileCols;
         /// The max memory (in MB) that the adaptive RTS should limit the app to
         int memThreshold;
 };
