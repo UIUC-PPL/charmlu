@@ -313,7 +313,7 @@ public:
     Main(CkArgMsg* m) : iteration(0), numIterations(1), solved(false), LUcomplete(false), workStarted(false), sentVectorData(false) {
 
     if (m->argc<4) {
-      CkPrintf("Usage: %s <matrix size> <block size> <mem threshold> [<pivot batch size> <iterations>]\n", m->argv[0]);
+      CkPrintf("Usage: %s <matrix size> <block size> <mem threshold> [<pivot batch size>]\n", m->argv[0]);
       CkExit();
     }
 
@@ -325,9 +325,8 @@ public:
         luCfg.pivotBatchSize = atoi( m->argv[4] );
     else
         luCfg.pivotBatchSize = luCfg.blockSize / 4;
-    if (m->argc >= 6)
-        numIterations = atoi(m->argv[5]);
-      CkPrintf("CLI: numIterations=%d\n", numIterations);
+    numIterations = 1;
+    CkPrintf("CLI: numIterations=%d\n", numIterations);
 
     if (gMatSize%luCfg.blockSize!=0) {
       CkPrintf("The matrix size %d should be a multiple of block size %d!\n", gMatSize, luCfg.blockSize);
