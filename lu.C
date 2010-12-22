@@ -1648,11 +1648,19 @@ private:
       // Should only get called on L blocks
       CkAssert(thisIndex.x > thisIndex.y);
 #if 1
-      cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
-		  BLKSIZE, BLKSIZE-(activeCol+offset), 1,
-		  -1.0, &LU[0][activeCol], BLKSIZE,
-		  U+offset, BLKSIZE,
-		  1.0, &LU[0][activeCol+offset], BLKSIZE);
+      #if USE_ESSL
+          dgemm("N", "N",
+                BLKSIZE, BLKSIZE-(activeCol+offset), 1,
+                -1.0, &LU[0][activeCol], BLKSIZE,
+                U+offset, BLKSIZE,
+                1.0, &LU[0][activeCol+offset], BLKSIZE);
+      #else
+          cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+                BLKSIZE, BLKSIZE-(activeCol+offset), 1,
+                -1.0, &LU[0][activeCol], BLKSIZE,
+                U+offset, BLKSIZE,
+                1.0, &LU[0][activeCol+offset], BLKSIZE);
+      #endif
 #else
       for(int j = 0; j < BLKSIZE; j++)
           for(int k = activeCol+offset; k<BLKSIZE; k++)
