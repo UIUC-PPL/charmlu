@@ -1647,7 +1647,7 @@ private:
   void updateLsubBlock(int activeCol, double* U, int offset=1) {
       // Should only get called on L blocks
       CkAssert(thisIndex.x > thisIndex.y);
-#if 0
+#if 1
       cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
 		  BLKSIZE, BLKSIZE-(activeCol+offset), 1,
 		  -1.0, &LU[0][activeCol], BLKSIZE,
