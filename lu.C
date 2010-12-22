@@ -10,6 +10,8 @@
 
  */
 
+#include "luConfig.h"
+
 //#include <assert.h>
 //#include <stdlib.h>
 #include <string.h>
@@ -294,6 +296,7 @@ static inline void dropRef(blkMsg *m) {
 }
 
 class Main : public CBase_Main {
+  LUConfig luCfg;
   double startTime;
   int iteration;
   int numIterations;
@@ -335,6 +338,11 @@ public:
       CkExit();
     }
     numBlks = gMatSize / BLKSIZE;
+
+    luCfg.blockSize = BLKSIZE;
+    luCfg.numBlocks = numBlks;
+    luCfg.pivotBatchSize = pivotBatchSize;
+    luCfg.memThreshold   = memThreshold;
 
     mainProxy = thisProxy;
     doPrioritize = false;
@@ -471,7 +479,7 @@ public:
 
       workStarted = true;
     
-      luArrProxy.startup(0, BLKSIZE, numBlks, memThreshold, mgr, pivotBatchSize);
+      luArrProxy.startup(luCfg, 0, mgr);
     }
   }
 
@@ -567,6 +575,10 @@ public:
 };
 
 class LUBlk: public CBase_LUBlk {
+
+    /// configuration settings
+    LUConfig cfg;
+
   // The section of chares in the array on and below the current diagonal
   CProxySection_LUBlk belowLeft, belowRight;
 
@@ -902,16 +914,16 @@ public:
       rnd.getNRndDoubles(BLKSIZE, buf);
     }
 
-  void init(int _whichMulticastStrategy, int _BLKSIZE, int _numBlks,
-            int memThreshold, CProxy_LUMgr _mgr, int _pivotBatchSize) {
+  void init(const LUConfig _cfg, int _whichMulticastStrategy, CProxy_LUMgr _mgr) {
+    cfg = _cfg;
     whichMulticastStrategy = _whichMulticastStrategy;
-    BLKSIZE = _BLKSIZE;
-    numBlks = _numBlks;
+    BLKSIZE = cfg.blockSize;
+    numBlks = cfg.numBlocks;
     mgr = _mgr.ckLocalBranch();
-    suggestedPivotBatchSize = _pivotBatchSize;
+    suggestedPivotBatchSize = cfg.pivotBatchSize;
     
     // Set the schedulers memory usage threshold to the one based upon a control point
-    schedAdaptMemThresholdMB = memThreshold;
+    schedAdaptMemThresholdMB = cfg.memThreshold;
 
     CkAssert(BLKSIZE>0); // If this fails, readonly variables aren't
 			 // propagated soon enough. I'm assuming they

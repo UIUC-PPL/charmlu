@@ -361,10 +361,9 @@ mainmodule lu {
     entry void beginBackward(int size, double preVec[size]);
     entry void recvSolveData(CkReductionMsg *m);
 
-    entry void startup(int _whichMulticastStrategy, int _BLKSIZE, int _numBlks,
-                       int memThreshold, CProxy_LUMgr _mgr, int _pivotBatchSize) {
+    entry void startup(const LUConfig luCfg, int _whichMulticastStrategy, CProxy_LUMgr _mgr) {
       atomic {
-        init(_whichMulticastStrategy, _BLKSIZE, _numBlks, memThreshold, _mgr, _pivotBatchSize);
+        init(luCfg, _whichMulticastStrategy, _mgr);
       }
       when multicastRedns(int dummy) {
         if (thisIndex.x >= thisIndex.y) {
