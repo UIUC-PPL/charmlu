@@ -303,7 +303,6 @@ class Main : public CBase_Main {
 
   int gMatSize;
   int whichMulticastStrategy;
-  int mapping;
   bool solved, LUcomplete, workStarted;
   bool sentVectorData;
 
@@ -313,18 +312,43 @@ public:
     Main(CkArgMsg* m) : iteration(0), numIterations(1), solved(false), LUcomplete(false), workStarted(false), sentVectorData(false) {
 
     if (m->argc<4) {
-      CkPrintf("Usage: %s <matrix size> <block size> <mem threshold> [<pivot batch size>]\n", m->argv[0]);
+      CkPrintf("Usage: %s <matrix size> <block size> <mem threshold> [<pivot batch size> <mapping scheme> [<peTileRows> <peTileCols>] ]\n", m->argv[0]);
       CkExit();
     }
 
-    gMatSize = atoi(m->argv[1]);
-    luCfg.blockSize = atoi(m->argv[2]);
+    /// Parse the command line and accept user input
+    gMatSize             = atoi(m->argv[1]);
+    luCfg.blockSize      = atoi(m->argv[2]);
     luCfg.memThreshold   = atoi(m->argv[3]);
 
     if (m->argc >= 5)
         luCfg.pivotBatchSize = atoi( m->argv[4] );
     else
         luCfg.pivotBatchSize = luCfg.blockSize / 4;
+
+    if (m->argc >= 6)
+    {
+        luCfg.mappingScheme = atoi( m->argv[5] );
+        if (luCfg.mappingScheme == 3)
+        {
+            if (m->argc < 8) {
+                std::pair<int,int> tileDims = computePETileDimensions();
+                luCfg.peTileRows = tileDims.first;
+                luCfg.peTileCols = tileDims.second;
+            }
+            else {
+                luCfg.peTileRows = atoi( m->argv[6] );
+                luCfg.peTileCols = atoi( m->argv[7] );
+            }
+            int peTileSize = luCfg.peTileRows * luCfg.peTileCols;
+            if ( peTileSize > CkNumPes() )
+                CkAbort("The PE tile dimensions are too big for the num of PEs available!");
+            if ( peTileSize < CkNumPes() )
+                CkPrintf("WARNING: Configured to use a PE tile size(%dx%d) (for 2D tile mapping) that does not use all the PEs(%d)\n",
+                         luCfg.peTileRows, luCfg.peTileCols, CkNumPes() );
+        }
+    }
+
     numIterations = 1;
     CkPrintf("CLI: numIterations=%d\n", numIterations);
 
@@ -332,7 +356,27 @@ public:
       CkPrintf("The matrix size %d should be a multiple of block size %d!\n", gMatSize, luCfg.blockSize);
       CkExit();
     }
+
     luCfg.numBlocks = gMatSize / luCfg.blockSize;
+
+    CkPrintf("Running LU on %d processors (%d nodes): "
+             "\n\tMatrix size: %d X %d "
+             "\n\tBlock size: %d X %d "
+             "\n\tPivot batch size: %d"
+             "\n\tMem Threshold (MB): %d"
+             "\n\tMapping Scheme: %d (%s)\n",
+             CkNumPes(), CmiNumNodes(),
+             gMatSize, gMatSize,
+             luCfg.blockSize, luCfg.blockSize,
+             luCfg.pivotBatchSize,
+             luCfg.memThreshold,
+             luCfg.mappingScheme,
+             luCfg.mappingScheme == 1 ? "Balanced Snake" : (luCfg.mappingScheme==2? "Block Cylic": "2D Tiling")
+             );
+    if (luCfg.mappingScheme == 3)
+        CkPrintf("\tMapping PE tile size: %d x %d\n", luCfg.peTileRows, luCfg.peTileCols);
+
+
 
     mainProxy = thisProxy;
     doPrioritize = false;
@@ -346,9 +390,6 @@ public:
     traceRegisterUserEvent("Local Multicast Deliveries", 10000);    
     traceRegisterUserEvent("Remote Multicast Forwarding - preparing", 10001);
     traceRegisterUserEvent("Remote Multicast Forwarding - sends", 10002);
-
-    CkPrintf("Running LU on %d processors (%d nodes) on matrix %dX%d with pivot batch size %d\n",
-	     CkNumPes(), CmiNumNodes(), gMatSize, gMatSize, luCfg.pivotBatchSize);
 
     multicastStats[0] = ComlibRegister(new OneTimeRingMulticastStrategy() ); 
     multicastStats[1] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(2) ); 
@@ -433,11 +474,9 @@ public:
       }
     
     
-      mapping = 3;
-
       char note[200];
       sprintf(note, "*** New iteration: block size = %d, mapping = %d %s, multicast = %d, memthreshold = %d MB", 
-	      luCfg.blockSize, mapping, mapping == 1 ? "Balanced Snake" : "Block Cylic", whichMulticastStrategy, luCfg.memThreshold);
+	      luCfg.blockSize, luCfg.mappingScheme, luCfg.mappingScheme == 1 ? "Balanced Snake" : (luCfg.mappingScheme==2? "Block Cylic": "2D Tiling"), whichMulticastStrategy, luCfg.memThreshold);
       traceUserSuppliedNote(note);
       CkPrintf("%s\n", note);
       fflush(stdout);
@@ -445,7 +484,7 @@ public:
       CkArrayOptions opts(luCfg.numBlocks, luCfg.numBlocks);
       opts.setAnytimeMigration(false)
 	  .setStaticInsertion(true);
-      switch (mapping) {
+      switch (luCfg.mappingScheme) {
       case 0:
 	opts.setMap(CProxy_BlockCyclicMap::ckNew());
 	break;
@@ -456,12 +495,8 @@ public:
 	  opts.setMap(CProxy_RealBlockCyclicMap::ckNew(1, luCfg.numBlocks));
 	  break;
       case 3:
-      {
-          std::pair<int,int> tileDims = computePETileDimensions();
-          CkPrintf("PE Tile size = %d x %d\n", tileDims.first, tileDims.second);
-          opts.setMap( CProxy_PE2DTilingMap::ckNew(tileDims.first, tileDims.second) );
+          opts.setMap( CProxy_PE2DTilingMap::ckNew(luCfg.peTileRows, luCfg.peTileCols) );
           break;
-      }
       }
       CProxy_LUMgr mgr = CProxy_PrioLU::ckNew(luCfg.blockSize, gMatSize);
 

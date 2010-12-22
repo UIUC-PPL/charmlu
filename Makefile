@@ -16,7 +16,7 @@ INTF      = lu.ci
 # Specify the exe name and the arguments to run it with
 NP        = 4
 TARGET    = lu
-ARGS      = 64 16 500 8 1
+ARGS      = 64 16 500 8 2
 
 # Specify the compilers, run script, flags etc.
 CXX       = $(CHARMBIN)/charmc
