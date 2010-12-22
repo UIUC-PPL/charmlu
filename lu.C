@@ -348,6 +348,8 @@ public:
                          luCfg.peTileRows, luCfg.peTileCols, CkNumPes() );
         }
     }
+    else
+        luCfg.mappingScheme = 1;
 
     numIterations = 1;
     CkPrintf("CLI: numIterations=%d\n", numIterations);
@@ -497,6 +499,8 @@ public:
       case 3:
           opts.setMap( CProxy_PE2DTilingMap::ckNew(luCfg.peTileRows, luCfg.peTileCols) );
           break;
+      default:
+          CkAbort("Unrecognized mapping scheme specified");
       }
       CProxy_LUMgr mgr = CProxy_PrioLU::ckNew(luCfg.blockSize, gMatSize);
 
