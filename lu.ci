@@ -275,6 +275,10 @@ mainmodule lu {
 
     entry void processLU() {
       atomic {
+        if (STOP_AFTER == thisIndex.x) {
+            flushLogs();
+            CkAbort("Aborting factorization in progress");
+        }
         CkAssert(pivotBatchTag == thisIndex.x*BLKSIZE);
         pivotRecords.clear();
         numRowsSinceLastPivotSend = 0;

@@ -3,6 +3,10 @@
 #ifndef LU_CONFIG_H
 #define LU_CONFIG_H
 
+#ifndef STOP_AFTER
+    #define STOP_AFTER -1
+#endif
+
 class LUConfig {
     public:
         LUConfig():
