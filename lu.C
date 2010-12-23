@@ -1,26 +1,15 @@
 /**
-   @file A Charm++ implementation of LU 
-   
-   Messages of type blkMsg contain blocks of data that are sent down and to the 
-   right as the computation progresses. 
-
-   As the blkMsg messages arrive, they are always put into a buffer, and a call 
-   to thisProxy(thisIndex.x,thisIndex.y).progress() is made if the computation 
-   can proceed without any additional messages.
-
+ * @file A Charm++ implementation of LU
  */
 
 #include "luConfig.h"
 
-//#include <assert.h>
-//#include <stdlib.h>
 #include <string.h>
 #include <iostream>
 #include <sstream>
 #include <map>
 #include <algorithm>
 using std::min;
-//#include <pthread.h>
 #include <limits>
 
 #if USE_CBLAS_H
