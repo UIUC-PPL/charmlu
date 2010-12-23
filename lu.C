@@ -356,12 +356,14 @@ public:
     CkPrintf("Running LU on %d processors (%d nodes): "
              "\n\tMatrix size: %d X %d "
              "\n\tBlock size: %d X %d "
+             "\n\tChare Array size: %d X %d"
              "\n\tPivot batch size: %d"
              "\n\tMem Threshold (MB): %d"
              "\n\tMapping Scheme: %d (%s)\n",
              CkNumPes(), CmiNumNodes(),
              gMatSize, gMatSize,
              luCfg.blockSize, luCfg.blockSize,
+             luCfg.numBlocks, luCfg.numBlocks,
              luCfg.pivotBatchSize,
              luCfg.memThreshold,
              luCfg.mappingScheme,
