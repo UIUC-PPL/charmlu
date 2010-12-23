@@ -1432,7 +1432,7 @@ private:
 
 
   /// Given a set of pivot ops, send out participating row chunks that you own
-  void sendPendingPivots(pivotSequencesMsg *msg)
+  void sendPendingPivots(const pivotSequencesMsg *msg)
   {
       #ifdef VERBOSE_PIVOT_AGGLOM
           std::stringstream pivotLog;
@@ -1476,8 +1476,8 @@ private:
               outgoingPivotMsgs[i] = new(numMsgsTo[i], numMsgsTo[i]*BLKSIZE, numMsgsTo[i], sizeof(int)*8)
                                         pivotRowsMsg(BLKSIZE, pivotBatchTag);
               // Set a priority thats a function of your location wrt to the critical path
-              *(int*)CkPriorityPtr(msg) = (thisIndex.y<internalStep)? numBlks*BLKSIZE : thisIndex.y * BLKSIZE;
-              CkSetQueueing(msg, CK_QUEUEING_IFIFO);
+              *(int*)CkPriorityPtr(outgoingPivotMsgs[i]) = (thisIndex.y<internalStep)? numBlks*BLKSIZE : thisIndex.y * BLKSIZE;
+              CkSetQueueing(outgoingPivotMsgs[i], CK_QUEUEING_IFIFO);
           }
       }
 
