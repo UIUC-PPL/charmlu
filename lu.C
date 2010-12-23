@@ -66,12 +66,14 @@ CProxy_locker lg;
     #define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
     #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
     #define VERY_VERBOSE_PIVOT_AGGLOM(...) CkPrintf(__VA_ARGS__)
+    #define VERBOSE_VALIDATION(...) CkPrintf(__VA_ARGS__)
     #define VERBOSE_PIVOT_RECORDING
     #define VERBOSE_PIVOT_AGGLOM
 #else
     #define DEBUG_PRINT(...)
     #define DEBUG_PIVOT(...)
     #define VERY_VERBOSE_PIVOT_AGGLOM(...)
+    #define VERBOSE_VALIDATION(...)
 #endif
 
 #include <cmath>
@@ -569,7 +571,7 @@ public:
 
 	double r = maxvals[3]/((maxvals[0]*maxvals[2]+maxvals[1])*n*std::numeric_limits<double>::epsilon());
 
-	DEBUG_PRINT("|A|inf = %e\n|b|inf = %e\n|x|inf = %e\n|Ax-b|inf = %e\n",maxvals[0],maxvals[1],maxvals[2],maxvals[3]);
+	VERBOSE_VALIDATION("|A|inf = %e\n|b|inf = %e\n|x|inf = %e\n|Ax-b|inf = %e\n",maxvals[0],maxvals[1],maxvals[2],maxvals[3]);
 
 	CkPrintf("epsilon = %e\nresidual = %f\n",std::numeric_limits<double>::epsilon(),r);
 	if(r>16)
@@ -743,7 +745,7 @@ public:
     if(thisIndex.x != thisIndex.y) {
     	//find local max of A
         double A_max = infNorm(BLKSIZE * BLKSIZE, LU[0]);
-    	DEBUG_PRINT("[%d,%d] A_max  = %e\n",thisIndex.x,thisIndex.y,A_max);
+    	VERBOSE_VALIDATION("[%d,%d] A_max  = %e\n",thisIndex.x,thisIndex.y,A_max);
 
     	double maxvals[4];
     	maxvals[0] = A_max;
@@ -794,10 +796,10 @@ public:
 	  double b_max = infNorm(BLKSIZE, b);
 	  double x_max = infNorm(BLKSIZE, bvec);
 	  double res_max = infNorm(BLKSIZE, residuals);
-	  DEBUG_PRINT("[%d,%d] A_max  = %e\n",thisIndex.x,thisIndex.y,A_max);
-	  DEBUG_PRINT("[%d,%d] b_max  = %e\n",thisIndex.x,thisIndex.y,b_max);
-	  DEBUG_PRINT("[%d,%d] x_max  = %e\n",thisIndex.x,thisIndex.y,x_max);
-	  DEBUG_PRINT("[%d,%d] res_max  = %e\n",thisIndex.x,thisIndex.y,res_max);
+	  VERBOSE_VALIDATION("[%d,%d] A_max  = %e\n",thisIndex.x,thisIndex.y,A_max);
+	  VERBOSE_VALIDATION("[%d,%d] b_max  = %e\n",thisIndex.x,thisIndex.y,b_max);
+	  VERBOSE_VALIDATION("[%d,%d] x_max  = %e\n",thisIndex.x,thisIndex.y,x_max);
+	  VERBOSE_VALIDATION("[%d,%d] res_max  = %e\n",thisIndex.x,thisIndex.y,res_max);
 
 	  double maxvals[4];
 	  maxvals[0] = A_max;
