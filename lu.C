@@ -65,6 +65,7 @@ CProxy_locker lg;
 #ifdef CHARMLU_DEBUG
     #define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
     #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
+    #define VERBOSE_PROGRESS(...) CkPrintf(__VA_ARGS__)
     #define VERY_VERBOSE_PIVOT_AGGLOM(...) CkPrintf(__VA_ARGS__)
     #define VERBOSE_VALIDATION(...) CkPrintf(__VA_ARGS__)
     #define VERBOSE_PIVOT_RECORDING
@@ -72,6 +73,7 @@ CProxy_locker lg;
 #else
     #define DEBUG_PRINT(...)
     #define DEBUG_PIVOT(...)
+    #define VERBOSE_PROGRESS(...)
     #define VERY_VERBOSE_PIVOT_AGGLOM(...)
     #define VERBOSE_VALIDATION(...)
 #endif

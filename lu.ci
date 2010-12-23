@@ -286,6 +286,7 @@ mainmodule lu {
       // Process matrix column-by-column
       for (activeCol = 0; activeCol < BLKSIZE; ++activeCol) {
         atomic "diag_find_colmax" {
+          VERBOSE_PROGRESS(" ..col%d ", thisIndex.x*BLKSIZE + activeCol);
           // Find the local maximum in the active column
           l = findLocVal(activeCol, activeCol);
           // Contribute to a redn along the pivot section to identify the pivot row
@@ -357,6 +358,7 @@ mainmodule lu {
         }
         // Contribute to a reduction indicating that this chare is done with its factorization work
         contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
+        VERBOSE_PROGRESS("\n");
       }
     };
 
