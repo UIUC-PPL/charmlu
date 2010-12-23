@@ -6,7 +6,6 @@ mainmodule lu {
   readonly int traceComputeU;
   readonly int traceComputeL;
   readonly int traceSolveLocalLU;
-  readonly bool doPrioritize;
   readonly CProxy_locker lg;
 //  readonly int memThreshold;
 

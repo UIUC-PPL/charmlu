@@ -59,7 +59,6 @@ int traceTrailingUpdate;
 int traceComputeU;
 int traceComputeL;
 int traceSolveLocalLU;
-bool doPrioritize;
 ComlibInstanceHandle multicastStats[4];
 CProxy_locker lg;
 
@@ -370,7 +369,6 @@ public:
 
 
     mainProxy = thisProxy;
-    doPrioritize = false;
       
     DEBUG_PRINT("Registering user events\n");
     traceTrailingUpdate = traceRegisterUserEvent("Trailing Update");
