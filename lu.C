@@ -46,6 +46,12 @@ extern "C" {
 #include <malloc.h>
 #endif
 
+// Memory critical extension
+#define DELETE_MEMORY_THRESHOLD 400*1024*1024
+// Hacked defines for matching SDAG code
+#define CDEP_MSG_RECVL 2
+#define CDEP_MSG_RECVU 3
+
 #include <comlib.h>
 #include <controlPoints.h> // must come before user decl.h if they are using the pathInformationMsg
 #include "lu.decl.h"
@@ -63,6 +69,7 @@ ComlibInstanceHandle multicastStats[4];
 CProxy_locker lg;
 
 #ifdef CHARMLU_DEBUG
+    #define DEBUG_MEM_RESEND(...) CkPrintf(__VA_ARGS__)
     #define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
     #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
     #define VERBOSE_PROGRESS(...) CkPrintf(__VA_ARGS__)
@@ -71,6 +78,7 @@ CProxy_locker lg;
     #define VERBOSE_PIVOT_RECORDING
     #define VERBOSE_PIVOT_AGGLOM
 #else
+    #define DEBUG_MEM_RESEND(...)
     #define DEBUG_PRINT(...)
     #define DEBUG_PIVOT(...)
     #define VERBOSE_PROGRESS(...)
@@ -680,8 +688,13 @@ class LUBlk: public CBase_LUBlk {
   // analysis. They are not essential to the algorithm.
   int whichMulticastStrategy;
 
+  // Critical memory schedule mode
+  bool memory_mode;
+  std::set<int> Lqueue, Uqueue;
+  blkMsg *Lmsg, *Umsg;
+
 public:
-  LUBlk() : storedVec(NULL), diagRec(0), msgsRecvd(0) {
+  LUBlk() : storedVec(NULL), diagRec(0), msgsRecvd(0), memory_mode(false) {
       __sdag_init();
     whichMulticastStrategy = 0;
 
@@ -1167,6 +1180,10 @@ public:
     
     blkMsg *givenU = createABlkMsg();
     *(int*)CkPriorityPtr(givenU) = -1;
+
+    blkMsg *givenU2 = createABlkMsg();
+    Umsg = givenU2;
+
     oneCol.recvU(givenU);
 
 //     for(int i=thisIndex.x+1; i<numBlks; i++){
@@ -1191,6 +1208,10 @@ public:
     
     blkMsg *givenL = createABlkMsg();
     *(int*)CkPriorityPtr(givenL) = -1;
+
+    blkMsg *givenL2 = createABlkMsg();
+    Lmsg = givenL2;
+
     oneRow.recvL(givenL);
     
 //     for(int i=thisIndex.y+1; i<numBlks; i++){
@@ -1658,6 +1679,18 @@ private:
 #endif
   }
 
+public:
+  void resendL(int x, int y) {
+    blkMsg *copyL = createABlkMsg();
+    copyL->setMsgData(Lmsg->data, internalStep, BLKSIZE);
+    thisProxy(x, y).recvResendL(copyL);
+  }
+
+  void resendU(int x, int y) {
+    blkMsg *copyU = createABlkMsg();
+    copyU->setMsgData(Umsg->data, internalStep, BLKSIZE);
+    thisProxy(x, y).recvResendU(copyU);
+  }
 };
 
 #include "lu.def.h"

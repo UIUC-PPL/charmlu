@@ -114,25 +114,135 @@ mainmodule lu {
               }
           }
 
-          overlap {
-              // Once all pending pivot ops from the current step of the computation are complete,
-              // receive the msgs carrying data for the trailing update from the current step
-              when recvL[internalStep](blkMsg *mL) atomic
-              { takeRef(mL); L = mL; }
-              when recvU[internalStep](blkMsg *mU) atomic
-              { takeRef(mU); U = mU; }
+          // Once all pending pivot ops from the current step of the computation are complete,
+          // receive the msgs carrying data for the trailing update from the current step
+
+          if (!memory_mode) {
+            overlap {
+              when recvL[internalStep](blkMsg *mL) atomic {
+                if (CmiMemoryUsage() > DELETE_MEMORY_THRESHOLD) {
+                  DEBUG_MEM_RESEND("memory_mode on, CmiMemoryUsage() reporting %f\n", (double)CmiMemoryUsage()/1024.0/1024.0);
+                  memory_mode = true;
+                }
+                takeRef(mL);
+                L = mL;
+              }
+              when recvU[internalStep](blkMsg *mU) atomic {
+                if (CmiMemoryUsage() > DELETE_MEMORY_THRESHOLD) {
+                  DEBUG_MEM_RESEND("memory_mode on, CmiMemoryUsage() reporting %f\n", (double)CmiMemoryUsage()/1024.0/1024.0);
+                  memory_mode = true;
+                }
+                takeRef(mU);
+                U = mU;
+              }
+            }
+            // Schedule the trailing update for sometime later
+            atomic "trailing_schedule_update" {
+              CkEntryOptions opts;
+              opts.setPriority(thisIndex.y * BLKSIZE);
+              thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep, &opts);
+            }
+            when processTrailingUpdate[internalStep](int step) atomic "trailing_update" {
+              updateMatrix(L, U);
+              dropRef(L);
+              dropRef(U);
+            }
+          } else {
+            while (__cDep->getMessage(CDEP_MSG_RECVL) != 0) {
+              atomic {
+                DEBUG_MEM_RESEND("(%d, %d): waiting on message\n", thisIndex.x, thisIndex.y);
+              }
+              when recvL(blkMsg *mL) atomic {
+                DEBUG_MEM_RESEND("(%d, %d): dequeuing L, %d\n", thisIndex.x, thisIndex.y, CkGetRefNum(mL));
+                Lqueue.insert(CkGetRefNum(mL));
+              }
+              atomic {
+                DEBUG_MEM_RESEND("(%d, %d): found message\n", thisIndex.x, thisIndex.y);
+              }
+            }
+            while (__cDep->getMessage(CDEP_MSG_RECVU) != 0) {
+              atomic {
+                DEBUG_MEM_RESEND("(%d, %d): waiting on message\n", thisIndex.x, thisIndex.y);
+              }
+              when recvU(blkMsg *mU) atomic {
+                DEBUG_MEM_RESEND("(%d, %d): dequeuing U, %d\n", thisIndex.x, thisIndex.y, CkGetRefNum(mU));
+                Uqueue.insert(CkGetRefNum(mU));
+              }
+              atomic {
+                DEBUG_MEM_RESEND("(%d, %d): found message\n", thisIndex.x, thisIndex.y);
+              }
+            }
+            if (Lqueue.find(internalStep) == Lqueue.end()) {
+              atomic {
+                DEBUG_MEM_RESEND("(%d, %d): waiting on L, is = %d\n", thisIndex.x, thisIndex.y, internalStep);
+              }
+              when recvL[internalStep](blkMsg *mL) atomic {
+                Lqueue.insert(CkGetRefNum(mL));
+              }
+              atomic {
+                DEBUG_MEM_RESEND("(%d, %d): received L, is = %d\n", thisIndex.x, thisIndex.y, internalStep);
+              }
+            }
+            if (Uqueue.find(internalStep) == Uqueue.end()) {
+              atomic {
+                DEBUG_MEM_RESEND("(%d, %d): waiting on U, is = %d\n", thisIndex.x, thisIndex.y, internalStep);
+              }
+              when recvU[internalStep](blkMsg *mU) atomic {
+                Uqueue.insert(CkGetRefNum(mU));
+              }
+              atomic {
+                DEBUG_MEM_RESEND("(%d, %d): received U, is = %d\n", thisIndex.x, thisIndex.y, internalStep);
+              }
+            }
+            if (Lqueue.find(internalStep) != Lqueue.end() &&
+                Uqueue.find(internalStep) != Uqueue.end()) {
+              atomic {
+                // Found a matching pair of L and U, now ask for resends
+                Lqueue.erase(internalStep);
+                Uqueue.erase(internalStep);
+                thisProxy(thisIndex.x, internalStep).resendL(thisIndex.x, thisIndex.y);
+                thisProxy(internalStep, thisIndex.y).resendU(thisIndex.x, thisIndex.y);
+                DEBUG_MEM_RESEND("(%d, %d): waiting on resends\n", thisIndex.x, thisIndex.y);
+              }
+              when recvResendL(blkMsg *mL) atomic {
+                takeRef(mL);
+                L = mL;
+              }
+              when recvResendU(blkMsg *mU) atomic {
+                takeRef(mU);
+                U = mU;
+              }
+              atomic {
+                DEBUG_MEM_RESEND("(%d, %d): resends received\n", thisIndex.x, thisIndex.y);
+                updateMatrix(L, U);
+                dropRef(L);
+                dropRef(U);
+              }
+            }
+            if (Lqueue.empty() && Uqueue.empty()) {
+              atomic {
+                memory_mode = false;
+              }
+            }
+            atomic {
+              DEBUG_MEM_RESEND("(%d, %d): seaching in queue, internalStep = %d\n", thisIndex.x, thisIndex.y, internalStep);
+              DEBUG_MEM_RESEND("Lqueue:");
+              for (std::set<int>::iterator it = Lqueue.begin();
+                   it != Lqueue.end(); ++it) {
+                DEBUG_MEM_RESEND("%d, ", *it);
+              }
+              DEBUG_MEM_RESEND("\n");
+              DEBUG_MEM_RESEND("Uqueue:");
+              for (std::set<int>::iterator it = Uqueue.begin();
+                   it != Uqueue.end(); ++it) {
+                DEBUG_MEM_RESEND("%d, ", *it);
+              }
+              DEBUG_MEM_RESEND("\n");
+            }
           }
-        // Schedule the trailing update for sometime later
-        atomic "trailing_schedule_update" {
-          CkEntryOptions opts;
-	  opts.setPriority(thisIndex.y * BLKSIZE);
-          thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep, &opts);
         }
-        when processTrailingUpdate[internalStep](int step) atomic "trailing_update" {
-          updateMatrix(L, U);
-          dropRef(L);
-          dropRef(U);
-        }
+      atomic {
+        DEBUG_MEM_RESEND("(%d, %d): out of trailing work\n", thisIndex.x, thisIndex.y);
       }
 
       //-----------------------------------------------------------------------
@@ -176,12 +286,28 @@ mainmodule lu {
           }
         }
         // Once all pivot info is processed, perform the row update
-        when recvL[internalStep](blkMsg *mL) atomic "beforeL_schedule_computeU" {
-          CmiReference(UsrToEnv(mL));
-          L = mL;
-          CkEntryOptions opts;
-          opts.setPriority(thisIndex.y * BLKSIZE);
-          thisProxy(thisIndex.x, thisIndex.y).processComputeU(0, &opts);
+        atomic {
+          DEBUG_MEM_RESEND("(%d, %d): waiting for recvL\n", thisIndex.x, thisIndex.y);
+        }
+        if (!memory_mode) {
+          when recvL[internalStep](blkMsg *mL) atomic "beforeL_schedule_computeU" {
+            CmiReference(UsrToEnv(mL));
+            L = mL;
+            CkEntryOptions opts;
+            opts.setPriority(thisIndex.y * BLKSIZE);
+            thisProxy(thisIndex.x, thisIndex.y).processComputeU(0, &opts);
+          }
+        } else {
+          atomic {
+            thisProxy(thisIndex.x, internalStep).resendL(thisIndex.x, thisIndex.y);
+          }
+          when recvResendL(blkMsg *mL) atomic {
+            CmiReference(UsrToEnv(mL));
+            L = mL;
+            CkEntryOptions opts;
+            opts.setPriority(thisIndex.y * BLKSIZE);
+            thisProxy(thisIndex.x, thisIndex.y).processComputeU(0, &opts);
+          }
         }
       }
       // Below diagonal
@@ -458,6 +584,12 @@ mainmodule lu {
     // separate copy for each object.
     entry [nokeep] void recvL(blkMsg *);
     entry [nokeep] void recvU(blkMsg *);
+
+    entry [nokeep] void recvResendL(blkMsg *);
+    entry [nokeep] void recvResendU(blkMsg *);
+
+    entry void resendL(int, int);
+    entry void resendU(int, int);
 
     // These process* entry methods are invoked locally by each block
     // on itself with varying priorities, to let the scheduler decide
