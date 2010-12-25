@@ -44,7 +44,6 @@ mainmodule lu {
     entry void arrayIsCreated(CkReductionMsg *);
     entry void outputStats();
     entry void calcScaledResidual(CkReductionMsg *);
-    entry void done(pathInformationMsg *m);
     entry void iterationCompleted();
   };
 
