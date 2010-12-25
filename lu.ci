@@ -7,6 +7,8 @@ mainmodule lu {
   readonly int traceComputeL;
   readonly int traceSolveLocalLU;
   readonly CProxy_locker lg;
+  readonly CProxy_MemoryMgr memMgr;
+  readonly CProxy_LUBlk luArrProxy;
 //  readonly int memThreshold;
 
   // Register the reducer function that handles reductions of locval
@@ -56,6 +58,12 @@ mainmodule lu {
       entry locker();
   }
 
+  nodegroup MemoryMgr {
+    entry MemoryMgr();
+    entry [exclusive] void tryContinue(int x, int y);
+    entry [exclusive] void finishedTrailing();
+  }
+
   array [2D] LUBlk {
     entry LUBlk(void);
     entry void prepareForPivotRedn(rednSetupMsg *);
@@ -76,6 +84,7 @@ mainmodule lu {
     entry void acceptPivotData(pivotRowsMsg *msg);
     entry void sendUSegment(UMsg* msg);
     entry void diagUpdate(int);
+    entry void continueTrailing(int);
 
     // Describes the control flow for all (super, sub and on diagonal) LU chares
     entry void factor() {
@@ -202,26 +211,32 @@ mainmodule lu {
             if (Lqueue.find(internalStep) != Lqueue.end() &&
                 Uqueue.find(internalStep) != Uqueue.end()) {
               atomic {
-                // Found a matching pair of L and U, now ask for resends
-                Lqueue.erase(internalStep);
-                Uqueue.erase(internalStep);
-                thisProxy(thisIndex.x, internalStep).resendL(thisIndex.x, thisIndex.y);
-                thisProxy(internalStep, thisIndex.y).resendU(thisIndex.x, thisIndex.y);
-                DEBUG_MEM_RESEND("(%d, %d): waiting on resends\n", thisIndex.x, thisIndex.y);
+                memMgr[CkMyNode()].tryContinue(thisIndex.x, thisIndex.y);
               }
-              when recvResendL(blkMsg *mL) atomic {
-                takeRef(mL);
-                L = mL;
-              }
-              when recvResendU(blkMsg *mU) atomic {
-                takeRef(mU);
-                U = mU;
-              }
-              atomic {
-                DEBUG_MEM_RESEND("(%d, %d): resends received\n", thisIndex.x, thisIndex.y);
-                updateMatrix(L, U);
-                dropRef(L);
-                dropRef(U);
+              when continueTrailing(int dummy) {
+                atomic {
+                  // Found a matching pair of L and U, now ask for resends
+                  Lqueue.erase(internalStep);
+                  Uqueue.erase(internalStep);
+                  thisProxy(thisIndex.x, internalStep).resendL(thisIndex.x, thisIndex.y);
+                  thisProxy(internalStep, thisIndex.y).resendU(thisIndex.x, thisIndex.y);
+                  DEBUG_MEM_RESEND("(%d, %d): waiting on resends\n", thisIndex.x, thisIndex.y);
+                }
+                when recvResendL(blkMsg *mL) atomic {
+                  takeRef(mL);
+                  L = mL;
+                }
+                when recvResendU(blkMsg *mU) atomic {
+                  takeRef(mU);
+                  U = mU;
+                }
+                atomic {
+                  DEBUG_MEM_RESEND("(%d, %d): resends received\n", thisIndex.x, thisIndex.y);
+                  updateMatrix(L, U);
+                  dropRef(L);
+                  dropRef(U);
+                  memMgr[CkMyPe()].finishedTrailing();
+                }
               }
             }
             if (Lqueue.empty() && Uqueue.empty()) {

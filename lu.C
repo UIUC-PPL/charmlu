@@ -11,6 +11,7 @@
 #include <algorithm>
 using std::min;
 #include <limits>
+#include <utility>
 
 #if USE_CBLAS_H
 extern "C" {
@@ -51,6 +52,9 @@ extern "C" {
 // Hacked defines for matching SDAG code
 #define CDEP_MSG_RECVL 2
 #define CDEP_MSG_RECVU 3
+// Number of trailing updates allowed concurrently per PE
+// This only matters when the memory critical extension is enabled
+#define MAX_TRAILING_UPDATES 3
 
 #include <comlib.h>
 #include <controlPoints.h> // must come before user decl.h if they are using the pathInformationMsg
@@ -67,6 +71,8 @@ int traceComputeL;
 int traceSolveLocalLU;
 ComlibInstanceHandle multicastStats[4];
 CProxy_locker lg;
+CProxy_MemoryMgr memMgr;
+CProxy_LUBlk luArrProxy;
 
 #ifdef CHARMLU_DEBUG
     #define DEBUG_MEM_RESEND(...) CkPrintf(__VA_ARGS__)
@@ -284,6 +290,32 @@ struct locker : public CBase_locker {
     locker() { lock = CmiCreateLock(); }
 };
 
+// The accesses to this will have problems in Charm-SMP mode
+class MemoryMgr : public CBase_MemoryMgr {
+private:
+  int blksRecv;
+  std::list<std::pair<int, int> > pending;
+
+public:
+  MemoryMgr() : blksRecv(0) {}
+
+  void tryContinue(int x, int y) {
+    if (blksRecv < MAX_TRAILING_UPDATES) {
+      blksRecv++;
+      luArrProxy(x, y).continueTrailing(0);
+    } else {
+      pending.push_back(std::make_pair(x, y));
+    }
+  }
+
+  void finishedTrailing() {
+    blksRecv--;
+    std::pair<int, int> sendTo = pending.front();
+    luArrProxy(sendTo.first, sendTo.second).continueTrailing(0);
+    pending.pop_front();
+  }
+};
+
 static inline void takeRef(blkMsg *m) {
     CmiLock(lock);
     CmiReference(UsrToEnv(m));
@@ -305,8 +337,6 @@ class Main : public CBase_Main {
   int whichMulticastStrategy;
   bool solved, LUcomplete, workStarted;
   bool sentVectorData;
-
-  CProxy_LUBlk luArrProxy;
 
 public:
     Main(CkArgMsg* m) : iteration(0), numIterations(1), solved(false), LUcomplete(false), workStarted(false), sentVectorData(false) {
@@ -409,6 +439,7 @@ public:
     ControlPoint::EffectIncrease::MemoryConsumption("memory_threshold");
 
     lg = CProxy_locker::ckNew();
+    memMgr = CProxy_MemoryMgr::ckNew();
 
     thisProxy.iterationCompleted();
   }
