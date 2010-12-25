@@ -117,6 +117,11 @@ mainmodule lu {
           // Once all pending pivot ops from the current step of the computation are complete,
           // receive the msgs carrying data for the trailing update from the current step
 
+          if (CmiMemoryUsage() > DELETE_MEMORY_THRESHOLD) atomic {
+            CkPrintf("pre memory_mode on, CmiMemoryUsage() reporting %f\n", (double)CmiMemoryUsage()/1024.0/1024.0);
+            memory_mode = true;
+          }
+
           if (!memory_mode) {
             overlap {
               when recvL[internalStep](blkMsg *mL) atomic {
