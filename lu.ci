@@ -8,7 +8,6 @@ mainmodule lu {
   readonly int traceSolveLocalLU;
   readonly CProxy_locker lg;
   readonly CProxy_MemoryMgr memMgr;
-  readonly CProxy_LUBlk luArrProxy;
 //  readonly int memThreshold;
 
   // Register the reducer function that handles reductions of locval
@@ -57,10 +56,12 @@ mainmodule lu {
       entry locker();
   }
 
+  class CProxyElement_LUBlk;
+
   nodegroup MemoryMgr {
     entry MemoryMgr();
-    entry [exclusive] void tryContinue(int x, int y);
-    entry [exclusive] void finishedTrailing();
+    entry [exclusive] void tryContinue(CProxyElement_LUBlk);
+    entry [exclusive] void finishedTrailing(int);
   }
 
   array [2D] LUBlk {
@@ -210,7 +211,7 @@ mainmodule lu {
             if (Lqueue.find(internalStep) != Lqueue.end() &&
                 Uqueue.find(internalStep) != Uqueue.end()) {
               atomic {
-                memMgr[CkMyNode()].tryContinue(thisIndex.x, thisIndex.y);
+                memMgr[CkMyNode()].tryContinue(thisProxy(thisIndex.x, thisIndex.y));
               }
               when continueTrailing(int dummy) {
                 atomic {
@@ -234,7 +235,7 @@ mainmodule lu {
                   updateMatrix(L, U);
                   dropRef(L);
                   dropRef(U);
-                  memMgr[CkMyPe()].finishedTrailing();
+                  memMgr[CkMyNode()].finishedTrailing(0);
                 }
               }
             }

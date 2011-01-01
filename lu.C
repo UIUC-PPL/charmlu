@@ -71,7 +71,6 @@ int traceSolveLocalLU;
 ComlibInstanceHandle multicastStats[4];
 CProxy_locker lg;
 CProxy_MemoryMgr memMgr;
-CProxy_LUBlk luArrProxy;
 
 #ifdef CHARMLU_DEBUG
     #define DEBUG_MEM_RESEND(...) CkPrintf(__VA_ARGS__)
@@ -293,25 +292,26 @@ struct locker : public CBase_locker {
 class MemoryMgr : public CBase_MemoryMgr {
 private:
   int blksRecv;
-  std::list<std::pair<int, int> > pending;
+  std::list<CProxyElement_LUBlk> pending;
 
 public:
   MemoryMgr() : blksRecv(0) {}
 
-  void tryContinue(int x, int y) {
+  void tryContinue(CProxyElement_LUBlk elm) {
     if (blksRecv < MAX_TRAILING_UPDATES) {
       blksRecv++;
-      luArrProxy(x, y).continueTrailing(0);
+      elm.continueTrailing(0);
     } else {
-      pending.push_back(std::make_pair(x, y));
+      pending.push_back(elm);
     }
   }
 
-  void finishedTrailing() {
+  void finishedTrailing(int dummy) {
     blksRecv--;
-    std::pair<int, int> sendTo = pending.front();
-    luArrProxy(sendTo.first, sendTo.second).continueTrailing(0);
-    pending.pop_front();
+    if (pending.size() > 0) {
+      pending.front().continueTrailing(0);
+      pending.pop_front();
+    }
   }
 };
 
@@ -336,6 +336,7 @@ class Main : public CBase_Main {
   int whichMulticastStrategy;
   bool solved, LUcomplete, workStarted;
   bool sentVectorData;
+  CProxy_LUBlk luArrProxy;
 
 public:
     Main(CkArgMsg* m) : iteration(0), numIterations(1), solved(false), LUcomplete(false), workStarted(false), sentVectorData(false) {
