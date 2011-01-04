@@ -162,11 +162,15 @@ mainmodule lu {
                 thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep, &opts);
               }
               when processTrailingUpdate[internalStep](int step) atomic "trailing_update" {
-                updateMatrix(L, U);
-                dropRef(L);
-                dropRef(U);
-                Uqueue.erase(internalStep);
-                Lqueue.erase(internalStep);
+                if (CmiMemoryUsage() > DELETE_MEMORY_THRESHOLD) {
+                  memory_mode = true;
+                } else {
+                  updateMatrix(L, U);
+                  dropRef(L);
+                  dropRef(U);
+                  Uqueue.erase(internalStep);
+                  Lqueue.erase(internalStep);
+                }
               }
             }
           }
