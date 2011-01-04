@@ -133,10 +133,10 @@ mainmodule lu {
 
           if (!memory_mode) {
             when recvL[internalStep](blkMsg *mL) atomic {
+              Lqueue.insert(internalStep);
               if (CmiMemoryUsage() > DELETE_MEMORY_THRESHOLD) {
                 CkPrintf("memory_mode on, CmiMemoryUsage() reporting %f\n", (double)CmiMemoryUsage()/1024.0/1024.0);
                 memory_mode = true;
-                Lqueue.insert(internalStep);
               } else {
                 takeRef(mL);
                 L = mL;
@@ -144,10 +144,10 @@ mainmodule lu {
             }
             if (!memory_mode) {
               when recvU[internalStep](blkMsg *mU) atomic {
+                Uqueue.insert(internalStep);
                 if (CmiMemoryUsage() > DELETE_MEMORY_THRESHOLD) {
                   DEBUG_MEM_RESEND("memory_mode on, CmiMemoryUsage() reporting %f\n", (double)CmiMemoryUsage()/1024.0/1024.0);
                   memory_mode = true;
-                  Uqueue.insert(internalStep);
                 } else {
                   takeRef(mU);
                   U = mU;
@@ -165,6 +165,8 @@ mainmodule lu {
                 updateMatrix(L, U);
                 dropRef(L);
                 dropRef(U);
+                Uqueue.erase(internalStep);
+                Lqueue.erase(internalStep);
               }
             }
           }
