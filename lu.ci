@@ -132,36 +132,43 @@ mainmodule lu {
           }
 
           if (!memory_mode) {
-            overlap {
-              when recvL[internalStep](blkMsg *mL) atomic {
-                if (CmiMemoryUsage() > DELETE_MEMORY_THRESHOLD) {
-                  DEBUG_MEM_RESEND("memory_mode on, CmiMemoryUsage() reporting %f\n", (double)CmiMemoryUsage()/1024.0/1024.0);
-                  memory_mode = true;
-                }
+            when recvL[internalStep](blkMsg *mL) atomic {
+              if (CmiMemoryUsage() > DELETE_MEMORY_THRESHOLD) {
+                CkPrintf("memory_mode on, CmiMemoryUsage() reporting %f\n", (double)CmiMemoryUsage()/1024.0/1024.0);
+                memory_mode = true;
+                Lqueue.insert(internalStep);
+              } else {
                 takeRef(mL);
                 L = mL;
               }
+            }
+            if (!memory_mode) {
               when recvU[internalStep](blkMsg *mU) atomic {
                 if (CmiMemoryUsage() > DELETE_MEMORY_THRESHOLD) {
                   DEBUG_MEM_RESEND("memory_mode on, CmiMemoryUsage() reporting %f\n", (double)CmiMemoryUsage()/1024.0/1024.0);
                   memory_mode = true;
+                  Uqueue.insert(internalStep);
+                } else {
+                  takeRef(mU);
+                  U = mU;
                 }
-                takeRef(mU);
-                U = mU;
               }
             }
-            // Schedule the trailing update for sometime later
-            atomic "trailing_schedule_update" {
-              CkEntryOptions opts;
-              opts.setPriority(thisIndex.y * BLKSIZE);
-              thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep, &opts);
+            if (!memory_mode) {
+              // Schedule the trailing update for sometime later
+              atomic "trailing_schedule_update" {
+                CkEntryOptions opts;
+                opts.setPriority(thisIndex.y * BLKSIZE);
+                thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep, &opts);
+              }
+              when processTrailingUpdate[internalStep](int step) atomic "trailing_update" {
+                updateMatrix(L, U);
+                dropRef(L);
+                dropRef(U);
+              }
             }
-            when processTrailingUpdate[internalStep](int step) atomic "trailing_update" {
-              updateMatrix(L, U);
-              dropRef(L);
-              dropRef(U);
-            }
-          } else {
+          }
+          if (memory_mode) {
             while (__cDep->getMessage(CDEP_MSG_RECVL) != 0) {
               atomic {
                 DEBUG_MEM_RESEND("(%d, %d): waiting on message\n", thisIndex.x, thisIndex.y);
