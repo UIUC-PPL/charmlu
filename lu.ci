@@ -123,160 +123,107 @@ mainmodule lu {
               }
           }
 
-          // Once all pending pivot ops from the current step of the computation are complete,
-          // receive the msgs carrying data for the trailing update from the current step
-
-          if (CmiMemoryUsage() > DELETE_MEMORY_THRESHOLD) atomic {
-            CkPrintf("pre memory_mode on, CmiMemoryUsage() reporting %f\n", (double)CmiMemoryUsage()/1024.0/1024.0);
-            memory_mode = true;
+          atomic {
+            finishedPivots = true;
+            trailingCount = 0;
           }
 
-          if (!memory_mode) {
-            when recvL[internalStep](blkMsg *mL) atomic {
-              Lqueue.insert(internalStep);
-              if (CmiMemoryUsage() > DELETE_MEMORY_THRESHOLD) {
-                CkPrintf("memory_mode on, CmiMemoryUsage() reporting %f\n", (double)CmiMemoryUsage()/1024.0/1024.0);
-                memory_mode = true;
-              } else {
-                takeRef(mL);
+          atomic {
+            tempBool = !(getLUMessageStatus() & (LinTU | LinResend));
+          }
+
+          if (tempBool) {
+            atomic {
+              DEBUG_MEM_RESEND("(%d, %d): signal L needed\n", thisIndex.x, thisIndex.y);
+            }
+            when signalLArrived(int dummy) atomic {
+              DEBUG_MEM_RESEND("(%d, %d): recv signal L\n", thisIndex.x, thisIndex.y);
+            }
+          }
+
+          atomic {
+            tempBool = !(getLUMessageStatus() & (UinTU | UinResend));
+          }
+
+          if (tempBool) {
+            when signalUArrived(int dummy) atomic {
+              DEBUG_MEM_RESEND("(%d, %d): recv signal U\n", thisIndex.x, thisIndex.y);
+            }
+          }
+
+          if (getLUMessageStatus() & LinResend) {
+            atomic {
+              DEBUG_MEM_RESEND("(%d, %d): tryContinue here\n", thisIndex.x, thisIndex.y);
+              memMgr[CkMyNode()].tryContinue(thisProxy(thisIndex.x, thisIndex.y));
+              trailingCount++;
+            }
+            when continueTrailing(int dummy) {
+              atomic {
+                Lqueue.erase(internalStep);
+                thisProxy(thisIndex.x, internalStep).resendL(thisIndex.x, thisIndex.y);
+                DEBUG_MEM_RESEND("(%d, %d): waiting on resends\n", thisIndex.x, thisIndex.y);
+              }
+              when recvResendL(blkMsg *mL) atomic {
                 L = mL;
               }
             }
-            if (!memory_mode) {
-              when recvU[internalStep](blkMsg *mU) atomic {
-                Uqueue.insert(internalStep);
-                if (CmiMemoryUsage() > DELETE_MEMORY_THRESHOLD) {
-                  DEBUG_MEM_RESEND("memory_mode on, CmiMemoryUsage() reporting %f\n", (double)CmiMemoryUsage()/1024.0/1024.0);
-                  memory_mode = true;
-                } else {
-                  takeRef(mU);
-                  U = mU;
-                }
-              }
-            }
-            if (!memory_mode) {
-              // Schedule the trailing update for sometime later
-              atomic "trailing_schedule_update" {
-                CkEntryOptions opts;
-                opts.setPriority(thisIndex.y * BLKSIZE);
-                thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep, &opts);
-              }
-              when processTrailingUpdate[internalStep](int step) atomic "trailing_update" {
-                if (CmiMemoryUsage() > DELETE_MEMORY_THRESHOLD) {
-                  memory_mode = true;
-                } else {
-                  updateMatrix(L, U);
-                  dropRef(L);
-                  dropRef(U);
-                  Uqueue.erase(internalStep);
-                  Lqueue.erase(internalStep);
-                }
-              }
+          } else {
+            atomic {
+              DEBUG_MEM_RESEND("(%d, %d): pulling L out of queue, status = %d\n", thisIndex.x, thisIndex.y, getLUMessageStatus());
+              pair<int, bool> currentPair = make_pair(internalStep, directionL);
+              CkAssert(TUmessages.find(currentPair) != TUmessages.end());
+              L = TUmessages[currentPair];
+              TUmessages.erase(currentPair);
             }
           }
-          if (memory_mode) {
-            while (__cDep->getMessage(CDEP_MSG_RECVL) != 0) {
-              atomic {
-                DEBUG_MEM_RESEND("(%d, %d): waiting on message\n", thisIndex.x, thisIndex.y);
-              }
-              when recvL(blkMsg *mL) atomic {
-                DEBUG_MEM_RESEND("(%d, %d): dequeuing L, %d\n", thisIndex.x, thisIndex.y, CkGetRefNum(mL));
-                Lqueue.insert(CkGetRefNum(mL));
-              }
-              atomic {
-                DEBUG_MEM_RESEND("(%d, %d): found message\n", thisIndex.x, thisIndex.y);
-              }
-            }
-            while (__cDep->getMessage(CDEP_MSG_RECVU) != 0) {
-              atomic {
-                DEBUG_MEM_RESEND("(%d, %d): waiting on message\n", thisIndex.x, thisIndex.y);
-              }
-              when recvU(blkMsg *mU) atomic {
-                DEBUG_MEM_RESEND("(%d, %d): dequeuing U, %d\n", thisIndex.x, thisIndex.y, CkGetRefNum(mU));
-                Uqueue.insert(CkGetRefNum(mU));
-              }
-              atomic {
-                DEBUG_MEM_RESEND("(%d, %d): found message\n", thisIndex.x, thisIndex.y);
-              }
-            }
-            if (Lqueue.find(internalStep) == Lqueue.end()) {
-              atomic {
-                DEBUG_MEM_RESEND("(%d, %d): waiting on L, is = %d\n", thisIndex.x, thisIndex.y, internalStep);
-              }
-              when recvL[internalStep](blkMsg *mL) atomic {
-                Lqueue.insert(CkGetRefNum(mL));
-              }
-              atomic {
-                DEBUG_MEM_RESEND("(%d, %d): received L, is = %d\n", thisIndex.x, thisIndex.y, internalStep);
-              }
-            }
-            if (Uqueue.find(internalStep) == Uqueue.end()) {
-              atomic {
-                DEBUG_MEM_RESEND("(%d, %d): waiting on U, is = %d\n", thisIndex.x, thisIndex.y, internalStep);
-              }
-              when recvU[internalStep](blkMsg *mU) atomic {
-                Uqueue.insert(CkGetRefNum(mU));
-              }
-              atomic {
-                DEBUG_MEM_RESEND("(%d, %d): received U, is = %d\n", thisIndex.x, thisIndex.y, internalStep);
-              }
-            }
-            if (Lqueue.find(internalStep) != Lqueue.end() &&
-                Uqueue.find(internalStep) != Uqueue.end()) {
-              atomic {
-                memMgr[CkMyNode()].tryContinue(thisProxy(thisIndex.x, thisIndex.y));
-              }
-              when continueTrailing(int dummy) {
-                atomic {
-                  // Found a matching pair of L and U, now ask for resends
-                  Lqueue.erase(internalStep);
-                  Uqueue.erase(internalStep);
-                  thisProxy(thisIndex.x, internalStep).resendL(thisIndex.x, thisIndex.y);
-                  thisProxy(internalStep, thisIndex.y).resendU(thisIndex.x, thisIndex.y);
-                  DEBUG_MEM_RESEND("(%d, %d): waiting on resends\n", thisIndex.x, thisIndex.y);
-                }
-                when recvResendL(blkMsg *mL) atomic {
-                  takeRef(mL);
-                  L = mL;
-                }
-                when recvResendU(blkMsg *mU) atomic {
-                  takeRef(mU);
-                  U = mU;
-                }
-                atomic {
-                  DEBUG_MEM_RESEND("(%d, %d): resends received\n", thisIndex.x, thisIndex.y);
-                  updateMatrix(L, U);
-                  dropRef(L);
-                  dropRef(U);
-                  memMgr[CkMyNode()].finishedTrailing(0);
-                }
-              }
-            }
-            if (Lqueue.empty() && Uqueue.empty()) {
-              atomic {
-                memory_mode = false;
-              }
-            }
+
+          if (getLUMessageStatus() & UinResend) {
             atomic {
-              DEBUG_MEM_RESEND("(%d, %d): seaching in queue, internalStep = %d\n", thisIndex.x, thisIndex.y, internalStep);
-              DEBUG_MEM_RESEND("Lqueue:");
-              for (std::set<int>::iterator it = Lqueue.begin();
-                   it != Lqueue.end(); ++it) {
-                DEBUG_MEM_RESEND("%d, ", *it);
-              }
-              DEBUG_MEM_RESEND("\n");
-              DEBUG_MEM_RESEND("Uqueue:");
-              for (std::set<int>::iterator it = Uqueue.begin();
-                   it != Uqueue.end(); ++it) {
-                DEBUG_MEM_RESEND("%d, ", *it);
-              }
-              DEBUG_MEM_RESEND("\n");
+              DEBUG_MEM_RESEND("(%d, %d): tryContinue in U\n", thisIndex.x, thisIndex.y);
+              memMgr[CkMyNode()].tryContinue(thisProxy(thisIndex.x, thisIndex.y));
+              trailingCount++;
             }
+            when continueTrailing(int dummy) {
+              atomic {
+                DEBUG_MEM_RESEND("(%d, %d): received continueTrailing from memMgr\n", thisIndex.x, thisIndex.y);
+                Uqueue.erase(internalStep);
+                thisProxy(internalStep, thisIndex.y).resendU(thisIndex.x, thisIndex.y);
+                DEBUG_MEM_RESEND("(%d, %d): waiting on resends\n", thisIndex.x, thisIndex.y);
+              }
+              when recvResendU(blkMsg *mU) atomic {
+                U = mU;
+              }
+            }
+          } else {
+            atomic {
+              DEBUG_MEM_RESEND("(%d, %d): pulling U out of queue\n", thisIndex.x, thisIndex.y);
+              pair<int, bool> currentPair = make_pair(internalStep, directionU);
+              U = TUmessages[currentPair];
+              TUmessages.erase(currentPair);
+            }
+          }
+
+          atomic "trailing_schedule_update" {
+            DEBUG_MEM_RESEND("(%d, %d): scheduling trailing update\n", thisIndex.x, thisIndex.y);
+            CkEntryOptions opts;
+            opts.setPriority(thisIndex.y * BLKSIZE);
+            thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep, &opts);
+          }
+          when processTrailingUpdate[internalStep](int step) atomic "trailing_update" {
+            DEBUG_MEM_RESEND("(%d, %d): processTrailingUpdate called\n", thisIndex.x, thisIndex.y);
+            DEBUG_MEM_RESEND("(%d, %d): resends received\n", thisIndex.x, thisIndex.y);
+            updateMatrix(L, U);
+            delete L;
+            delete U;
+            if (trailingCount != 0) {
+              memMgr[CkMyNode()].finishedTrailing(trailingCount);
+            }
+          }
+
+          atomic {
+            finishedPivots = false;
           }
         }
-      atomic {
-        DEBUG_MEM_RESEND("(%d, %d): out of trailing work\n", thisIndex.x, thisIndex.y);
-      }
 
       //-----------------------------------------------------------------------
       // Once the current step of the computation reaches the diagonal chare on your row / column
@@ -322,25 +269,47 @@ mainmodule lu {
         atomic {
           DEBUG_MEM_RESEND("(%d, %d): waiting for recvL\n", thisIndex.x, thisIndex.y);
         }
-        if (!memory_mode) {
-          when recvL[internalStep](blkMsg *mL) atomic "beforeL_schedule_computeU" {
-            CmiReference(UsrToEnv(mL));
-            L = mL;
-            CkEntryOptions opts;
-            opts.setPriority(thisIndex.y * BLKSIZE);
-            thisProxy(thisIndex.x, thisIndex.y).processComputeU(0, &opts);
+
+        atomic {
+          finishedPivots = true;
+        }
+
+        if (getLUMessageStatus() & ~(LinTU | LinResend)) {
+          when signalLArrived(int dummy) {}
+        }
+
+        if (getLUMessageStatus() & LinResend) {
+          atomic {
+            DEBUG_MEM_RESEND("(%d, %d): asking tryContinue\n", thisIndex.x, thisIndex.y);
+            memMgr[CkMyNode()].tryContinue(thisProxy(thisIndex.x, thisIndex.y));
+            trailingCount++;
+          }
+          when continueTrailing(int dummy) {
+            atomic {
+              Lqueue.erase(internalStep);
+              thisProxy(thisIndex.x, internalStep).resendL(thisIndex.x, thisIndex.y);
+              DEBUG_MEM_RESEND("(%d, %d): waiting on resends\n", thisIndex.x, thisIndex.y);
+            }
+            when recvResendL(blkMsg *mL) atomic {
+              L = mL;
+              CkEntryOptions opts;
+              opts.setPriority(thisIndex.y * BLKSIZE);
+              thisProxy(thisIndex.x, thisIndex.y).processComputeU(0, &opts);
+            }
           }
         } else {
           atomic {
-            thisProxy(thisIndex.x, internalStep).resendL(thisIndex.x, thisIndex.y);
-          }
-          when recvResendL(blkMsg *mL) atomic {
-            CmiReference(UsrToEnv(mL));
-            L = mL;
+            pair<int, bool> currentPair = make_pair(internalStep, directionL);
+            L = TUmessages[currentPair];
+            TUmessages.erase(currentPair);
             CkEntryOptions opts;
             opts.setPriority(thisIndex.y * BLKSIZE);
             thisProxy(thisIndex.x, thisIndex.y).processComputeU(0, &opts);
           }
+        }
+
+        atomic {
+          finishedPivots = false;
         }
       }
       // Below diagonal
@@ -615,14 +584,17 @@ mainmodule lu {
     // tell the runtime that it can safely deliver the same message
     // instance to every object on a processor, rather than making a
     // separate copy for each object.
-    entry [nokeep] void recvL(blkMsg *);
-    entry [nokeep] void recvU(blkMsg *);
+    entry void recvL(blkMsg *);
+    entry void recvU(blkMsg *);
 
-    entry [nokeep] void recvResendL(blkMsg *);
-    entry [nokeep] void recvResendU(blkMsg *);
+    entry void recvResendL(blkMsg *);
+    entry void recvResendU(blkMsg *);
 
     entry void resendL(int, int);
     entry void resendU(int, int);
+
+    entry void signalUArrived(int);
+    entry void signalLArrived(int);
 
     // These process* entry methods are invoked locally by each block
     // on itself with varying priorities, to let the scheduler decide

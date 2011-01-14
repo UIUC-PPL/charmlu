@@ -10,6 +10,9 @@
 #include <map>
 #include <algorithm>
 using std::min;
+using std::map;
+using std::pair;
+using std::make_pair;
 #include <limits>
 #include <utility>
 
@@ -48,13 +51,20 @@ extern "C" {
 #endif
 
 // Memory critical extension
-#define DELETE_MEMORY_THRESHOLD 400*1024*1024
+#define DELETE_MEMORY_THRESHOLD 200*1024*1024
 // Hacked defines for matching SDAG code
 #define CDEP_MSG_RECVL 2
 #define CDEP_MSG_RECVU 3
 // Number of trailing updates allowed concurrently per PE
 // This only matters when the memory critical extension is enabled
-#define MAX_TRAILING_UPDATES 3
+#define MAX_TRAILING_UPDATES 100
+// For masking status of getLUMessageStatus()
+#define LinTU 1
+#define UinTU 2
+#define LinResend 4
+#define UinResend 8
+#define directionL true
+#define directionU false
 
 #include <comlib.h>
 #include "lu.decl.h"
@@ -306,8 +316,8 @@ public:
     }
   }
 
-  void finishedTrailing(int dummy) {
-    blksRecv--;
+  void finishedTrailing(int count) {
+    blksRecv -= count;
     if (pending.size() > 0) {
       pending.front().continueTrailing(0);
       pending.pop_front();
@@ -686,6 +696,12 @@ class LUBlk: public CBase_LUBlk {
   /// A pointer to the local branch of the multicast manager group that handles the pivot section comm
   CkMulticastMgr *mcastMgr;
 
+  // Counter for tryContinue
+  int trailingCount;
+
+  // Temp value for boolean expression in memory reducer
+  bool tempBool;
+
   LUBlk_SDAG_CODE
 
   // The following declarations are used for optimization and
@@ -698,7 +714,7 @@ class LUBlk: public CBase_LUBlk {
   blkMsg *Lmsg, *Umsg;
 
 public:
-  LUBlk() : storedVec(NULL), diagRec(0), msgsRecvd(0), memory_mode(false) {
+  LUBlk() : storedVec(NULL), diagRec(0), msgsRecvd(0), memory_mode(false), finishedPivots(false) {
       __sdag_init();
     whichMulticastStrategy = 0;
 
@@ -1694,6 +1710,71 @@ public:
     copyU->setMsgData(Umsg->data, internalStep, BLKSIZE);
     thisProxy(x, y).recvResendU(copyU);
   }
+
+  map<pair<int, bool>, blkMsg*> TUmessages;
+  bool finishedPivots;
+
+  void recvL(blkMsg* msg) {
+    DEBUG_MEM_RESEND("(%d, %d): recvL\n", thisIndex.x, thisIndex.y);
+    TUmessages[make_pair(CkGetRefNum(msg), directionL)] = msg;
+    unpressureMemory();
+    if (finishedPivots && CkGetRefNum(msg) == internalStep) {
+      DEBUG_MEM_RESEND("(%d, %d): sent signal for L to (%d, %d)\n", thisIndex.x, thisIndex.y, thisIndex.x, thisIndex.y);
+      thisProxy(thisIndex.x, thisIndex.y).signalLArrived(0);
+    }
+  }
+
+  void recvU(blkMsg* msg) {
+    DEBUG_MEM_RESEND("(%d, %d): recvU\n", thisIndex.x, thisIndex.y);
+    TUmessages[make_pair(CkGetRefNum(msg), directionU)] = msg;
+    unpressureMemory();
+    if (finishedPivots && CkGetRefNum(msg) == internalStep) {
+      DEBUG_MEM_RESEND("(%d, %d): sent signal for U to (%d, %d)\n", thisIndex.x, thisIndex.y, thisIndex.x, thisIndex.y);
+      thisProxy(thisIndex.x, thisIndex.y).signalUArrived(0);
+    }
+  }
+
+  void unpressureMemory() {
+    DEBUG_MEM_RESEND("(%d, %d): unpressuring memory\n", thisIndex.x, thisIndex.y);
+    while (CmiMemoryUsage() > DELETE_MEMORY_THRESHOLD &&
+           TUmessages.size() > 0) {
+      const pair<int, bool> *maxpair = 0;
+      for (map<pair<int, bool>, blkMsg*>::iterator iter = TUmessages.begin();
+           iter != TUmessages.end();
+           ++iter) {
+        const pair<int, bool> *p = &iter->first;
+        if (!maxpair || p->first > maxpair->first)
+          maxpair = p;
+      }
+
+      if (maxpair) {
+        blkMsg *_msg = TUmessages[*maxpair];
+        delete _msg;
+        TUmessages.erase(*maxpair);
+        if (maxpair->second == directionL) {
+          DEBUG_MEM_RESEND("(%d, %d): deleting from TUmessages, moving item to Lqueue\n", thisIndex.x, thisIndex.y);
+          Lqueue.insert(maxpair->first);
+        } else {
+          DEBUG_MEM_RESEND("(%d, %d): deleting from TUmessages, moving item to Uqueue\n", thisIndex.x, thisIndex.y);
+          Uqueue.insert(maxpair->first);
+        }
+      }
+    }
+  }
+
+  int getLUMessageStatus() {
+    int flag = 0;
+    if (TUmessages.find(make_pair(internalStep, directionL)) != TUmessages.end())
+      flag |= LinTU;
+    if (TUmessages.find(make_pair(internalStep, directionU)) != TUmessages.end())
+      flag |= UinTU;
+    if (Lqueue.find(internalStep) != Lqueue.end())
+      flag |= LinResend;
+    if (Uqueue.find(internalStep) != Uqueue.end())
+      flag |= UinResend;
+    return flag;
+  }
+
 };
 
 #include "lu.def.h"
