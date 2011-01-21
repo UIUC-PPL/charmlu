@@ -74,7 +74,7 @@ mainmodule lu {
     entry void doPivot(pivotMsg *msg);
     entry void applyPivots(pivotSequencesMsg *msg);
     entry void acceptPivotData(pivotRowsMsg *msg);
-    entry void sendUSegment(UMsg* msg);
+    entry [nokeep] void sendUSegment(UMsg* msg);
     entry void diagUpdate(int);
 
     // Describes the control flow for all (super, sub and on diagonal) LU chares
@@ -177,7 +177,7 @@ mainmodule lu {
         }
         // Once all pivot info is processed, perform the row update
         when recvL[internalStep](blkMsg *mL) atomic "beforeL_schedule_computeU" {
-          CmiReference(UsrToEnv(mL));
+          takeRef(mL);
           L = mL;
           CkEntryOptions opts;
           opts.setPriority(thisIndex.y * BLKSIZE);
@@ -186,19 +186,25 @@ mainmodule lu {
       }
       // Below diagonal
       else {
+        atomic {
+            // Find the pivot candidate for just the first column in the block
+            pivotCandidate = findLocVal(0, 0);
+            pendingUmsg = NULL;
+        }
         // Work in the active column of the chare array proceeds column-by-column through the matrix
         for (activeCol = 0; activeCol < BLKSIZE; activeCol++) {
           atomic "below_find_pivot" {
-            // Find the local maximum in the active column
-            locval l = findLocVal(0, activeCol);
-
-            // Contribute to a reduction along the pivot section to identify the pivot row
-            // The pivot section includes all sub-diagonal chares along the active column of the chare array
-            mcastMgr->contribute(sizeof(locval), &l, LocValReducer, pivotCookie);
+            // Contribute to a reduction along the active panel to identify the pivot row
+            mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
+            // Delayed update using the U segment from the prev activeCol iteration
+            if (pendingUmsg) {
+                updateLsubBlock(activeCol-1, pendingUmsg->data, 2);
+                dropRef(pendingUmsg);
+                pendingUmsg = NULL;
+            }
           }
           // Once pivot is identified, and diagonal chare sends out the pivot update
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) {
-            atomic "below_recv_pivot" {}
             // Assume that row2 is always the non-diagonal row and that LU is row-major
             if (msg->row2 / BLKSIZE == thisIndex.x) {
               atomic "below_send_remote_pivot" {
@@ -213,23 +219,16 @@ mainmodule lu {
             }
           }
           // The diagonal chare also then sends out the post-pivoting row that can be used for updates
-          when sendUSegment(UMsg* msg) atomic "below_recv_useg" {
-            // Compute the multipliers using the diagonal element
-            computeMultipliers(msg->data[0], 0, activeCol);
-            // Update all trailing columns in the same block based on the multipliers and Usegment
-            updateAllCols(activeCol, msg->data);
-
-            // Options: this SDAG code (or something like it)
-            // Somehow this needs to be overlapped with the maxCol sends
-            //for (int innercol = 1; innercol < BLKSIZE; innercol++) {
-            //thisProxy(thisIndex.x, thisIndex.y).updateRemCols(innercol);
-            //}
-            //when updateRemCols(int icol) atomic {
-            //doUpdate();
-            //}
+          when sendUSegment(UMsg* anUmsg) atomic "below_recv_useg" {
+            // Compute multipliers and update just one column to find the next candidate pivot
+            pivotCandidate = computeMultipliersAndFindColMax(activeCol, anUmsg->data);
+            // Save the Umsg for later use
+            pendingUmsg = anUmsg;
+            takeRef(pendingUmsg);
           }
         }
         atomic "below_send_L" {
+          if (pendingUmsg) dropRef(pendingUmsg);
           multicastRecvL();
           pivotBatchTag += BLKSIZE;
         }
@@ -288,27 +287,27 @@ mainmodule lu {
         atomic "diag_find_colmax" {
           VERBOSE_PROGRESS(" ..col%d ", thisIndex.x*BLKSIZE + activeCol);
           // Find the local maximum in the active column
-          l = findLocVal(activeCol, activeCol);
+          pivotCandidate = findLocVal(activeCol, activeCol);
           // Contribute to a redn along the pivot section to identify the pivot row
-          mcastMgr->contribute(sizeof(locval), &l, LocValReducer, pivotCookie);
+          mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
         }
 
         // Find the pivot row
         when colMax(CkReductionMsg *m) atomic "diag_found_colmax" {
-          l = *(locval *)(m->getData());
+          pivotCandidate = *(locval *)(m->getData());
         }
 
         // Share the pivot info with the appropriate array section
         atomic "diag_send_pivot_active" {
           // Send pivot info to all chares that will care (below section)
-          pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, l.loc);
+          pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, pivotCandidate.loc);
           *(int*)CkPriorityPtr(msg) = -1;
 	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           pivotSection.doPivot(msg);
         }
 
         // If required chunk of pivot row is not with me (but in a chare below me)
-        if (l.loc / BLKSIZE != thisIndex.x) {
+        if (pivotCandidate.loc / BLKSIZE != thisIndex.x) {
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) atomic "diag_send_remote_pivot" {
             // Trigger swap of data
             CkEntryOptions opts;
@@ -323,7 +322,7 @@ mainmodule lu {
         } else {
           when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) atomic "diag_local_pivot" {
             //DEBUG_PIVOT("swapLocal being called\n");
-            swapLocal(l.loc - BLKSIZE * thisIndex.x, activeCol);
+            swapLocal(pivotCandidate.loc - BLKSIZE * thisIndex.x, activeCol);
           }
         }
 
@@ -342,7 +341,7 @@ mainmodule lu {
 
     atomic "diag_agglomerate_pivots" {
         // Store the pivot information
-        recordPivot(thisIndex.y*BLKSIZE + activeCol, l.loc);
+        recordPivot(thisIndex.y*BLKSIZE + activeCol, pivotCandidate.loc);
         // at opportune steps, send out the agglomerated pivot ops
         if ( shouldSendPivots() || activeCol == BLKSIZE-1)
             announceAgglomeratedPivots();

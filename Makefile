@@ -35,7 +35,7 @@ endif
 
 ########### This stuff should be able take care of itself ############
 
-.PHONY: all clean again test bgtest translateInterface
+.PHONY: all clean realclean again test bgtest translateInterface
 
 all: $(TARGET)
 
@@ -43,7 +43,10 @@ $(TARGET): $(OBJ)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 clean:
-	$(RM) $(wildcard *.decl.h *.def.h *.d *.di *.o *.projrc *.sts *.stamp) $(TARGET) charmrun
+	$(RM) $(wildcard *.decl.h *.def.h *.d *.di *.o *.stamp) $(TARGET) charmrun
+
+realclean: clean
+	$(RM) $(wildcard *.log *.projrc *.sts)
 
 again: 
 	$(MAKE) clean; $(MAKE)
@@ -98,7 +101,9 @@ regtest: all
 
 # Include the generated files containing dependency info
 ifneq ($(MAKECMDGOALS),clean)
+ifneq ($(MAKECMDGOALS),realclean)
 -include $(SRC:.C=.d)
 -include $(INTF:.ci=.di)
+endif
 endif
 

@@ -276,12 +276,12 @@ struct locker : public CBase_locker {
     locker() { lock = CmiCreateLock(); }
 };
 
-static inline void takeRef(blkMsg *m) {
+static inline void takeRef(void *m) {
     CmiLock(lock);
     CmiReference(UsrToEnv(m));
     CmiUnlock(lock);
 }
-static inline void dropRef(blkMsg *m) {
+static inline void dropRef(void *m) {
     CmiLock(lock);
     CmiFree(UsrToEnv(m));
     CmiUnlock(lock);
@@ -638,7 +638,8 @@ class LUBlk: public CBase_LUBlk {
   int row1Index, row2Index, localRow1, localRow2,
     otherRowIndex, thisLocalRow, globalThisRow, globalOtherRow;
   bool remoteSwap;
-  locval l;
+  // Stores the local column max which is a candidate for that column's pivot element
+  locval pivotCandidate;
   int pivotBlk;
   /// Tag for all msgs associated with a single batch of pivots
   int pivotBatchTag;
@@ -673,6 +674,9 @@ class LUBlk: public CBase_LUBlk {
 
   /// A pointer to the local branch of the multicast manager group that handles the pivot section comm
   CkMulticastMgr *mcastMgr;
+
+  /// Pointer to a U msg indicating a pending L sub-block update. Used only in L chares
+  UMsg *pendingUmsg;
 
   LUBlk_SDAG_CODE
 
@@ -1213,7 +1217,7 @@ public:
     DEBUG_PRINT("[%d] chare %d,%d is top block this step, multicast U\n", CkMyPe(), thisIndex.x, thisIndex.y);
     multicastRecvU(); //broadcast the newly computed U downwards to the blocks in the same column
     
-    CmiFree(UsrToEnv(L));
+    dropRef(L);
     
     DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
   }
@@ -1618,44 +1622,80 @@ private:
 
 
 
-  // Local multiplier computation and update after U is sent to the blocks below
+  /// Compute the multipliers and update the trailing sub-block
   void diagonalUpdate(int col) {
+      // Only diagonal chares should use this method
+      CkAssert(thisIndex.x == thisIndex.y);
     // Pivoting is done, so the diagonal entry better not be zero; else the matrix is singular
     if (fabs(LU[col][col]) <= 100 * std::numeric_limits<double>::epsilon() )
         CkAbort("Diagonal element very small despite pivoting. Is the matrix singular??");
 
-    computeMultipliers(LU[col][col],col+1,col);
-    for(int j=col+1; j<BLKSIZE; j++)
+    for(int j=col+1; j<BLKSIZE; j++) {
+        LU[j][col] = LU[j][col]/ LU[col][col];
         for(int k=col+1;k<BLKSIZE;k++)
             LU[j][k] -= LU[j][col] * LU[col][k];
+    }
   }
 
-  /// Compute the multipliers based on the pivot value from the diagonal chare
-  //  starting at [row, col]
-  void computeMultipliers(double a_kk, int row, int col) {
-#if 0
-      cblas_dscal(BLKSIZE-row, 1/a_kk, &LU[row][col], BLKSIZE);
+
+
+  /// Update the sub-block of this L block starting at specified
+  /// offset from the active column
+  void updateLsubBlock(int activeCol, double* U, int offset=1) {
+      // Should only get called on L blocks
+      CkAssert(thisIndex.x > thisIndex.y);
+#if 1
+      #if USE_ESSL
+          dgemm("N", "N",
+                BLKSIZE, BLKSIZE-(activeCol+offset), 1,
+                -1.0, &LU[0][activeCol], BLKSIZE,
+                U+offset, BLKSIZE,
+                1.0, &LU[0][activeCol+offset], BLKSIZE);
+      #else
+          cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+                BLKSIZE, BLKSIZE-(activeCol+offset), 1,
+                -1.0, &LU[0][activeCol], BLKSIZE,
+                U+offset, BLKSIZE,
+                1.0, &LU[0][activeCol+offset], BLKSIZE);
+      #endif
 #else
-    for(int i = row; i<BLKSIZE;i++)
-      LU[i][col] = LU[i][col]/a_kk;
+      for(int j = 0; j < BLKSIZE; j++)
+          for(int k = activeCol+offset; k<BLKSIZE; k++)
+              LU[j][k] -=  LU[j][activeCol] * U[k-activeCol];
 #endif
   }
 
-  /// Update the values in the columns ahead of the active column within the
-  // pivot section based on the Usegment and the multipliers
-  void updateAllCols(int col, double* U) {
-    //TODO: Replace with DGEMM
-#if 0
-      cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
-		  BLKSIZE, BLKSIZE-(col+1), 1,
-		  -1.0, &LU[0][col], BLKSIZE,
-		  U+1, BLKSIZE,
-		  1.0, &LU[0][col+1], BLKSIZE);
-#else
-    for(int j=0; j < BLKSIZE; j++)
-        for(int k=col+1; k<BLKSIZE; k++)
-            LU[j][k] -=  LU[j][col]*U[k-col];
-#endif
+
+  /// Compute the multipliers based on the pivot value in the
+  /// received row of U and also find the candidate pivot in
+  /// the immediate next column (after updating it simultaneously)
+  locval computeMultipliersAndFindColMax(int col, double *U)
+  {
+      // Should only get called on L blocks
+      CkAssert(thisIndex.x > thisIndex.y);
+      locval maxVal;
+
+      if (col < BLKSIZE -1) {
+          for (int j = 0; j < BLKSIZE; j++) {
+              // Compute the multiplier
+              LU[j][col]    = LU[j][col] / U[0];
+              // Update the immediate next column
+              LU[j][col+1] -= LU[j][col] * U[1];
+              // Update the max value thus far
+              if ( fabs(LU[j][col+1]) > fabs(maxVal.val) ) {
+                  maxVal.val = LU[j][col+1];
+                  maxVal.loc = j;
+              }
+          }
+          // Convert local row num to global rownum
+          maxVal.loc += thisIndex.x*BLKSIZE;
+      }
+      else {
+          for (int j = 0; j < BLKSIZE; j++)
+              LU[j][col]    = LU[j][col] / U[0];
+      }
+
+      return maxVal;
   }
 
 };
