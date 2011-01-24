@@ -61,6 +61,8 @@ extern "C" {
 #include <ckmulticast.h>
 #include <queueing.h> // for access to memory threshold setting
 
+#include "lu.h"
+
 /* readonly: */
 CProxy_Main mainProxy;
 int traceTrailingUpdate;
@@ -176,7 +178,7 @@ public:
 };
 
 struct BlockReadyMsg : public CMessage_BlockReadyMsg {
-
+  CkIndex2D src;
 };
 
 struct blkMsg: public CkMcastBaseMsg, CMessage_blkMsg {
@@ -578,17 +580,8 @@ public:
   }
 };
 
-class BlockScheduler : public CBase_BlockScheduler {
-public:
-  BlockScheduler() {}
-  void wantBlocks(CkIndex2D requester, BlockReadyMsg *mL, BlockReadyMsg *mU) {}
-  double* block(int block_id) { return NULL; }
-  void dropRef(int block_id) {}
-  void blockArrived(int block_id) {}
-};
-
 class LUBlk: public CBase_LUBlk {
-  BlockScheduler *scheduler;
+  CProxy_BlockScheduler scheduler;
   int l_block, u_block;
 
     /// configuration settings
@@ -641,6 +634,8 @@ class LUBlk: public CBase_LUBlk {
   int pendingIncomingPivots;
   /// The suggested pivot batch size
   int suggestedPivotBatchSize;
+  /// How many blocks to our right have pulled our data and consumed it?
+  int blockPulled;
 
   /// The sub-diagonal chare array section that will participate in pivot selection
   /// @note: Only the diagonal chares will create and mcast along this section
@@ -1035,6 +1030,8 @@ public:
     mgr->setPrio(givenU, MULT_RECV_U);
     belowMulticastL.recvU(givenU);
   }
+
+  void recvU(blkMsg *) {}
   
   //broadcast the L rightwards to the blocks in the same row
   inline void multicastRecvL() {
@@ -1048,6 +1045,13 @@ public:
     blkMsg *givenL = createABlkMsg();
     mgr->setPrio(givenL, MULT_RECV_L);
     oneRow.recvL(givenL);
+  }
+
+  void getBlock(CkCallback cb) {
+    cb.send(createABlkMsg());
+  }
+  double *getBlock() {
+    return LU[0];
   }
 
   void processComputeU(int ignoredParam) {
@@ -1532,5 +1536,51 @@ private:
   }
 
 };
+
+class CkLocker
+{
+  CmiNodeLock &lock;
+  
+public:
+  CkLocker(CmiNodeLock &l) : lock(l) { CmiLock(lock); }
+  ~CkLocker() { CmiUnlock(lock); }
+
+private:
+  CkLocker(const CkLocker &);
+  void operator=(const CkLocker &);
+};
+
+void BlockScheduler::wantBlocks(CkIndex2D requester, BlockReadyMsg *mL, BlockReadyMsg *mU, int step)
+{
+  CkLocker l(lock);
+  request r(requester, mL, mU, step);
+
+  LUBlk *srcL = luArr[mL->src].ckLocal(), *srcU = luArr[mU->src].ckLocal();
+  if (srcL) {
+    blocks_ready.push_back(std::make_pair(true, srcL->getBlock()));
+    r.idxL = blocks_ready.size()-1;
+    luArr[requester].availL(r.idxL);
+  }
+  if (srcU) {
+    blocks_ready.push_back(std::make_pair(true, srcU->getBlock()));
+    r.idxU = blocks_ready.size()-1;
+    luArr[requester].availU(r.idxU);
+  }
+  if (srcL && srcU) {
+    processing(r);
+    // No other local state has changed
+    return;
+  }
+
+  progress();
+}
+
+void BlockScheduler::processing(request r)
+{
+  delete r.mL;
+  delete r.mU;
+  reqs_processing.push_back(r);
+}
+
 
 #include "lu.def.h"

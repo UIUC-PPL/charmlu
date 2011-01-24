@@ -72,6 +72,9 @@ mainmodule lu {
     entry void acceptPivotData(pivotRowsMsg *msg);
     entry [nokeep] void sendUSegment(UMsg* msg);
     entry void performUpdate(int);
+    entry void diagUpdate(int);
+    entry void blockUsed(int);
+    entry void getBlock(CkCallback cb);
 
     entry void belowPivot(int targetCol) {
       // Wait for the replacement row from the diagonal chare so that you have the updated block
@@ -138,9 +141,11 @@ mainmodule lu {
 	  // Once all pending pivot ops from the current step of the
 	  // computation are complete, request the data for the
 	  // trailing update from the current step as it becomes available
+	  // XXX: Could overlap more aggressively, by requesting separately
 	  when readyL[internalStep](BlockReadyMsg *mL),
-	       readyU[internalStep](BlockReadyMsg *mU) atomic
-	       { scheduler->wantBlocks(thisIndex, mL, mU); }
+	       readyU[internalStep](BlockReadyMsg *mU) atomic {
+	      scheduler.ckLocalBranch()->wantBlocks(thisIndex, mL, mU, internalStep);
+	  }
 
 	  // Schedule the trailing update for sometime later
 	  when availL(int l_block_),
@@ -155,9 +160,10 @@ mainmodule lu {
 	  }
 	  when processTrailingUpdate[internalStep](int step) atomic "trailing_update" {
 	      DEBUG_PRINT("doing trailing update");
-	      updateMatrix(scheduler->block(l_block), scheduler->block(u_block));
-	      scheduler->dropRef(l_block);
-	      scheduler->dropRef(u_block);
+	      updateMatrix(scheduler.ckLocalBranch()->block(l_block),
+			   scheduler.ckLocalBranch()->block(u_block));
+	      scheduler.ckLocalBranch()->updateDone(thisIndex, internalStep);
+	      thisProxy(thisIndex.x, internalStep).blockUsed(0);
 	  }
       }
 
@@ -248,6 +254,10 @@ mainmodule lu {
 	  multicastRecvL();
           pivotBatchTag += BLKSIZE;
         }
+
+	for (blockPulled = 0; blockPulled < numBlks-thisIndex.y; blockPulled++) {
+	    when blockUsed(int dummy) atomic {}
+	}
 
         for (internalStep++;  internalStep <= thisIndex.x; internalStep++) {
           // Receive and process batches of pivot operations sent out by the current active diagonal chare
@@ -473,11 +483,11 @@ mainmodule lu {
     entry [nokeep] void recvL(blkMsg *);
     entry [nokeep] void recvU(blkMsg *);
 
-      entry void readyL(BlockReadyMsg *mL);
-      entry void readyU(BlockReadyMsg *mU);
+    entry void readyL(BlockReadyMsg *mL);
+    entry void readyU(BlockReadyMsg *mU);
 
-      entry [local] void availL(int l_block_);
-      entry [local] void availU(int u_block_);
+    entry [local] void availL(int l_block_);
+    entry [local] void availU(int u_block_);
 
     // These process* entry methods are invoked locally by each block
     // on itself with varying priorities, to let the scheduler decide
