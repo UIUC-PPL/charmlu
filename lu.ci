@@ -9,6 +9,8 @@ mainmodule lu {
   // Register the reducer function that handles reductions of locval
   initproc void registerLocValReducer();
 
+  message BlockReadyMsg;
+
   message blkMsg {
     double data[];
   };
@@ -133,27 +135,30 @@ mainmodule lu {
               }
           }
 
-          overlap {
-              // Once all pending pivot ops from the current step of the computation are complete,
-              // receive the msgs carrying data for the trailing update from the current step
-              when recvL[internalStep](blkMsg *mL) atomic
-              { takeRef(mL); L = mL; }
-              when recvU[internalStep](blkMsg *mU) atomic
-              { takeRef(mU); U = mU; }
-          }
-        // Schedule the trailing update for sometime later
-        atomic "trailing_schedule_update" {
-	  DEBUG_PRINT("blocks available, scheduling trailing update");
-          CkEntryOptions opts;
-          thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep,
-            &(mgr->setPrio(PROCESS_TRAILING_UPDATE, opts, thisIndex.y)));
-        }
-        when processTrailingUpdate[internalStep](int step) atomic "trailing_update" {
-	  DEBUG_PRINT("doing trailing update");
-          updateMatrix(L, U);
-          dropRef(L);
-          dropRef(U);
-        }
+	  // Once all pending pivot ops from the current step of the
+	  // computation are complete, request the data for the
+	  // trailing update from the current step as it becomes available
+	  when readyL[internalStep](BlockReadyMsg *mL),
+	       readyU[internalStep](BlockReadyMsg *mU) atomic
+	       { scheduler->wantBlocks(thisIndex, mL, mU); }
+
+	  // Schedule the trailing update for sometime later
+	  when availL(int l_block_),
+	       availU(int u_block_)
+	  atomic "trailing_schedule_update" {
+	      DEBUG_PRINT("blocks available, scheduling trailing update");
+	      l_block = l_block_;
+	      u_block = u_block_;
+	      CkEntryOptions opts;
+              mgr->setPrio(PROCESS_TRAILING_UPDATE, opts, thisIndex.y);
+	      thisProxy(thisIndex).processTrailingUpdate(internalStep, &opts);
+	  }
+	  when processTrailingUpdate[internalStep](int step) atomic "trailing_update" {
+	      DEBUG_PRINT("doing trailing update");
+	      updateMatrix(scheduler->block(l_block), scheduler->block(u_block));
+	      scheduler->dropRef(l_block);
+	      scheduler->dropRef(u_block);
+	  }
       }
 
       //-----------------------------------------------------------------------
@@ -468,6 +473,12 @@ mainmodule lu {
     entry [nokeep] void recvL(blkMsg *);
     entry [nokeep] void recvU(blkMsg *);
 
+      entry void readyL(BlockReadyMsg *mL);
+      entry void readyU(BlockReadyMsg *mU);
+
+      entry [local] void availL(int l_block_);
+      entry [local] void availU(int u_block_);
+
     // These process* entry methods are invoked locally by each block
     // on itself with varying priorities, to let the scheduler decide
     // when the work they represent (the bulk of the computation)
@@ -487,7 +498,12 @@ mainmodule lu {
 
     entry void flushLogs();
     entry void print();
-  };            
+  };
+
+  nodegroup BlockScheduler {
+      entry BlockScheduler();
+      entry void blockArrived(int block);
+  }
 
   group BlockCyclicMap : CkArrayMap{
     entry BlockCyclicMap();
