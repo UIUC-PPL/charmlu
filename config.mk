@@ -36,6 +36,10 @@ BLAS_LIBS = -lcblas
 #BLAS_LD   = -L$(ACML_DIR)/pgi64/lib/
 #BLAS_LIBS = -lacml
 
+# To compile on Cray XT5 with GNU compilers "module swap PrgEnv-pgi PrgEnv-gnu" and "module load acml"
+#BLAS_INC = -I$(ACML_DIR)/gnu64/include/ -DUSE_ACML_H=1 -DUSE_ACML
+#BLAS_LD = -L$(ACML_DIR)/gnu64/lib/
+#BLAS_LIBS = -lacml
 
 # To compile on BG/P with ESSL:
 #BGP_ESSL  = /soft/apps/ESSL-4.4.1-0
