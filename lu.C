@@ -63,7 +63,7 @@ ComlibInstanceHandle multicastStats[4];
 CProxy_locker lg;
 
 #ifdef CHARMLU_DEBUG
-    #define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
+    #define DEBUG_PRINT(FORMAT, ...) CkPrintf("(%d: [%d,%d]@%d) " FORMAT "\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep ,##__VA_ARGS__)
     #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
     #define VERBOSE_PROGRESS(...) CkPrintf(__VA_ARGS__)
     #define VERY_VERBOSE_PIVOT_AGGLOM(...) CkPrintf(__VA_ARGS__)
@@ -376,7 +376,6 @@ public:
 
     mainProxy = thisProxy;
       
-    DEBUG_PRINT("Registering user events\n");
     traceTrailingUpdate = traceRegisterUserEvent("Trailing Update");
     traceComputeU = traceRegisterUserEvent("Compute U");
     traceComputeL = traceRegisterUserEvent("Compute L");
@@ -1100,7 +1099,7 @@ public:
     CkAssert( ((unsigned long)givenL) % 16 == 0);
 #endif
 
-    DEBUG_PRINT("elem[%d,%d]::computeU called at step %d\n", thisIndex.x, thisIndex.y, internalStep);
+    DEBUG_PRINT("computeU called");
 
     //processing row by row (forward substitution)
     //the 1st row of U is not changed
@@ -1123,7 +1122,7 @@ public:
     double *givenU = givenUMsg->data;
     //	  CkAssert( ((unsigned long)givenU) % 16 == 0);
 
-    DEBUG_PRINT("elem[%d,%d]::computeL called at step %d\n", thisIndex.x, thisIndex.y, internalStep);
+    DEBUG_PRINT("computeL called");
 
 #if USE_ESSL
     dtrsm("R", "U", "N", "N", BLKSIZE, BLKSIZE, 1.0, givenU, BLKSIZE, LU[0], BLKSIZE);
@@ -1134,7 +1133,6 @@ public:
 
   void updateMatrix(blkMsg *givenLMsg, blkMsg *givenUMsg) {
     traceLU t(internalStep, traceTrailingUpdate);
-    DEBUG_PRINT("elem[%d,%d] is updating its value at step %d\n", thisIndex.x, thisIndex.y, internalStep);
 
     double *incomingL = givenLMsg->data;
     double *incomingU = givenUMsg->data;
@@ -1162,7 +1160,7 @@ public:
     traceUserSuppliedData(internalStep);
     traceMemoryUsage();
     
-    DEBUG_PRINT("[PE %d] elem %d,%d Multicast to part of column %d from step %d\n", CkMyPe(), thisIndex.x, thisIndex.y, thisIndex.y, internalStep);
+    DEBUG_PRINT("Multicast to part of column %d", thisIndex.y);
     
     CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
 
@@ -1186,13 +1184,12 @@ public:
     traceUserSuppliedData(internalStep);
     traceMemoryUsage();
     
-    DEBUG_PRINT("[PE %d] elem %d,%d Multicast to part of row %d from step %d\n", CkMyPe(), thisIndex.x, thisIndex.y, thisIndex.x, internalStep);
-    
     CProxySection_LUBlk oneRow = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, thisIndex.x, 1, thisIndex.y+1, numBlks-1, 1);
     
     if (whichMulticastStrategy > -1)
       ComlibAssociateProxy(multicastStats[whichMulticastStrategy], oneRow);
     
+    DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
     blkMsg *givenL = createABlkMsg();
     *(int*)CkPriorityPtr(givenL) = -1;
     oneRow.recvL(givenL);
@@ -1206,20 +1203,20 @@ public:
   }
 
   void processComputeU(int ignoredParam) {
-    DEBUG_PRINT("processComputeU() called on block %d,%d\n", thisIndex.x, thisIndex.y);
+    DEBUG_PRINT("processComputeU() called");
     CkAssert(internalStep==thisIndex.x && L);
     // We are in the top row of active blocks, and we
     // have received the incoming L
 	
-    // CkPrintf("[%d] chare %d,%d internalStep=%d computeU\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep);
+    DEBUG_PRINT("computeU");
     computeU(L);
     
-    DEBUG_PRINT("[%d] chare %d,%d is top block this step, multicast U\n", CkMyPe(), thisIndex.x, thisIndex.y);
+    DEBUG_PRINT("multicast U downward");
     multicastRecvU(); //broadcast the newly computed U downwards to the blocks in the same column
     
     dropRef(L);
     
-    DEBUG_PRINT("chare %d,%d is now done\n",  thisIndex.x, thisIndex.y);
+    DEBUG_PRINT("done");
   }
 
   void localSolve(double *xvec, double *preVec) {

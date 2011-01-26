@@ -124,11 +124,13 @@ mainmodule lu {
           }
         // Schedule the trailing update for sometime later
         atomic "trailing_schedule_update" {
+	  DEBUG_PRINT("blocks available, scheduling trailing update");
           CkEntryOptions opts;
 	  opts.setPriority(thisIndex.y * BLKSIZE);
           thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep, &opts);
         }
         when processTrailingUpdate[internalStep](int step) atomic "trailing_update" {
+	  DEBUG_PRINT("doing trailing update");
           updateMatrix(L, U);
           dropRef(L);
           dropRef(U);
@@ -229,7 +231,8 @@ mainmodule lu {
         }
         atomic "below_send_L" {
           if (pendingUmsg) dropRef(pendingUmsg);
-          multicastRecvL();
+          DEBUG_PRINT("done computing L");
+	  multicastRecvL();
           pivotBatchTag += BLKSIZE;
         }
 
@@ -266,7 +269,7 @@ mainmodule lu {
       }
       if (thisIndex.x != thisIndex.y) {
         atomic "offdiag_iteration_completed" {
-          DEBUG_PIVOT("[%d] chare %d,%d contributing\n", CkMyPe(), thisIndex.x, thisIndex.y);
+          DEBUG_PRINT("contributing");
           contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
         }
       }
@@ -351,11 +354,12 @@ mainmodule lu {
       atomic "diag_multicast_L" {
         // All diagonal chares except the last must continue the factorization
         if (thisIndex.x < numBlks-1 && thisIndex.y < numBlks-1) {
-          DEBUG_PRINT("[%d] chare %d,%d is top,left block this step, multicast L\n", CkMyPe(), thisIndex.x, thisIndex.y);
+          DEBUG_PRINT("is top,left block this step, multicast L");
           // Multicast the local block of L rightwards to the blocks in the same row
           multicastRecvL();
         }
         // Contribute to a reduction indicating that this chare is done with its factorization work
+	DEBUG_PRINT("contributing");
         contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
         VERBOSE_PROGRESS("\n");
       }
