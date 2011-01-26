@@ -7,13 +7,15 @@ class BlockReadyMsg;
 
 class BlockScheduler : public CBase_BlockScheduler {
 public:
-  BlockScheduler() : lock(CmiCreateLock()) { }
+    BlockScheduler(CProxy_LUBlk luArr_)
+	: lock(CmiCreateLock()), luArr(luArr_)
+	{ }
 
     void wantBlocks(CkIndex2D requester, BlockReadyMsg *mL, BlockReadyMsg *mU, int step);
 
-  double* block(int block_id) { return blocks_ready[block_id].second; }
-  void updateDone(CkIndex2D requester, int step) {}
-  void blockArrived(int block_id) {}
+  void updateDone(CkIndex2D requester, int step);
+  void blockArrived(int x, int y);
+  double *block(int x, int y);
 
 private:
   CmiNodeLock lock;
@@ -21,18 +23,29 @@ private:
   struct request {
     CkIndex2D requester;
     BlockReadyMsg *mL, *mU;
-    int idxL, idxU;
     int step;
     request(CkIndex2D requester_, BlockReadyMsg *mL_, BlockReadyMsg *mU_, int step_)
-      : requester(requester_), mL(mL_), mU(mU_), idxL(-1), idxU(-1), step(step_)
+      : requester(requester_), mL(mL_), mU(mU_), step(step_)
     { }
   };
 
-  void processing(request r);
-  void progress() {}
+  struct block_state {
+      double *data;
+      int interested;
 
-  std::list<request> reqs_waiting, reqs_pending, reqs_processing;
-  /// Pointer to the data, and whether it's owned by a local LUBlk object
-  std::vector<std::pair<bool, double *> > blocks_ready;
+  block_state(double *d) : data(d), interested(0) {}
+  };
+
+  /// Drop a reference to the named block, and return whether this freed space 
+  bool drop_block(int x, int y);
+
+  void processing(request r);
+  void progress();
+
+  typedef std::list<request> req_list;
+  req_list reqs_waiting, reqs_pending, reqs_processing;
+
+  typedef std::map<std::pair<int, int>, block_state> block_map;
+  block_map blocks_ready;
   std::vector<double *> blocks_free;
 };

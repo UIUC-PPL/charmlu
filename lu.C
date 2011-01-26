@@ -178,6 +178,10 @@ public:
 };
 
 struct BlockReadyMsg : public CMessage_BlockReadyMsg {
+  BlockReadyMsg(CkIndex2D idx) : src(idx)
+  {
+    CkSetRefNum(this, min(src.x, src.y));
+  }
   CkIndex2D src;
 };
 
@@ -438,10 +442,11 @@ public:
       CProxy_LUMgr mgr = CProxy_PrioLU::ckNew(luCfg.blockSize, luCfg.matrixSize);
 
       luArrProxy = CProxy_LUBlk::ckNew(opts);
+      CProxy_BlockScheduler bs = CProxy_BlockScheduler::ckNew(luArrProxy);
 
       LUcomplete = true;
     
-      luArrProxy.startup(luCfg, mgr);
+      luArrProxy.startup(luCfg, mgr, bs);
     }
   }
 
@@ -595,6 +600,7 @@ class LUBlk: public CBase_LUBlk {
 
   int BLKSIZE, numBlks;
   blkMsg *L, *U;
+  BlockReadyMsg *mL, *mU;
   int internalStep, activeCol, ind;
 
   LUMgr *mgr;
@@ -820,7 +826,8 @@ public:
       rnd.getNRndDoubles(BLKSIZE, buf);
     }
 
-  void init(const LUConfig _cfg, CProxy_LUMgr _mgr) {
+  void init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs) {
+    scheduler = bs;
     cfg = _cfg;
     BLKSIZE = cfg.blockSize;
     numBlks = cfg.numBlocks;
@@ -1026,9 +1033,11 @@ public:
     
     DEBUG_PRINT("Multicast to part of column %d", thisIndex.y);
     
-    blkMsg *givenU = createABlkMsg();
-    mgr->setPrio(givenU, MULT_RECV_U);
-    belowMulticastL.recvU(givenU);
+    CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
+          
+    BlockReadyMsg *mU = new BlockReadyMsg(thisIndex);
+    mgr->setPrio(mU, MULT_RECV_U);
+    oneCol.readyU(mU);
   }
 
   void recvU(blkMsg *) {}
@@ -1039,12 +1048,18 @@ public:
     traceMemoryUsage();
     
     CProxySection_LUBlk oneRow = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, thisIndex.x, 1, thisIndex.y+1, numBlks-1, 1);
-    oneRow.ckSectionDelegate(mcastMgr);
 
-    DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
-    blkMsg *givenL = createABlkMsg();
-    mgr->setPrio(givenL, MULT_RECV_L);
-    oneRow.recvL(givenL);
+    oneRow.ckSectionDelegate(mcastMgr);
+    
+    if (thisIndex.x == thisIndex.y) {
+      DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
+      blkMsg *givenL = createABlkMsg();
+      mgr->setPrio(givenL, MULT_RECV_L);
+      oneRow.recvL(givenL);
+    } else {
+      BlockReadyMsg *mL = new BlockReadyMsg(thisIndex);
+      oneRow.readyL(mL);
+    }
   }
 
   void getBlock(CkCallback cb) {
@@ -1557,14 +1572,14 @@ void BlockScheduler::wantBlocks(CkIndex2D requester, BlockReadyMsg *mL, BlockRea
 
   LUBlk *srcL = luArr[mL->src].ckLocal(), *srcU = luArr[mU->src].ckLocal();
   if (srcL) {
-    blocks_ready.push_back(std::make_pair(true, srcL->getBlock()));
-    r.idxL = blocks_ready.size()-1;
-    luArr[requester].availL(r.idxL);
+    delete mL;
+    r.mL = NULL;
+    luArr[requester].availL(step);
   }
   if (srcU) {
-    blocks_ready.push_back(std::make_pair(true, srcU->getBlock()));
-    r.idxU = blocks_ready.size()-1;
-    luArr[requester].availU(r.idxU);
+    delete mU;
+    r.mU = NULL;
+    luArr[requester].availU(step);
   }
   if (srcL && srcU) {
     processing(r);
@@ -1572,15 +1587,68 @@ void BlockScheduler::wantBlocks(CkIndex2D requester, BlockReadyMsg *mL, BlockRea
     return;
   }
 
+  reqs_waiting.push_back(r);
   progress();
+}
+
+double* BlockScheduler::block(int x, int y)
+{
+  block_map::iterator b = blocks_ready.find(std::make_pair(x,y));
+  if (blocks_ready.end() != b) {
+    return b->second.data;
+  } else {
+    CkAssert(luArr(x,y).ckLocal());
+    return luArr(x,y).ckLocal()->getBlock();
+  }
 }
 
 void BlockScheduler::processing(request r)
 {
-  delete r.mL;
-  delete r.mU;
   reqs_processing.push_back(r);
 }
 
+void BlockScheduler::progress()
+{
+
+}
+
+inline bool operator==(const CkIndex2D &l, const CkIndex2D &r)
+{ return l.x == r.x && l.y == r.y; }
+inline bool operator<(const CkIndex2D &l, const CkIndex2D &r)
+{ return l.x < r.x || (l.x == r.x && l.y < r.y); }
+
+void BlockScheduler::updateDone(CkIndex2D requester, int step)
+{
+  CkLocker l(lock);
+
+  req_list::iterator i = reqs_processing.begin();
+  for(; i != reqs_processing.end(); ++i) {
+    if (i->requester == requester && i->step == step) {
+      break;
+    }
+  }
+  CkAssert(i != reqs_processing.end());
+  reqs_processing.erase(i);
+
+  if (drop_block(requester.x, step) ||
+      drop_block(step, requester.y))
+    progress();
+}
+
+bool BlockScheduler::drop_block(int x, int y)
+{
+  block_map::iterator b = blocks_ready.find(std::make_pair(x,y));
+  if (b != blocks_ready.end() && 0 == --b->second.interested) {
+      blocks_free.push_back(b->second.data);
+      blocks_ready.erase(b);
+      return true;
+  }
+  return false;
+}
+
+void BlockScheduler::blockArrived(int x, int y)
+{
+
+}
 
 #include "lu.def.h"

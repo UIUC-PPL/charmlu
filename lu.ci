@@ -52,6 +52,8 @@ mainmodule lu {
       entry locker();
   }
 
+  class CProxy_BlockScheduler;
+
   array [2D] LUBlk {
     entry LUBlk(void);
     entry void prepareForPivotRedn(rednSetupMsg *);
@@ -148,20 +150,18 @@ mainmodule lu {
 	  }
 
 	  // Schedule the trailing update for sometime later
-	  when availL(int l_block_),
-	       availU(int u_block_)
+	  when availL[internalStep](int step1),
+	       availU[internalStep](int step2)
 	  atomic "trailing_schedule_update" {
 	      DEBUG_PRINT("blocks available, scheduling trailing update");
-	      l_block = l_block_;
-	      u_block = u_block_;
 	      CkEntryOptions opts;
               mgr->setPrio(PROCESS_TRAILING_UPDATE, opts, thisIndex.y);
 	      thisProxy(thisIndex).processTrailingUpdate(internalStep, &opts);
 	  }
 	  when processTrailingUpdate[internalStep](int step) atomic "trailing_update" {
 	      DEBUG_PRINT("doing trailing update");
-	      updateMatrix(scheduler.ckLocalBranch()->block(l_block),
-			   scheduler.ckLocalBranch()->block(u_block));
+	      updateMatrix(scheduler.ckLocalBranch()->block(thisIndex.x, internalStep),
+			   scheduler.ckLocalBranch()->block(internalStep, thisIndex.y));
 	      scheduler.ckLocalBranch()->updateDone(thisIndex, internalStep);
 	      thisProxy(thisIndex.x, internalStep).blockUsed(0);
 	  }
@@ -255,7 +255,7 @@ mainmodule lu {
           pivotBatchTag += BLKSIZE;
         }
 
-	for (blockPulled = 0; blockPulled < numBlks-thisIndex.y; blockPulled++) {
+	for (blockPulled = 0; blockPulled < numBlks-thisIndex.y-1; blockPulled++) {
 	    when blockUsed(int dummy) atomic {}
 	}
 
@@ -388,9 +388,9 @@ mainmodule lu {
     entry void beginBackward(int size, double preVec[size]);
     entry void recvSolveData(CkReductionMsg *m);
 
-    entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr) {
+    entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs) {
       atomic {
-        init(luCfg, _mgr);
+	  init(luCfg, _mgr, bs);
       }
       when multicastRedns(int dummy) {
         if (thisIndex.x >= thisIndex.y) {
@@ -486,8 +486,8 @@ mainmodule lu {
     entry void readyL(BlockReadyMsg *mL);
     entry void readyU(BlockReadyMsg *mU);
 
-    entry [local] void availL(int l_block_);
-    entry [local] void availU(int u_block_);
+    entry void availL(int);
+    entry void availU(int);
 
     // These process* entry methods are invoked locally by each block
     // on itself with varying priorities, to let the scheduler decide
@@ -511,8 +511,8 @@ mainmodule lu {
   };
 
   nodegroup BlockScheduler {
-      entry BlockScheduler();
-      entry void blockArrived(int block);
+      entry BlockScheduler(CProxy_LUBlk luArr);
+      entry void blockArrived(int x, int y);
   }
 
   group BlockCyclicMap : CkArrayMap{
