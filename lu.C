@@ -61,6 +61,7 @@ int traceComputeL;
 int traceSolveLocalLU;
 ComlibInstanceHandle multicastStats[4];
 CProxy_locker lg;
+CProxy_StopAfter stopAfter;
 
 #ifdef CHARMLU_DEBUG
     #define DEBUG_PRINT(...) CkPrintf(__VA_ARGS__)
@@ -297,11 +298,12 @@ class Main : public CBase_Main {
   int whichMulticastStrategy;
   bool solved, LUcomplete, workStarted;
   bool sentVectorData;
+  int stopCount;
 
   CProxy_LUBlk luArrProxy;
 
 public:
-    Main(CkArgMsg* m) : iteration(0), numIterations(1), solved(false), LUcomplete(false), workStarted(false), sentVectorData(false) {
+  Main(CkArgMsg* m) : iteration(0), numIterations(1), solved(false), LUcomplete(false), workStarted(false), sentVectorData(false), stopCount(0) {
 
     if (m->argc<4) {
       CkPrintf("Usage: %s <matrix size> <block size> <mem threshold> [<pivot batch size> <mapping scheme> [<peTileRows> <peTileCols>] ]\n", m->argv[0]);
@@ -400,9 +402,18 @@ public:
 
     ControlPoint::EffectIncrease::MemoryConsumption("memory_threshold");
 
+    stopAfter = CProxy_StopAfter::ckNew();
+
     lg = CProxy_locker::ckNew();
 
     thisProxy.iterationCompleted();
+  }
+
+  void stopAfterCount() {
+    if (++stopCount == CkNumPes()) {
+      ckout << "CkExit() being called" << endl;
+      CkExit();
+    }
   }
 
   void finishInit() {
@@ -1698,6 +1709,14 @@ private:
       return maxVal;
   }
 
+};
+
+struct StopAfter : public CBase_StopAfter {
+  StopAfter() {}
+  void stopAndFlush() {
+    flushTraceLog();
+    mainProxy.stopAfterCount();
+  }
 };
 
 #include "lu.def.h"

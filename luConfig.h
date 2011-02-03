@@ -4,7 +4,7 @@
 #define LU_CONFIG_H
 
 #ifndef STOP_AFTER
-    #define STOP_AFTER -1
+    #define STOP_AFTER 10
 #endif
 
 class LUConfig {
