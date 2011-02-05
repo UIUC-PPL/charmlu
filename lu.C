@@ -168,7 +168,7 @@ public:
   }
 };
 
-struct blkMsg: public CMessage_blkMsg {
+struct blkMsg: public CkMcastBaseMsg, CMessage_blkMsg {
   // TODO: what is happening?
   char pad[16-((sizeof(envelope)+sizeof(int))%16)];
   double *data;
@@ -666,6 +666,9 @@ class LUBlk: public CBase_LUBlk {
   /// The right-of-diagonal section of the chare array for pivoting
   CProxySection_LUBlk pivotRightSection;
 
+  /// The below section for multicastRecvU
+  CProxySection_LUBlk belowMulticastL;
+
   CProxySection_LUBlk rowBeforeDiag;
   CProxySection_LUBlk rowAfterDiag;
   CkSectionInfo rowBeforeCookie;
@@ -1009,6 +1012,10 @@ public:
 
     testdgemm();
 
+    // Create a multicast manager group
+    CkGroupID mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
+    CkMulticastMgr *mcastMgr = CProxy_CkMulticastMgr(mcastMgrGID).ckLocalBranch();
+
     /// Chares on the array diagonal will now create pivot sections that they will talk to
     if (thisIndex.x == thisIndex.y)
     {
@@ -1019,9 +1026,6 @@ public:
         pivotRightSection = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, numBlks-1, 1, thisIndex.y+1, numBlks-1, 1);
         rowBeforeDiag = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,thisIndex.x,1,0,thisIndex.y-1,1);
         rowAfterDiag = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,thisIndex.x,1,thisIndex.y+1,numBlks-1,1);
-        // Create a multicast manager group
-        CkGroupID mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
-        CkMulticastMgr *mcastMgr = CProxy_CkMulticastMgr(mcastMgrGID).ckLocalBranch();
         // Delegate pivot section to the manager
         pivotSection.ckSectionDelegate(mcastMgr);
         activePanel.ckSectionDelegate(mcastMgr);
@@ -1050,6 +1054,11 @@ public:
         if (thisIndex.x == 0) {
           thisProxy.multicastRedns(0);
         }
+    } else if (thisIndex.x < thisIndex.y) {
+      belowMulticastL = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
+      belowMulticastL.ckSectionDelegate(mcastMgr);
+      rednSetupMsg *belowMutlicastLMsg = new rednSetupMsg(mcastMgrGID);
+      belowMulticastL.prepareForMulticastL(belowMutlicastLMsg);
     }
 
     // All chares except members of pivot sections are done with init
@@ -1162,14 +1171,14 @@ public:
     
     DEBUG_PRINT("Multicast to part of column %d", thisIndex.y);
     
-    CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
+    //CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
 
-    if (whichMulticastStrategy > -1)
-      ComlibAssociateProxy(multicastStats[whichMulticastStrategy], oneCol);
-    
+    //if (whichMulticastStrategy > -1)
+    //ComlibAssociateProxy(multicastStats[whichMulticastStrategy], oneCol);
+
     blkMsg *givenU = createABlkMsg();
     *(int*)CkPriorityPtr(givenU) = -1;
-    oneCol.recvU(givenU);
+    belowMulticastL.recvU(givenU);
 
 //     for(int i=thisIndex.x+1; i<numBlks; i++){
 //	 blkMsg *givenU = createABlkMsg();

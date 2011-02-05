@@ -63,6 +63,7 @@ mainmodule lu {
     entry void prepareForPivotLR(rednSetupMsg *);
     entry void prepareForRowBeforeDiag(rednSetupMsg *);
     entry void prepareForRowAfterDiag(rednSetupMsg *);
+    entry void prepareForMulticastL(rednSetupMsg *);
     entry void multicastRedns(int dummy);
     entry void initVec();
     entry void startValidation();
@@ -394,6 +395,9 @@ mainmodule lu {
         }
         for (ind = 0; ind < thisIndex.x-1; ind++) {
           when prepareForPivotLR(rednSetupMsg *msg) atomic { }
+        }
+        for (ind = 0; ind < min(thisIndex.x, thisIndex.y); ind++) {
+          when prepareForMulticastL(rednSetupMsg *msg) atomic { }
         }
         atomic {
           contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
