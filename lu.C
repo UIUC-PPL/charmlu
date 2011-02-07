@@ -1057,6 +1057,7 @@ public:
       mgr->setPrio(givenL, MULT_RECV_L);
       oneRow.recvL(givenL);
     } else {
+      DEBUG_PRINT("Announce block ready to part of row %d", thisIndex.x);
       BlockReadyMsg *mL = new BlockReadyMsg(thisIndex);
       oneRow.readyL(mL);
     }
