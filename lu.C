@@ -1661,26 +1661,26 @@ private:
 
   /// Update the sub-block of this L block starting at specified
   /// offset from the active column
-  void updateLsubBlock(int activeCol, double* U, int offset=1) {
+  void updateLsubBlock(int activeCol, double* U, int offset=1, int startingRow=0) {
       // Should only get called on L blocks
-      CkAssert(thisIndex.x > thisIndex.y);
+      CkAssert(thisIndex.x >= thisIndex.y);
 #if 1
       #if USE_ESSL
-          dger(BLKSIZE-(activeCol+offset), BLKSIZE,
+          dger(BLKSIZE-(activeCol+offset), BLKSIZE-startingRow,
                -1.0,
                U+offset, 1,
-               &LU[0][activeCol], BLKSIZE,
-               &LU[0][activeCol+offset], BLKSIZE);
+               &LU[startingRow][activeCol], BLKSIZE,
+               &LU[startingRow][activeCol+offset], BLKSIZE);
       #else
           cblas_dger(CblasRowMajor,
-                     BLKSIZE, BLKSIZE-(activeCol+offset),
+                     BLKSIZE-startingRow, BLKSIZE-(activeCol+offset),
                      -1.0,
-                     &LU[0][activeCol], BLKSIZE,
+                     &LU[startingRow][activeCol], BLKSIZE,
                      U+offset, 1,
-                     &LU[0][activeCol+offset], BLKSIZE);
+                     &LU[startingRow][activeCol+offset], BLKSIZE);
       #endif
 #else
-      for(int j = 0; j < BLKSIZE; j++)
+      for(int j = startingRow; j < BLKSIZE; j++)
           for(int k = activeCol+offset; k<BLKSIZE; k++)
               LU[j][k] -=  LU[j][activeCol] * U[k-activeCol];
 #endif
@@ -1690,14 +1690,14 @@ private:
   /// Compute the multipliers based on the pivot value in the
   /// received row of U and also find the candidate pivot in
   /// the immediate next column (after updating it simultaneously)
-  locval computeMultipliersAndFindColMax(int col, double *U)
+  locval computeMultipliersAndFindColMax(int col, double *U, int startingRow=0)
   {
       // Should only get called on L blocks
-      CkAssert(thisIndex.x > thisIndex.y);
+      CkAssert(thisIndex.x >= thisIndex.y);
       locval maxVal;
 
       if (col < BLKSIZE -1) {
-          for (int j = 0; j < BLKSIZE; j++) {
+          for (int j = startingRow; j < BLKSIZE; j++) {
               // Compute the multiplier
               LU[j][col]    = LU[j][col] / U[0];
               // Update the immediate next column
@@ -1712,7 +1712,7 @@ private:
           maxVal.loc += thisIndex.x*BLKSIZE;
       }
       else {
-          for (int j = 0; j < BLKSIZE; j++)
+          for (int j = startingRow; j < BLKSIZE; j++)
               LU[j][col]    = LU[j][col] / U[0];
       }
 
