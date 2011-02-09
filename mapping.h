@@ -308,6 +308,8 @@ public:
       int numPEs = CkNumPes();
       std::vector<int> peWork(numPEs);
 
+      CkPrintf("numPEs = %d\n", numPEs);
+
       int currentPE = 0;
 
       for (int i = 0; i < numPEs; i++) {
@@ -323,6 +325,7 @@ public:
       for (int y = 0; y < numBlks; y++) {
         for (int x = y; x < numBlks; x++) {
           int pe = nextPE(currentPE);
+          CkAssert(pe < numPEs);
           if (x == y) {
             // Diagonal "A" block
             peWork[pe] += 15 * y;
@@ -337,9 +340,10 @@ public:
       }
 
       for (int y = 0; y < numBlks; y++) {
-        sort(peWork.begin(), peWork.end());
+        //sort(peWork.begin(), peWork.end());
         for (int x = 0; x < y; x++) {
           int pe = nextPE(currentPE);
+          CkAssert(pe < numPEs);
           peWork[pe] += 5 * x;
           peBlock[std::make_pair(x, y)] = pe;
           currentPE = pe;
