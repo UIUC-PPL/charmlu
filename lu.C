@@ -374,8 +374,6 @@ public:
     if (luCfg.mappingScheme == 3)
         CkPrintf("\tMapping PE tile size: %d x %d\n", luCfg.peTileRows, luCfg.peTileCols);
 
-
-
     mainProxy = thisProxy;
       
     traceTrailingUpdate = traceRegisterUserEvent("Trailing Update");
@@ -480,17 +478,18 @@ public:
         opts.setMap(CProxy_LUBalancedSnakeMap::ckNew(luCfg.numBlocks, luCfg.blockSize));
 	break;
       case 2:
-	  opts.setMap(CProxy_RealBlockCyclicMap::ckNew(1, luCfg.numBlocks));
-	  break;
+        opts.setMap(CProxy_RealBlockCyclicMap::ckNew(1, luCfg.numBlocks));
+        break;
       case 3:
-          opts.setMap( CProxy_PE2DTilingMap::ckNew(luCfg.peTileRows, luCfg.peTileCols) );
-          break;
+        opts.setMap(CProxy_PE2DTilingMap::ckNew(luCfg.peTileRows, luCfg.peTileCols));
+        break;
       case 4:
-        opts.setMap( CProxy_StrongScaling1::ckNew(luCfg.numBlocks) );
+        opts.setMap(CProxy_StrongScaling1::ckNew(luCfg.numBlocks));
         break;
       default:
-          CkAbort("Unrecognized mapping scheme specified");
+        CkAbort("Unrecognized mapping scheme specified");
       }
+
       CProxy_LUMgr mgr = CProxy_PrioLU::ckNew(luCfg.blockSize, gMatSize);
 
       luArrProxy = CProxy_LUBlk::ckNew(opts);
