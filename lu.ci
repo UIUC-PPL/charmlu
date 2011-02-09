@@ -296,17 +296,13 @@ mainmodule lu {
           mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
         }
 
-        // Find the pivot row
-        when colMax(CkReductionMsg *m) atomic "diag_found_colmax" {
-          pivotCandidate = *(locval *)(m->getData());
-        }
-
         // Share the pivot info with the appropriate array section
-        atomic "diag_send_pivot_active" {
+        when colMax(CkReductionMsg *m) atomic "diag_share_pivot_info" {
+          pivotCandidate = *(locval *)(m->getData());
           // Send pivot info to all chares that will care (below section)
           pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, pivotCandidate.loc);
           *(int*)CkPriorityPtr(msg) = -1;
-	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
+          CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           pivotSection.doPivot(msg);
         }
 
