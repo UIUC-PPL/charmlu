@@ -290,7 +290,7 @@ class PE2DTilingMap: public LUMap {
 #include <vector>
 #include <algorithm>
 
-bool mapValueSort (const std::pair<int, int> &p1, const std::pair<int, int> &p2) {
+bool peWorkValueSort(const std::pair<int, int> &p1, const std::pair<int, int> &p2) {
   return p1.second < p2.second;
 }
 
@@ -299,21 +299,30 @@ private:
   int numBlks;
   std::map<std::pair<int, int>, int> peBlock;
 
+  // pair<pe, work>
+  std::vector<std::pair<int, int> > peWork;
+
   int nextPE(int pe) {
     return (pe + 1) % CkNumPes();
   }
 
+  int addWorkPE(int pe, int work) {
+    for (int i = 0; i < CkNumPes(); i++) {
+      if (peWork[i].first == pe)
+        peWork[i].second += work;
+    }
+  }
+
 public:
-    StrongScaling1(int numBlks_) : numBlks(numBlks_) {
+    StrongScaling1(int numBlks_) : numBlks(numBlks_), peWork(CkNumPes()) {
       int numPEs = CkNumPes();
-      std::vector<int> peWork(numPEs);
 
       CkPrintf("numPEs = %d\n", numPEs);
 
       int currentPE = 0;
 
       for (int i = 0; i < numPEs; i++) {
-        peWork[i] = 0;
+        peWork[i] = std::make_pair(i, 0);
       }
 
       for (int x = 0; x < numBlks; x++) {
@@ -328,10 +337,10 @@ public:
           CkAssert(pe < numPEs);
           if (x == y) {
             // Diagonal "A" block
-            peWork[pe] += 15 * y;
+            addWorkPE(pe, 15 * y);
           } else if (x > y) {
             // Below diagonal "B" block
-            peWork[pe] += 10 * y;
+            addWorkPE(pe, 10 * y);
           }
           peBlock[std::make_pair(x, y)] = pe;
           currentPE = pe;
@@ -339,31 +348,45 @@ public:
         //startPE = (numBlks-y) % numPEs;
       }
 
+      std::sort(peWork.begin(), peWork.end(), peWorkValueSort);
+      std::vector<std::pair<int, int> >::iterator iter = peWork.begin();
+
+      //CkPrintf("sorted:\n");
+
       for (int y = 0; y < numBlks; y++) {
-        //sort(peWork.begin(), peWork.end());
         for (int x = 0; x < y; x++) {
-          int pe = nextPE(currentPE);
+          if (iter == peWork.end()) {
+            std::sort(peWork.begin(), peWork.end(), peWorkValueSort);
+            //CkPrintf("sorted:\n");
+            iter = peWork.begin();
+          }
+
+          //CkPrintf("(pe, work): (%d, %d)\n", iter->first, iter->second);
+
+          int pe = iter->first;
           CkAssert(pe < numPEs);
-          peWork[pe] += 5 * x;
+          iter->second += 5 * x;
           peBlock[std::make_pair(x, y)] = pe;
-          currentPE = pe;
+          ++iter;
         }
       }
 
-      /* ckout << "--" << endl; */
-      /* for (int x = 0; x < numBlks; x++) { */
-      /*   for (int y = 0; y < numBlks; y++) { */
-      /*     ckout << peBlock[std::make_pair(x, y)] << " "; */
-      /*   } */
-      /*   ckout << endl; */
-      /* } */
-      /* ckout << "--" << endl; */
+      // ckout << "--" << endl;
+      // for (int x = 0; x < numBlks; x++) {
+      //   for (int y = 0; y < numBlks; y++) {
+      //     ckout << peBlock[std::make_pair(x, y)] << " ";
+      //   }
+      //   ckout << endl;
+      // }
+      // ckout << "--" << endl;
     }
 
     int procNum(int arrayHdl, const CkArrayIndex &idx) {
 	int *coor = (int *)idx.data();
         int x = coor[0], y = coor[1];
         int pe = peBlock[std::make_pair(x, y)];
+        //if (pe < 0) return 0;
+        //else return pe;
         CkAssert(pe >= 0);
         return pe;
     }
