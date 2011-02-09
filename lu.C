@@ -1632,11 +1632,29 @@ private:
     if (fabs(LU[col][col]) <= 100 * std::numeric_limits<double>::epsilon() )
         CkAbort("Diagonal element very small despite pivoting. Is the matrix singular??");
 
-    for(int j=col+1; j<BLKSIZE; j++) {
+    for(int j=col+1; j<BLKSIZE; j++)
         LU[j][col] = LU[j][col]/ LU[col][col];
-        for(int k=col+1;k<BLKSIZE;k++)
-            LU[j][k] -= LU[j][col] * LU[col][k];
-    }
+
+    #if 1
+        #if USE_ESSL
+            dger(BLKSIZE-col-1, BLKSIZE-col-1,
+                 -1.0,
+                 &LU[col][col+1], 1,
+                 &LU[col+1][col], BLKSIZE,
+                 &LU[col+1][col+1], BLKSIZE);
+        #else
+            cblas_dger(CblasRowMajor,
+                       BLKSIZE-col-1, BLKSIZE-col-1,
+                       -1.0,
+                       &LU[col+1][col], BLKSIZE,
+                       &LU[col][col+1], 1,
+                       &LU[col+1][col+1], BLKSIZE);
+        #endif
+    #else
+        for(int j=col+1; j<BLKSIZE; j++)
+            for(int k=col+1;k<BLKSIZE;k++)
+                LU[j][k] -= LU[j][col] * LU[col][k];
+    #endif
   }
 
 
