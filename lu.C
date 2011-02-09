@@ -491,6 +491,9 @@ public:
       case 3:
           opts.setMap( CProxy_PE2DTilingMap::ckNew(luCfg.peTileRows, luCfg.peTileCols) );
           break;
+      case 4:
+        opts.setMap( CProxy_StrongScaling1::ckNew(luCfg.numBlocks) );
+        break;
       default:
           CkAbort("Unrecognized mapping scheme specified");
       }

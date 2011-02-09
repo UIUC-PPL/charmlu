@@ -284,3 +284,85 @@ class PE2DTilingMap: public LUMap {
         const int peRows, peCols;
 };
 
+#include <utility>
+#include <map>
+#include <set>
+#include <vector>
+#include <algorithm>
+
+bool mapValueSort (const std::pair<int, int> &p1, const std::pair<int, int> &p2) {
+  return p1.second < p2.second;
+}
+
+class StrongScaling1 : public LUMap {
+private:
+  int numBlks;
+  std::map<std::pair<int, int>, int> peBlock;
+
+  int nextPE(int pe) {
+    return (pe + 1) % CkNumPes();
+  }
+
+public:
+    StrongScaling1(int numBlks_) : numBlks(numBlks_) {
+      int numPEs = CkNumPes();
+      std::vector<int> peWork(numPEs);
+
+      int currentPE = 0;
+
+      for (int i = 0; i < numPEs; i++) {
+        peWork[i] = 0;
+      }
+
+      for (int x = 0; x < numBlks; x++) {
+        for (int y = 0; y < numBlks; y++) {
+          peBlock[std::make_pair(x, y)] = -1;
+        }
+      }
+
+      for (int y = 0; y < numBlks; y++) {
+        for (int x = y; x < numBlks; x++) {
+          int pe = nextPE(currentPE);
+          if (x == y) {
+            // Diagonal "A" block
+            peWork[pe] += 15 * y;
+          } else if (x > y) {
+            // Below diagonal "B" block
+            peWork[pe] += 10 * y;
+          }
+          peBlock[std::make_pair(x, y)] = pe;
+          currentPE = pe;
+        }
+        //startPE = (numBlks-y) % numPEs;
+      }
+
+      for (int y = 0; y < numBlks; y++) {
+        sort(peWork.begin(), peWork.end());
+        for (int x = 0; x < y; x++) {
+          int pe = nextPE(currentPE);
+          peWork[pe] += 5 * x;
+          peBlock[std::make_pair(x, y)] = pe;
+          currentPE = pe;
+        }
+      }
+
+      ckout << "--" << endl;
+      for (int x = 0; x < numBlks; x++) {
+        for (int y = 0; y < numBlks; y++) {
+          ckout << peBlock[std::make_pair(x, y)] << " ";
+        }
+        ckout << endl;
+      }
+      ckout << "--" << endl;
+    }
+
+    int procNum(int arrayHdl, const CkArrayIndex &idx) {
+	int *coor = (int *)idx.data();
+        int x = coor[0], y = coor[1];
+        int pe = peBlock[std::make_pair(x, y)];
+        CkAssert(pe >= 0);
+        return pe;
+    }
+
+    std::string desc() { return "strong scaling"; }
+};
