@@ -367,7 +367,9 @@ public:
              luCfg.pivotBatchSize,
              luCfg.memThreshold,
              luCfg.mappingScheme,
-             luCfg.mappingScheme == 1 ? "Balanced Snake" : (luCfg.mappingScheme==2? "Block Cylic": "2D Tiling")
+             luCfg.mappingScheme == 1 ? "Balanced Snake" :
+               (luCfg.mappingScheme==2 ? "Block Cylic" :
+                 (luCfg.mappingScheme == 3 ? "2D Tiling" : "Strong Scaling"))
              );
     if (luCfg.mappingScheme == 3)
         CkPrintf("\tMapping PE tile size: %d x %d\n", luCfg.peTileRows, luCfg.peTileCols);
@@ -466,14 +468,6 @@ public:
 	numBlks = gMatSize/BLKSIZE;
 #endif
       }
-    
-    
-      char note[200];
-      sprintf(note, "*** New iteration: block size = %d, mapping = %d %s, multicast = %d, memthreshold = %d MB", 
-	      luCfg.blockSize, luCfg.mappingScheme, luCfg.mappingScheme == 1 ? "Balanced Snake" : (luCfg.mappingScheme==2? "Block Cylic": "2D Tiling"), whichMulticastStrategy, luCfg.memThreshold);
-      traceUserSuppliedNote(note);
-      CkPrintf("%s\n", note);
-      fflush(stdout);
     
       CkArrayOptions opts(luCfg.numBlocks, luCfg.numBlocks);
       opts.setAnytimeMigration(false)
