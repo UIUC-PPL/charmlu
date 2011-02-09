@@ -346,14 +346,14 @@ public:
         }
       }
 
-      ckout << "--" << endl;
-      for (int x = 0; x < numBlks; x++) {
-        for (int y = 0; y < numBlks; y++) {
-          ckout << peBlock[std::make_pair(x, y)] << " ";
-        }
-        ckout << endl;
-      }
-      ckout << "--" << endl;
+      /* ckout << "--" << endl; */
+      /* for (int x = 0; x < numBlks; x++) { */
+      /*   for (int y = 0; y < numBlks; y++) { */
+      /*     ckout << peBlock[std::make_pair(x, y)] << " "; */
+      /*   } */
+      /*   ckout << endl; */
+      /* } */
+      /* ckout << "--" << endl; */
     }
 
     int procNum(int arrayHdl, const CkArrayIndex &idx) {
