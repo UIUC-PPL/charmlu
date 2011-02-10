@@ -285,13 +285,13 @@ mainmodule lu {
         CkAssert(pivotBatchTag == thisIndex.x*BLKSIZE);
         pivotRecords.clear();
         numRowsSinceLastPivotSend = 0;
+        // Find the pivot candidate for just the first column in the block
+        pivotCandidate = findLocVal(0, 0);
       }
       // Process matrix column-by-column
       for (activeCol = 0; activeCol < BLKSIZE; ++activeCol) {
         atomic "diag_find_colmax" {
           VERBOSE_PROGRESS(" ..col%d ", thisIndex.x*BLKSIZE + activeCol);
-          // Find the local maximum in the active column
-          pivotCandidate = findLocVal(activeCol, activeCol);
           // Contribute to a redn along the pivot section to identify the pivot row
           mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
         }
@@ -349,7 +349,7 @@ mainmodule lu {
             if (fabs(LU[activeCol][activeCol]) <= 100 * std::numeric_limits<double>::epsilon() )
                 CkAbort("Diagonal element very small despite pivoting. Is the matrix singular??");
             // Compute the multipliers and find the next local pivot candidate
-            locval foo = computeMultipliersAndFindColMax(activeCol, &LU[activeCol][activeCol], activeCol+1);
+            pivotCandidate = computeMultipliersAndFindColMax(activeCol, &LU[activeCol][activeCol], activeCol+1);
             // Update the sub-block
             updateLsubBlock(activeCol, &LU[activeCol][activeCol], 2, activeCol+1);
         }
