@@ -335,8 +335,15 @@ mainmodule lu {
           thisProxy(thisIndex.x, thisIndex.y).diagUpdate(0);
         }
 
+        /// Compute the multipliers and update the trailing sub-block
         when diagUpdate(int a) atomic "diag_update" {
-          diagonalUpdate(activeCol);
+            // Pivoting is done, so the diagonal entry better not be zero; else the matrix is singular
+            if (fabs(LU[activeCol][activeCol]) <= 100 * std::numeric_limits<double>::epsilon() )
+                CkAbort("Diagonal element very small despite pivoting. Is the matrix singular??");
+            // Compute the multipliers and find the next local pivot candidate
+            locval foo = computeMultipliersAndFindColMax(activeCol, &LU[activeCol][activeCol], activeCol+1);
+            // Update the sub-block
+            updateLsubBlock(activeCol, &LU[activeCol][activeCol], 2, activeCol+1);
         }
 
     atomic "diag_agglomerate_pivots" {

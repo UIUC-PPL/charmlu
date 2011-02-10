@@ -1624,22 +1624,6 @@ private:
 
 
 
-  /// Compute the multipliers and update the trailing sub-block
-  void diagonalUpdate(int col) {
-      // Only diagonal chares should use this method
-      CkAssert(thisIndex.x == thisIndex.y);
-      // Pivoting is done, so the diagonal entry better not be zero; else the matrix is singular
-      if (fabs(LU[col][col]) <= 100 * std::numeric_limits<double>::epsilon() )
-          CkAbort("Diagonal element very small despite pivoting. Is the matrix singular??");
-      // Compute the multipliers
-      for(int j=col+1; j<BLKSIZE; j++)
-          LU[j][col] = LU[j][col]/ LU[col][col];
-      // Update the sub-block
-      updateLsubBlock(col, &LU[col][col], 1, col+1);
-  }
-
-
-
   /// Update the sub-block of this L block starting at specified
   /// offset from the active column
   void updateLsubBlock(int activeCol, double* U, int offset=1, int startingRow=0) {
