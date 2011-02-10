@@ -76,6 +76,7 @@ mainmodule lu {
     entry void applyPivots(pivotSequencesMsg *msg);
     entry void acceptPivotData(pivotRowsMsg *msg);
     entry [nokeep] void sendUSegment(UMsg* msg);
+    entry void performUpdate(int dummy);
 
     // Describes the control flow for all (super, sub and on diagonal) LU chares
     entry void factor() {
@@ -198,6 +199,10 @@ mainmodule lu {
           atomic "below_find_pivot" {
             // Contribute to a reduction along the active panel to identify the pivot row
             mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
+            // Allow the scheduler to run to start the contribute
+            thisProxy(thisIndex.x, thisIndex.y).performUpdate(0);
+          }
+          when performUpdate(int dummy) atomic "useg_delayed_update" {
             // Delayed update using the U segment from the prev activeCol iteration
             if (pendingUmsg) {
                 updateLsubBlock(activeCol-1, pendingUmsg->data, 2);
