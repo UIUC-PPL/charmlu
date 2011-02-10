@@ -310,7 +310,7 @@ mainmodule lu {
         }
 
         // Share the pivot info with the appropriate array section
-        when colMax(CkReductionMsg *m) atomic "diag_share_pivot_info" {
+        when colMax(CkReductionMsg *m) atomic "diag_found_colmax_share" {
           pivotCandidate = *(locval *)(m->getData());
           // Send pivot info to all chares that will care (below section)
           pivotMsg *msg = new(sizeof(int)*8) pivotMsg(internalStep*BLKSIZE + activeCol, activeCol + BLKSIZE * thisIndex.y, pivotCandidate.loc);
