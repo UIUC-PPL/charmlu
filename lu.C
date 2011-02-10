@@ -1011,19 +1011,24 @@ public:
     CkGroupID mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
     CkMulticastMgr *mcastMgr = CProxy_CkMulticastMgr(mcastMgrGID).ckLocalBranch();
 
+    /// Chares on the active panels will create sections of their brethren
+    if (thisIndex.x >= thisIndex.y) {
+        activePanel = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.y+1,numBlks-1,1,thisIndex.y,thisIndex.y,1);
+        activePanel.ckSectionDelegate(mcastMgr);
+        rednSetupMsg *activePanelMsg = new rednSetupMsg(mcastMgrGID);
+        activePanel.prepareForActivePanel(activePanelMsg);
+    }
     /// Chares on the array diagonal will now create pivot sections that they will talk to
     if (thisIndex.x == thisIndex.y)
     {
         // Create the pivot section
         pivotSection = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,numBlks-1,1,thisIndex.y,thisIndex.y,1);
-        activePanel = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1,numBlks-1,1,thisIndex.y,thisIndex.y,1);
         pivotLeftSection = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, numBlks-1, 1, 0, thisIndex.y-1, 1);
         pivotRightSection = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, numBlks-1, 1, thisIndex.y+1, numBlks-1, 1);
         rowBeforeDiag = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,thisIndex.x,1,0,thisIndex.y-1,1);
         rowAfterDiag = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,thisIndex.x,1,thisIndex.y+1,numBlks-1,1);
         // Delegate pivot section to the manager
         pivotSection.ckSectionDelegate(mcastMgr);
-        activePanel.ckSectionDelegate(mcastMgr);
         pivotLeftSection.ckSectionDelegate(mcastMgr);
         pivotRightSection.ckSectionDelegate(mcastMgr);
         rowBeforeDiag.ckSectionDelegate(mcastMgr);
@@ -1033,14 +1038,12 @@ public:
 
         // Invoke a dummy mcast so that all the section members know which section to reduce along
         rednSetupMsg *pivotMsg = new rednSetupMsg(mcastMgrGID);
-        rednSetupMsg *activePanelMsg = new rednSetupMsg(mcastMgrGID);
         rednSetupMsg *pivotLeftMsg = new rednSetupMsg(mcastMgrGID);
         rednSetupMsg *pivotRightMsg = new rednSetupMsg(mcastMgrGID);
         rednSetupMsg *rowBeforeMsg = new rednSetupMsg(mcastMgrGID);
         rednSetupMsg *rowAfterMsg = new rednSetupMsg(mcastMgrGID);
 
         pivotSection.prepareForPivotRedn(pivotMsg);
-        activePanel.prepareForActivePanel(activePanelMsg);
         pivotLeftSection.prepareForPivotLR(pivotLeftMsg);
         pivotRightSection.prepareForPivotLR(pivotRightMsg);
         rowBeforeDiag.prepareForRowBeforeDiag(rowBeforeMsg);
@@ -1058,6 +1061,8 @@ public:
 
     // All chares except members of pivot sections are done with init
   }
+
+  void prepareForActivePanel(rednSetupMsg *msg) { delete msg; }
 
   ~LUBlk() {
     //CkPrintf("freeing LuBlk\n");

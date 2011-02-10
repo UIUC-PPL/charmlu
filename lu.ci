@@ -386,7 +386,6 @@ mainmodule lu {
             mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
             CkGetSectionInfo(rowBeforeCookie, msg);
           }
-          when prepareForActivePanel(rednSetupMsg *msg) atomic { }
         } else if (thisIndex.x < thisIndex.y) {
           when prepareForRowAfterDiag(rednSetupMsg *msg) atomic {
             mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
