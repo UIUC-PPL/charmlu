@@ -414,11 +414,10 @@ public:
   }
 
   void continueIter() {
-    CkCallback *cb = new CkCallback(CkIndex_Main::arrayIsCreated(NULL), thisProxy);
-    CkStartQD(*cb); // required currently for use with new Comlib
+    arrayIsCreated();
   }
 
-  void arrayIsCreated(CkReductionMsg * m) {
+  void arrayIsCreated() {
     startTime = CmiWallTimer();
     luArrProxy.factor();
   }
