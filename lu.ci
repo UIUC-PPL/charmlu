@@ -215,12 +215,21 @@ mainmodule lu {
                 thisProxy(thisIndex.y, thisIndex.y)
                 .sendPivotData(internalStep*BLKSIZE + activeCol, BLKSIZE, &LU[msg->row2 % BLKSIZE][0], bvec[msg->row2 % BLKSIZE], &opts);
               }
+              // Now, send the post-diagonal portion of the pivot row (a segment of U) to all active panel brethren
+              // so that they can start updating their sub-blocks right away
+              atomic "below_send_useg" {
+                  UMsg *anUmsg = new(BLKSIZE - activeCol, sizeof(int)*8) UMsg(BLKSIZE - activeCol, &LU[msg->row2%BLKSIZE][activeCol]);
+                  *(int*)CkPriorityPtr(anUmsg) = -1;
+                  CkSetQueueing(anUmsg, CK_QUEUEING_IFIFO);
+                  activePanel.sendUSegment(anUmsg);
+              }
+              // Wait for the replacement row from the diagonal chare so that you have the updated block
               when sendPivotData[internalStep*BLKSIZE + activeCol](int rowIndex, int size, double data[size], double b) atomic "below_recv_remote_pivot" {
                 applySwap(msg->row2 % BLKSIZE, 0, data, b);
               }
             }
           }
-          // The diagonal chare also then sends out the post-pivoting row that can be used for updates
+          // Wait for the post-diagonal U segment from the original owner of the pivot row
           when sendUSegment(UMsg* anUmsg) atomic "below_recv_useg" {
             // Compute multipliers and update just one column to find the next candidate pivot
             pivotCandidate = computeMultipliersAndFindColMax(activeCol, anUmsg->data);
@@ -320,16 +329,17 @@ mainmodule lu {
                     applySwap(activeCol, 0, data, b);
                 }
             } else {
+                // Now, send the post-diagonal portion of the pivot row (a segment of U) to all active panel brethren
+                // so that they can start updating their sub-blocks right away
+                atomic "diag_send_useg" {
+                    UMsg *anUmsg = new(BLKSIZE - activeCol, sizeof(int)*8) UMsg(BLKSIZE - activeCol, &LU[msg->row2%BLKSIZE][activeCol]);
+                    *(int*)CkPriorityPtr(anUmsg) = -1;
+                    CkSetQueueing(anUmsg, CK_QUEUEING_IFIFO);
+                    activePanel.sendUSegment(anUmsg);
+                // Perform the local pivoting
+                }
                 atomic "diag_local_pivot" { swapLocal(activeCol, msg->row2 % BLKSIZE); }
             }
-        }
-
-        // Now, send the post-diagonal portion of the matrix row (a segment of U)
-        atomic "diag_send_useg" {
-          UMsg *msg = new(BLKSIZE - activeCol, sizeof(int)*8) UMsg(BLKSIZE - activeCol, &LU[activeCol][activeCol]);
-          *(int*)CkPriorityPtr(msg) = -1;
-	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
-          activePanel.sendUSegment(msg);
         }
 
         atomic "diag_agglomerate_pivots" {
