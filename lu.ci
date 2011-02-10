@@ -39,7 +39,7 @@ mainmodule lu {
     entry Main(CkArgMsg *m);
     entry void finishInit();
     entry void continueIter();
-    entry void arrayIsCreated(CkReductionMsg *);
+    entry void arrayIsCreated();
     entry void outputStats();
     entry void calcScaledResidual(CkReductionMsg *);
     entry void done(pathInformationMsg *m);
