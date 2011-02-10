@@ -308,7 +308,7 @@ mainmodule lu {
         // Perform whatever pivoting may be required
         when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) {
             // If required chunk of pivot row is not with me (but in a chare below me)
-            if (pivotCandidate.loc / BLKSIZE != thisIndex.x) {
+            if (msg->row2 / BLKSIZE != thisIndex.x) {
                 atomic "diag_send_remote_pivot" {
                     // Trigger swap of data
                     CkEntryOptions opts;
@@ -320,7 +320,7 @@ mainmodule lu {
                     applySwap(activeCol, 0, data, b);
                 }
             } else {
-                atomic "diag_local_pivot" { swapLocal(pivotCandidate.loc - BLKSIZE * thisIndex.x, activeCol); }
+                atomic "diag_local_pivot" { swapLocal(activeCol, msg->row2 % BLKSIZE); }
             }
         }
 
