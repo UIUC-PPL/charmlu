@@ -305,24 +305,23 @@ mainmodule lu {
           pivotSection.doPivot(msg);
         }
 
-        // If required chunk of pivot row is not with me (but in a chare below me)
-        if (pivotCandidate.loc / BLKSIZE != thisIndex.x) {
-          when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) atomic "diag_send_remote_pivot" {
-            // Trigger swap of data
-            CkEntryOptions opts;
-            opts.setPriority(-1);
-            thisProxy(msg->row2 / BLKSIZE, thisIndex.y)
-            .sendPivotData(internalStep*BLKSIZE + activeCol, BLKSIZE, &LU[msg->row1 % BLKSIZE][0], bvec[msg->row1 % BLKSIZE], &opts);
-          }
-          when sendPivotData[internalStep*BLKSIZE + activeCol](int rowIndex, int size,
-                                                               double data[size], double b) atomic "diag_receive_remote_pivot" {
-            applySwap(activeCol, 0, data, b);
-          }
-        } else {
-          when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) atomic "diag_local_pivot" {
-            //DEBUG_PIVOT("swapLocal being called\n");
-            swapLocal(pivotCandidate.loc - BLKSIZE * thisIndex.x, activeCol);
-          }
+        // Perform whatever pivoting may be required
+        when doPivot[internalStep*BLKSIZE + activeCol](pivotMsg *msg) {
+            // If required chunk of pivot row is not with me (but in a chare below me)
+            if (pivotCandidate.loc / BLKSIZE != thisIndex.x) {
+                atomic "diag_send_remote_pivot" {
+                    // Trigger swap of data
+                    CkEntryOptions opts;
+                    opts.setPriority(-1);
+                    thisProxy(msg->row2 / BLKSIZE, thisIndex.y)
+                    .sendPivotData(internalStep*BLKSIZE + activeCol, BLKSIZE, &LU[msg->row1 % BLKSIZE][0], bvec[msg->row1 % BLKSIZE], &opts);
+                }
+                when sendPivotData[internalStep*BLKSIZE + activeCol](int rowIndex, int size, double data[size], double b) atomic "diag_receive_remote_pivot" {
+                    applySwap(activeCol, 0, data, b);
+                }
+            } else {
+                atomic "diag_local_pivot" { swapLocal(pivotCandidate.loc - BLKSIZE * thisIndex.x, activeCol); }
+            }
         }
 
         // Now, send the post-diagonal portion of the matrix row (a segment of U)
