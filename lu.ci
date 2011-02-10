@@ -76,7 +76,6 @@ mainmodule lu {
     entry void applyPivots(pivotSequencesMsg *msg);
     entry void acceptPivotData(pivotRowsMsg *msg);
     entry [nokeep] void sendUSegment(UMsg* msg);
-    entry void diagUpdate(int);
 
     // Describes the control flow for all (super, sub and on diagonal) LU chares
     entry void factor() {
@@ -332,7 +331,6 @@ mainmodule lu {
           *(int*)CkPriorityPtr(msg) = -1;
 	  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
           activePanel.sendUSegment(msg);
-          thisProxy(thisIndex.x, thisIndex.y).diagUpdate(0);
         }
 
         atomic "diag_agglomerate_pivots" {
@@ -344,7 +342,7 @@ mainmodule lu {
         }
 
         /// Compute the multipliers and update the trailing sub-block
-        when diagUpdate(int a) atomic "diag_update" {
+        atomic "diag_update" {
             // Pivoting is done, so the diagonal entry better not be zero; else the matrix is singular
             if (fabs(LU[activeCol][activeCol]) <= 100 * std::numeric_limits<double>::epsilon() )
                 CkAbort("Diagonal element very small despite pivoting. Is the matrix singular??");
