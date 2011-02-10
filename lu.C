@@ -1645,6 +1645,9 @@ private:
   void updateLsubBlock(int activeCol, double* U, int offset=1, int startingRow=0) {
       // Should only get called on L blocks
       CkAssert(thisIndex.x >= thisIndex.y);
+      // Check for input edge cases
+      if ( (activeCol + offset) >= BLKSIZE || startingRow >= BLKSIZE )
+          return;
 #if 1
       #if USE_ESSL
           dger(BLKSIZE-(activeCol+offset), BLKSIZE-startingRow,
@@ -1676,6 +1679,9 @@ private:
       // Should only get called on L blocks
       CkAssert(thisIndex.x >= thisIndex.y);
       locval maxVal;
+      // Check for input edge cases
+      if (col >= BLKSIZE || startingRow >= BLKSIZE)
+          return maxVal;
 
       if (col < BLKSIZE -1) {
           for (int j = startingRow; j < BLKSIZE; j++) {
