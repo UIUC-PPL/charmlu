@@ -188,17 +188,6 @@ class UMsg : public CMessage_UMsg, public CkMcastBaseMsg {
         double *data;
 };
 
-struct pivotMsg: public CMessage_pivotMsg, public CkMcastBaseMsg {
-    /// @todo: active row is the same as row 1, right? Delete if not needed
-  int activeRow, row1, row2;
-
-  pivotMsg(int activeRow_, int row1_, int row2_) :
-    activeRow(activeRow_), row1(row1_), row2(row2_) {
-    CkSetRefNum(this, activeRow);
-  }
-};
-
-
 class pivotSequencesMsg: public CMessage_pivotSequencesMsg, public CkMcastBaseMsg
 {
     public:
@@ -1013,7 +1002,12 @@ public:
 
     /// Chares on the active panels will create sections of their brethren
     if (thisIndex.x >= thisIndex.y) {
-        activePanel = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.y+1,numBlks-1,1,thisIndex.y,thisIndex.y,1);
+        // Elements in the active panel, not including this block
+        CkVec<CkArrayIndex2D> activeElems;
+        for (int i = thisIndex.y+1; i < numBlks; i++)
+	  if (i != thisIndex.x)
+	    activeElems.push_back(CkArrayIndex2D(i, thisIndex.y));
+        activePanel = CProxySection_LUBlk::ckNew(thisArrayID, activeElems.getVec(), activeElems.size());
         activePanel.ckSectionDelegate(mcastMgr);
         rednSetupMsg *activePanelMsg = new rednSetupMsg(mcastMgrGID);
         activePanel.prepareForActivePanel(activePanelMsg);
