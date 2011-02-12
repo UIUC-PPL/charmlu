@@ -541,6 +541,7 @@ public:
     } peaks[] = {{"order.cs.uiuc.edu", 7.4585},
 		 {"abe.ncsa.uiuc.edu", 9.332},
 		 {"Kraken", 10.4},
+                 {"Jaguar XT5", 10.3987},
 		 {"BG/P", 3.4}};
 
     for (int i = 0; i < sizeof(peaks)/sizeof(peaks[0]); ++i) {
