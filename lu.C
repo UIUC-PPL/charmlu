@@ -1131,20 +1131,6 @@ public:
 #endif
   }
 
-  void computeL(blkMsg *givenUMsg) {
-    traceLU t(internalStep, traceComputeL);
-    double *givenU = givenUMsg->data;
-    //	  CkAssert( ((unsigned long)givenU) % 16 == 0);
-
-    DEBUG_PRINT("computeL called");
-
-#if USE_ESSL
-    dtrsm("R", "U", "N", "N", BLKSIZE, BLKSIZE, 1.0, givenU, BLKSIZE, LU[0], BLKSIZE);
-#else
-    cblas_dtrsm(CblasRowMajor, CblasRight, CblasUpper, CblasNoTrans, CblasNonUnit, BLKSIZE, BLKSIZE, 1.0, givenU, BLKSIZE, LU[0], BLKSIZE);
-#endif
-  }
-
   void updateMatrix(blkMsg *givenLMsg, blkMsg *givenUMsg) {
     traceLU t(internalStep, traceTrailingUpdate);
 
