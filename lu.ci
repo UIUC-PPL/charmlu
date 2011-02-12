@@ -1,13 +1,10 @@
 mainmodule lu {
   readonly CProxy_Main mainProxy;
-
-  readonly ComlibInstanceHandle multicastStats[4];
   readonly int traceTrailingUpdate;
   readonly int traceComputeU;
   readonly int traceComputeL;
   readonly int traceSolveLocalLU;
   readonly CProxy_locker lg;
-//  readonly int memThreshold;
 
   // Register the reducer function that handles reductions of locval
   initproc void registerLocValReducer();

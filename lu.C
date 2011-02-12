@@ -56,7 +56,6 @@ extern "C" {
 #include <malloc.h>
 #endif
 
-#include <comlib.h>
 #include "lu.decl.h"
 #include <trace-projections.h>
 #include <ckmulticast.h>
@@ -68,7 +67,6 @@ int traceTrailingUpdate;
 int traceComputeU;
 int traceComputeL;
 int traceSolveLocalLU;
-ComlibInstanceHandle multicastStats[4];
 CProxy_locker lg;
 
 #ifdef CHARMLU_DEBUG
@@ -382,11 +380,6 @@ public:
     traceRegisterUserEvent("Local Multicast Deliveries", 10000);    
     traceRegisterUserEvent("Remote Multicast Forwarding - preparing", 10001);
     traceRegisterUserEvent("Remote Multicast Forwarding - sends", 10002);
-
-    multicastStats[0] = ComlibRegister(new OneTimeRingMulticastStrategy() ); 
-    multicastStats[1] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(2) ); 
-    multicastStats[2] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(3) ); 
-    multicastStats[3] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(4) ); 
 
     lg = CProxy_locker::ckNew();
 
@@ -1117,21 +1110,9 @@ public:
     
     DEBUG_PRINT("Multicast to part of column %d", thisIndex.y);
     
-    //CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
-
-    //if (whichMulticastStrategy > -1)
-    //ComlibAssociateProxy(multicastStats[whichMulticastStrategy], oneCol);
-
     blkMsg *givenU = createABlkMsg();
     *(int*)CkPriorityPtr(givenU) = -1;
     belowMulticastL.recvU(givenU);
-
-//     for(int i=thisIndex.x+1; i<numBlks; i++){
-//	 blkMsg *givenU = createABlkMsg();
-//	 DEBUG_PRINT("P2P sending U from %d,%d down to %d,%d\n", thisIndex.x, thisIndex.y, i,thisIndex.y);
-//	 thisProxy(i,thisIndex.y).updateRecvU(givenU);
-//     }
-    
   }
   
   //broadcast the L rightwards to the blocks in the same row
@@ -1141,20 +1122,10 @@ public:
     
     CProxySection_LUBlk oneRow = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, thisIndex.x, 1, thisIndex.y+1, numBlks-1, 1);
     
-    if (whichMulticastStrategy > -1)
-      ComlibAssociateProxy(multicastStats[whichMulticastStrategy], oneRow);
-    
     DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
     blkMsg *givenL = createABlkMsg();
     *(int*)CkPriorityPtr(givenL) = -1;
     oneRow.recvL(givenL);
-    
-//     for(int i=thisIndex.y+1; i<numBlks; i++){
-//	 blkMsg *givenL = createABlkMsg();
-//	 DEBUG_PRINT("P2P sending L from %d,%d right to %d,%d\n", thisIndex.x, thisIndex.y, thisIndex.x, i);
-//	 thisProxy(thisIndex.x, i).updateRecvL(givenL);
-//     }
-    
   }
 
   void processComputeU(int ignoredParam) {
