@@ -1641,26 +1641,24 @@ private:
       // Check for input edge cases
       if ( (activeCol + offset) >= BLKSIZE || startingRow >= BLKSIZE )
           return;
-#if 1
-      #if USE_ESSL || USE_ACML
-          dger(BLKSIZE-(activeCol+offset), BLKSIZE-startingRow,
-               -1.0,
-               U+offset, 1,
-               &LU[startingRow][activeCol], BLKSIZE,
-               &LU[startingRow][activeCol+offset], BLKSIZE);
-      #else
-          cblas_dger(CblasRowMajor,
-                     BLKSIZE-startingRow, BLKSIZE-(activeCol+offset),
-                     -1.0,
-                     &LU[startingRow][activeCol], BLKSIZE,
-                     U+offset, 1,
-                     &LU[startingRow][activeCol+offset], BLKSIZE);
-      #endif
-#else
+  #if USE_ESSL || USE_ACML
+      dger(BLKSIZE-(activeCol+offset), BLKSIZE-startingRow,
+           -1.0,
+           U+offset, 1,
+           &LU[startingRow][activeCol], BLKSIZE,
+           &LU[startingRow][activeCol+offset], BLKSIZE);
+  #elif USE_ACCELERATE_BLAS
       for(int j = startingRow; j < BLKSIZE; j++)
-          for(int k = activeCol+offset; k<BLKSIZE; k++)
-              LU[j][k] -=  LU[j][activeCol] * U[k-activeCol];
-#endif
+        for(int k = activeCol+offset; k<BLKSIZE; k++)
+          LU[j][k] -=  LU[j][activeCol] * U[k-activeCol];
+  #else
+      cblas_dger(CblasRowMajor,
+                 BLKSIZE-startingRow, BLKSIZE-(activeCol+offset),
+                 -1.0,
+                 &LU[startingRow][activeCol], BLKSIZE,
+                 U+offset, 1,
+                 &LU[startingRow][activeCol+offset], BLKSIZE);
+  #endif
   }
 
 
