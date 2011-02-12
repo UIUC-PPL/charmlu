@@ -57,7 +57,6 @@ extern "C" {
 #endif
 
 #include <comlib.h>
-#include <controlPoints.h> // must come before user decl.h if they are using the pathInformationMsg
 #include "lu.decl.h"
 #include <trace-projections.h>
 #include <ckmulticast.h>
@@ -389,15 +388,6 @@ public:
     multicastStats[2] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(3) ); 
     multicastStats[3] = ComlibRegister(new OneTimeNodeTreeMulticastStrategy(4) ); 
 
-    ControlPoint::EffectIncrease::GrainSize("block_size");
-    ControlPoint::EffectDecrease::Concurrency("block_size");
-    
-    //	  ControlPoint::EffectIncrease::Concurrency("mapping");
-    ControlPoint::EffectIncrease::NumMessages("mapping");
-    ControlPoint::EffectIncrease::MessageOverhead("mapping");
-
-    ControlPoint::EffectIncrease::MemoryConsumption("memory_threshold");
-
     lg = CProxy_locker::ckNew();
 
     thisProxy.iterationCompleted();
@@ -429,12 +419,6 @@ public:
     }
 
     if (solved && LUcomplete) {
-      double endTime = CmiWallTimer();
-      double duration = endTime - startTime;
-      registerControlPointTiming(duration);
-      
-      CkPrintf("Iteration %d time: %fs\n", iteration, duration);
-      
       outputStats();
 
       //VALIDATION: Instead of ending program, perform validation
@@ -446,25 +430,6 @@ public:
       solved = true;
       iteration++;
     } else {
-      // Only advance phases after a few factorizations have been performed
-      // Prior to the first phase of actual work, iteration=1
-      if( 1 || iteration % 2 == 1 || iteration==1){
-#if 0
-	gotoNextPhase();
-      
-	whichMulticastStrategy = controlPoint("multicast_strategy", 2, 2);
-	BLKSIZE = 1 << 2; //1 << controlPoint("block_size", 10,10);
-	mapping = controlPoint("mapping", 1, 1);
-	memThreshold = 200 + controlPoint("memory_threshold", 0, 20) * 100;
-      
-	// CkPrintf("%d %d %d\n",  (int)BLKSIZE, (int)mapping, (int)whichMulticastStrategy);
-	// fflush(stdout);
-	// fflush(stderr);
-      
-	numBlks = gMatSize/BLKSIZE;
-#endif
-      }
-    
       CkArrayOptions opts(luCfg.numBlocks, luCfg.numBlocks);
       opts.setAnytimeMigration(false)
 	  .setStaticInsertion(true);
@@ -576,18 +541,8 @@ public:
 		CkPrintf("=== WARNING: Scaled residual is greater than 16 - OUT OF SPEC ===\n");
 
 	delete msg;
-
-    CkCallback cb(CkIndex_Main::done(NULL),thisProxy); 
-    traceCriticalPathBack(cb);
+        CkExit();
   }
-
-  void done(pathInformationMsg *m){
-    // CkPrintf("Main::done() After critical path has been determined\n");
-    //	  m->printme();
-    gotoNextPhase(); // Make sure we get timings for the phase that just finished.
-    CkExit();
-  }
-
 };
 
 
