@@ -24,6 +24,11 @@ extern "C" {
 
 #elif USE_ACML_H
 #include "acml.h"
+#define BLAS_TRANSPOSE 'T'
+#define BLAS_NOTRANSPOSE 'N'
+#define BLAS_RIGHT 'R'
+#define BLAS_UPPER 'U'
+#define BLAS_UNIT 'U'
 
 #elif USE_ACCELERATE_BLAS
 #include <Accelerate/Accelerate.h>
@@ -33,6 +38,11 @@ extern "C" {
 #include <complex>
 #include <essl.h>
 
+#define BLAS_TRANSPOSE "T"
+#define BLAS_NOTRANSPOSE "N"
+#define BLAS_RIGHT "R"
+#define BLAS_UPPER "U"
+#define BLAS_UNIT "U"
 
 #else
 #error "No BLAS Header files included!"
@@ -725,8 +735,8 @@ public:
 	  double *partial_b = new double[BLKSIZE];
 
 	  //Perform local dgemv
-#if USE_ESSL
-    dgemv("T", BLKSIZE, BLKSIZE, 1.0, LU[0], BLKSIZE, xvec, 1, 0.0, partial_b, 1);
+#if USE_ESSL || USE_ACML
+    dgemv(BLAS_TRANSPOSE, BLKSIZE, BLKSIZE, 1.0, LU[0], BLKSIZE, xvec, 1, 0.0, partial_b, 1);
 #else
     cblas_dgemv( CblasRowMajor, CblasNoTrans,
               BLKSIZE, BLKSIZE, 1.0, LU[0],
@@ -836,8 +846,8 @@ public:
 
       double startTest = CmiWallTimer(); 
       
-#if USE_ESSL
-      dgemm( "N", "N",
+#if USE_ESSL || USE_ACML
+      dgemm( BLAS_NOTRANSPOSE, BLAS_NOTRANSPOSE,
 	     blocksize, blocksize, blocksize,
 	     -1.0, m1,
 	     blocksize, m2, blocksize,
@@ -862,8 +872,8 @@ public:
 
       {
 
-#if USE_ESSL
-      dgemm( "T", "T",
+#if USE_ESSL || USE_ACML
+      dgemm( BLAS_TRANSPOSE, BLAS_TRANSPOSE,
 	     blocksize, blocksize, blocksize,
 	     -1.0, m1,
 	     blocksize, m2, blocksize,
@@ -1111,11 +1121,11 @@ public:
     //solve following rows based on previously solved rows
     //row indicates the row of U that is just solved
 
-#if USE_ESSL
+#if USE_ESSL || USE_ACML
     // givenL is implicitly transposed by telling dtrsm that it is a
     // right, upper matrix. Since this also switches the order of
     // multiplication, the transpose is output to LU.
-    dtrsm("R", "U", "N", "U", BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU[0], BLKSIZE);
+    dtrsm(BLAS_RIGHT, BLAS_UPPER, BLAS_NOTRANSPOSE, BLAS_UNIT, BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU[0], BLKSIZE);
 #else
     cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU[0], BLKSIZE);
 #endif
@@ -1141,10 +1151,10 @@ public:
     double *incomingL = givenLMsg->data;
     double *incomingU = givenUMsg->data;
 
-#if USE_ESSL
+#if USE_ESSL || USE_ACML
     // By switching the order of incomingU and incomingL the transpose
     // is applied implicitly: C' = B*A
-    dgemm( "N", "N",
+    dgemm( BLAS_NOTRANSPOSE, BLAS_NOTRANSPOSE,
 	   BLKSIZE, BLKSIZE, BLKSIZE,
 	   -1.0, incomingU,
 	   BLKSIZE, incomingL, BLKSIZE,
@@ -1632,7 +1642,7 @@ private:
       if ( (activeCol + offset) >= BLKSIZE || startingRow >= BLKSIZE )
           return;
 #if 1
-      #if USE_ESSL
+      #if USE_ESSL || USE_ACML
           dger(BLKSIZE-(activeCol+offset), BLKSIZE-startingRow,
                -1.0,
                U+offset, 1,
