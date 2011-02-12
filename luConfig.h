@@ -30,7 +30,8 @@ class LUConfig {
         }
 
 
-
+        /// The size of the matrix
+        int matrixSize;
         /// The size of each square block of the matrix
         int blockSize;
         /// The number of blocks comprising the whole square matrix

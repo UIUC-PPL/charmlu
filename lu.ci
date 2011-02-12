@@ -37,7 +37,7 @@ mainmodule lu {
     entry void arrayIsCreated();
     entry void outputStats();
     entry void calcScaledResidual(CkReductionMsg *);
-    entry void iterationCompleted();
+    entry void startNextStep();
   };
 
   group LUMgr { };
@@ -279,7 +279,7 @@ mainmodule lu {
       if (thisIndex.x != thisIndex.y) {
         atomic "offdiag_iteration_completed" {
           DEBUG_PRINT("contributing");
-          contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
+          contribute(CkCallback(CkIndex_Main::startNextStep(), mainProxy));
         }
       }
     };
@@ -366,7 +366,7 @@ mainmodule lu {
         }
         // Contribute to a reduction indicating that this chare is done with its factorization work
 	DEBUG_PRINT("contributing");
-        contribute(CkCallback(CkIndex_Main::iterationCompleted(), mainProxy));
+        contribute(CkCallback(CkIndex_Main::startNextStep(), mainProxy));
         VERBOSE_PROGRESS("\n");
       }
     };
@@ -375,9 +375,9 @@ mainmodule lu {
     entry void beginBackward(int size, double preVec[size]);
     entry void recvSolveData(CkReductionMsg *m);
 
-    entry void startup(const LUConfig luCfg, int _whichMulticastStrategy, CProxy_LUMgr _mgr) {
+    entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr) {
       atomic {
-        init(luCfg, _whichMulticastStrategy, _mgr);
+        init(luCfg, _mgr);
       }
       when multicastRedns(int dummy) {
         if (thisIndex.x >= thisIndex.y) {
@@ -447,7 +447,7 @@ mainmodule lu {
         atomic {
           localBackward(bvec);
           if (thisIndex.x == 0)
-            mainProxy.iterationCompleted();
+            mainProxy.startNextStep();
           else {
             // Broadcast upward from diagonal beginBackward
             CProxySection_LUBlk col = CProxySection_LUBlk::ckNew(thisArrayID,

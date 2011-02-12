@@ -286,18 +286,12 @@ static inline void dropRef(void *m) {
 class Main : public CBase_Main {
   LUConfig luCfg;
   double startTime;
-  int iteration;
-  int numIterations;
-
-  int gMatSize;
-  int whichMulticastStrategy;
-  bool solved, LUcomplete, workStarted;
+  bool solved, LUcomplete;
   bool sentVectorData;
-
   CProxy_LUBlk luArrProxy;
 
 public:
-    Main(CkArgMsg* m) : iteration(0), numIterations(1), solved(false), LUcomplete(false), workStarted(false), sentVectorData(false) {
+    Main(CkArgMsg* m) : solved(false), LUcomplete(false), sentVectorData(false) {
 
     if (m->argc<4) {
       CkPrintf("Usage: %s <matrix size> <block size> <mem threshold> [<pivot batch size> <mapping scheme> [<peTileRows> <peTileCols>] ]\n", m->argv[0]);
@@ -305,7 +299,7 @@ public:
     }
 
     /// Parse the command line and accept user input
-    gMatSize             = atoi(m->argv[1]);
+    luCfg.matrixSize     = atoi(m->argv[1]);
     luCfg.blockSize      = atoi(m->argv[2]);
     luCfg.memThreshold   = atoi(m->argv[3]);
 
@@ -339,15 +333,13 @@ public:
     else
         luCfg.mappingScheme = 1;
 
-    numIterations = 1;
-    CkPrintf("CLI: numIterations=%d\n", numIterations);
-
-    if (gMatSize%luCfg.blockSize!=0) {
-      CkPrintf("The matrix size %d should be a multiple of block size %d!\n", gMatSize, luCfg.blockSize);
+    if (luCfg.matrixSize % luCfg.blockSize!=0) {
+      CkPrintf("The matrix size %d should be a multiple of block size %d!\n",
+               luCfg.matrixSize, luCfg.blockSize);
       CkExit();
     }
 
-    luCfg.numBlocks = gMatSize / luCfg.blockSize;
+    luCfg.numBlocks = luCfg.matrixSize / luCfg.blockSize;
 
     CkPrintf("Running LU on %d processors (%d nodes): "
              "\n\tMatrix size: %d X %d "
@@ -357,7 +349,7 @@ public:
              "\n\tMem Threshold (MB): %d"
              "\n\tMapping Scheme: %d (%s)\n",
              CkNumPes(), CmiNumNodes(),
-             gMatSize, gMatSize,
+             luCfg.matrixSize, luCfg.matrixSize,
              luCfg.blockSize, luCfg.blockSize,
              luCfg.numBlocks, luCfg.numBlocks,
              luCfg.pivotBatchSize,
@@ -383,7 +375,7 @@ public:
 
     lg = CProxy_locker::ckNew();
 
-    thisProxy.iterationCompleted();
+    thisProxy.startNextStep();
   }
 
   void finishInit() {
@@ -404,24 +396,15 @@ public:
     luArrProxy.factor();
   }
 
-  void iterationCompleted() {
-    CkPrintf("called iterationCompleted()\n");
-
-    if (workStarted) {
-      LUcomplete = true;
-    }
-
+  void startNextStep() {
     if (solved && LUcomplete) {
       outputStats();
-
-      //VALIDATION: Instead of ending program, perform validation
-      //terminateProg();
+      //Perform validation
       luArrProxy.startValidation();
     } else if (!solved && LUcomplete) {
       luArrProxy.print();
       luArrProxy(0,0).forwardSolve();
       solved = true;
-      iteration++;
     } else {
       CkArrayOptions opts(luCfg.numBlocks, luCfg.numBlocks);
       opts.setAnytimeMigration(false)
@@ -446,13 +429,13 @@ public:
         CkAbort("Unrecognized mapping scheme specified");
       }
 
-      CProxy_LUMgr mgr = CProxy_PrioLU::ckNew(luCfg.blockSize, gMatSize);
+      CProxy_LUMgr mgr = CProxy_PrioLU::ckNew(luCfg.blockSize, luCfg.matrixSize);
 
       luArrProxy = CProxy_LUBlk::ckNew(opts);
 
-      workStarted = true;
+      LUcomplete = true;
     
-      luArrProxy.startup(luCfg, 0, mgr);
+      luArrProxy.startup(luCfg, mgr);
     }
   }
 
@@ -483,12 +466,12 @@ public:
     double endTime = CmiWallTimer();
     double duration = endTime-startTime;
 
-    double n = gMatSize;
+    double n = luCfg.matrixSize;
 
     long long flopCount = 0;	 // floating point ops
-    for (int i=1;i<=gMatSize;i++) {
-      for (int j=1+i; j<=gMatSize; j++) {
-	flopCount += (1+2*gMatSize-2*i);
+    for (int i = 1; i <= n; i++) {
+      for (int j = 1 + i; j <= n; j++) {
+	flopCount += (1 + 2 * n - 2 * i);
       }
     }
 
@@ -625,14 +608,9 @@ class LUBlk: public CBase_LUBlk {
 
   LUBlk_SDAG_CODE
 
-  // The following declarations are used for optimization and
-  // analysis. They are not essential to the algorithm.
-  int whichMulticastStrategy;
-
 public:
   LUBlk() : storedVec(NULL), diagRec(0), msgsRecvd(0) {
       __sdag_init();
-    whichMulticastStrategy = 0;
 
     //CkAssert(BLKSIZE>0); // If this fails, readonly variables aren't
 			 // propagated soon enough. I'm assuming they
@@ -888,9 +866,8 @@ public:
       rnd.getNRndDoubles(BLKSIZE, buf);
     }
 
-  void init(const LUConfig _cfg, int _whichMulticastStrategy, CProxy_LUMgr _mgr) {
+  void init(const LUConfig _cfg, CProxy_LUMgr _mgr) {
     cfg = _cfg;
-    whichMulticastStrategy = _whichMulticastStrategy;
     BLKSIZE = cfg.blockSize;
     numBlks = cfg.numBlocks;
     mgr = _mgr.ckLocalBranch();
