@@ -27,14 +27,14 @@ BLAS_LIBS = -lcblas
 
 
 # To compile on Cray XT5 with "module load atlas/3.8.3"
-#BLAS_INC  = -I$(ATLAS_DIR)/include -DUSE_BLAS  -DUSE_CBLAS_H=1 -DUSE_MEMALIGN
-#BLAS_LD   = -L$(ATLAS_DIR)/lib
+#BLAS_INC  = -I$(ATLASINCLUDE) -DUSE_BLAS  -DUSE_CBLAS_H=1 -DUSE_MEMALIGN
+#BLAS_LD   = -L$(ATLAS_LIB)
 #BLAS_LIBS = -llapack -lf77blas -lcblas -latlas
 
 # To compile on Cray XT5 with "module load acml"
-#BLAS_INC  = -I/lustre/scratch/idooley2/LU/CBLAS/include  -DUSE_CBLAS_H=1
-#BLAS_LD   = -L/lustre/scratch/idooley2/LU/CBLAS/lib -L$(ACML_DIR)/gfortran64/lib/
-#BLAS_LIBS = -lcblas -llibacml 
+#BLAS_INC  =  -I$(ACML_DIR)/pgi64/include/ -DUSE_ACML_H=1 -DUSE_ACML
+#BLAS_LD   = -L$(ACML_DIR)/pgi64/lib/
+#BLAS_LIBS = -lacml
 
 
 # To compile on BG/P with ESSL:
