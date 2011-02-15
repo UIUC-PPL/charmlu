@@ -28,6 +28,7 @@ LDFLAGS  += -module comlib -module CkMulticast -tracemode projections $(BLAS_LD)
 LDLIBS   += $(BLAS_LIBS)
 EXEC      = ./charmrun
 EXECFLAGS = +p$(NP)
+TEST_SCRIPT=test_lu.pl
 ifdef $(NODELIST)
   EXECFLAGS += ++nodelist $(NODELIST)
 endif
@@ -56,25 +57,7 @@ test: all
 	$(EXEC) $(EXECFLAGS) $(TARGET) $(ARGS)
 
 regtest: all
-	@echo "	########################################################################################"
-	@echo "Running a bunch of different block sizes"
-	$(EXEC) $(EXECFLAGS) $(TARGET)   48  48 500 2>&1 | grep residual
-	$(EXEC) $(EXECFLAGS) $(TARGET)   48  24 500 2>&1 | grep residual
-	$(EXEC) $(EXECFLAGS) $(TARGET)   48  16 500 2>&1 | grep residual
-	$(EXEC) $(EXECFLAGS) $(TARGET)   48  12 500 2>&1 | grep residual
-	$(EXEC) $(EXECFLAGS) $(TARGET) 1024 128 500 2>&1 | grep residual
-	$(EXEC) $(EXECFLAGS) $(TARGET) 1024  64 500 2>&1 | grep residual
-	@echo "	########################################################################################"
-	@echo "Running a bunch of different pivot agglomeration batch sizes"
-	$(EXEC) $(EXECFLAGS) $(TARGET)   32   8 500  9 2>&1 | grep residual
-	$(EXEC) $(EXECFLAGS) $(TARGET)   32   8 500  8 2>&1 | grep residual
-	$(EXEC) $(EXECFLAGS) $(TARGET)   32   8 500  7 2>&1 | grep residual
-	$(EXEC) $(EXECFLAGS) $(TARGET)   32   8 500  4 2>&1 | grep residual
-	$(EXEC) $(EXECFLAGS) $(TARGET)   32   8 500  3 2>&1 | grep residual
-	$(EXEC) $(EXECFLAGS) $(TARGET)   32   8 500  2 2>&1 | grep residual
-	$(EXEC) $(EXECFLAGS) $(TARGET)   32   8 500  1 2>&1 | grep residual
-	$(EXEC) $(EXECFLAGS) $(TARGET)   32   4 500  2 2>&1 | grep residual
-	$(EXEC) $(EXECFLAGS) $(TARGET)   32   4 500  1 2>&1 | grep residual
+	perl $(TEST_SCRIPT) $(EXEC) $(EXECFLAGS) $(TARGET)
 
 # A test program for getting essl working on BG/P
 #link-test-essl : link-test-essl.cxx
