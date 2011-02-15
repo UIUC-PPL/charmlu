@@ -76,17 +76,16 @@ mainmodule lu {
       when sendPivotData[internalStep*BLKSIZE + targetCol](int rowIndex, int pivotRow, int size, double data[size], double b) {
 	atomic "below_send_remote_pivot" {
 	  CkAssert(pivotRow / BLKSIZE == thisIndex.x);
-	  CkEntryOptions opts;
-	  opts.setPriority(-1);
+          CkEntryOptions opts;
 	  thisProxy(thisIndex.y, thisIndex.y)
 	    .sendPivotData(internalStep*BLKSIZE + targetCol, pivotRow, BLKSIZE,
-			   &LU[pivotRow % BLKSIZE][0], bvec[pivotRow % BLKSIZE], &opts);
+			   &LU[pivotRow % BLKSIZE][0], bvec[pivotRow % BLKSIZE],
+                           &(mgr->setPrio(SEND_PIVOT_DATA, opts)));
 	}
 	atomic "below_send_useg" {
 	  UMsg *anUmsg = new(BLKSIZE - targetCol, sizeof(int)*8) UMsg(BLKSIZE - targetCol, &LU[pivotRow % BLKSIZE][targetCol]);
-	  CkSetRefNum(anUmsg, internalStep*BLKSIZE + targetCol);
-	  *(int*)CkPriorityPtr(anUmsg) = -1;
-	  CkSetQueueing(anUmsg, CK_QUEUEING_IFIFO);
+          mgr->setPrio(anUmsg, BELOW_SEND_USEG, internalStep*BLKSIZE + targetCol);
+          CkSetRefNum(anUmsg, internalStep*BLKSIZE + targetCol);
 	  pendingUmsg = (UMsg*)CkCopyMsg((void**)(&anUmsg));
 	  activePanel.sendUSegment(anUmsg);
 	}
@@ -146,8 +145,8 @@ mainmodule lu {
         atomic "trailing_schedule_update" {
 	  DEBUG_PRINT("blocks available, scheduling trailing update");
           CkEntryOptions opts;
-	  opts.setPriority(thisIndex.y * BLKSIZE);
-          thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep, &opts);
+          thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep,
+            &(mgr->setPrio(PROCESS_TRAILING_UPDATE, opts, thisIndex.y)));
         }
         when processTrailingUpdate[internalStep](int step) atomic "trailing_update" {
 	  DEBUG_PRINT("doing trailing update");
@@ -202,8 +201,8 @@ mainmodule lu {
           takeRef(mL);
           L = mL;
           CkEntryOptions opts;
-          opts.setPriority(thisIndex.y * BLKSIZE);
-          thisProxy(thisIndex.x, thisIndex.y).processComputeU(0, &opts);
+          thisProxy(thisIndex.x, thisIndex.y).processComputeU(0,
+            &(mgr->setPrio(RECVL, opts, thisIndex.y)));
         }
       }
       // Below diagonal
@@ -314,8 +313,7 @@ mainmodule lu {
 	    // so that they can start updating their sub-blocks right away
 	    atomic "diag_send_useg" {
 	      UMsg *anUmsg = new(BLKSIZE - activeCol, sizeof(int)*8) UMsg(BLKSIZE - activeCol, &LU[pivotCandidate.loc%BLKSIZE][activeCol]);
-	      *(int*)CkPriorityPtr(anUmsg) = -1;
-	      CkSetQueueing(anUmsg, CK_QUEUEING_IFIFO);
+              mgr->setPrio(anUmsg, DIAG_SEND_USEG);
 	      activePanel.sendUSegment(anUmsg);
 	    }
 	    // Perform the local pivoting
@@ -325,11 +323,11 @@ mainmodule lu {
 	    atomic "diag_send_remote_pivot" {
 	      // Trigger swap of data
 	      CkEntryOptions opts;
-	      opts.setPriority(-1);
 	      thisProxy(pivotCandidate.loc / BLKSIZE, thisIndex.y)
 		.sendPivotData(internalStep*BLKSIZE + activeCol, pivotCandidate.loc, BLKSIZE,
 			       &LU[(activeCol + BLKSIZE * thisIndex.y) % BLKSIZE][0],
-			       bvec[(activeCol + BLKSIZE * thisIndex.y) % BLKSIZE], &opts);
+			       bvec[(activeCol + BLKSIZE * thisIndex.y) % BLKSIZE],
+                               &(mgr->setPrio(DIAG_SEND_PIVOT, opts)));
 	    }
 	    when sendPivotData[internalStep*BLKSIZE + activeCol](int rowIndex, int pivotRow, int size, double data[size], double b) atomic "diag_receive_remote_pivot" {
 	      applySwap(activeCol, 0, data, b);

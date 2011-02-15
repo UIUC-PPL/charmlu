@@ -1088,7 +1088,7 @@ public:
     DEBUG_PRINT("Multicast to part of column %d", thisIndex.y);
     
     blkMsg *givenU = createABlkMsg();
-    *(int*)CkPriorityPtr(givenU) = -1;
+    mgr->setPrio(givenU, MULT_RECV_U);
     belowMulticastL.recvU(givenU);
   }
   
@@ -1102,7 +1102,7 @@ public:
 
     DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
     blkMsg *givenL = createABlkMsg();
-    *(int*)CkPriorityPtr(givenL) = -1;
+    mgr->setPrio(givenL, MULT_RECV_L);
     oneRow.recvL(givenL);
   }
 
@@ -1321,12 +1321,10 @@ private:
       pivotSequencesMsg *leftMsg = (pivotSequencesMsg*) CkCopyMsg((void**)&msg);
 
       // Send the pivot ops to the right section (trailing sub-matrix chares + post-diagonal active row chares)
-      *(int*)CkPriorityPtr(msg) = (thisIndex.y + 1) * BLKSIZE;
-      CkSetQueueing(msg, CK_QUEUEING_IFIFO);
+      mgr->setPrio(msg, PIVOT_RIGHT_SEC, -1, thisIndex.y);
       pivotRightSection.applyPivots(msg);
       // Send the pivot ops to the left section (left of activeColumn and below activeRow)
-      *(int*)CkPriorityPtr(leftMsg) = BLKSIZE * numBlks + 1;
-      CkSetQueueing(leftMsg, CK_QUEUEING_IFIFO);
+      mgr->setPrio(leftMsg, PIVOT_LEFT_SEC);
       pivotLeftSection.applyPivots(leftMsg);
 
       // Prepare for the next batch of agglomeration
@@ -1381,8 +1379,10 @@ private:
               outgoingPivotMsgs[i] = new(numMsgsTo[i], numMsgsTo[i]*BLKSIZE, numMsgsTo[i], sizeof(int)*8)
                                         pivotRowsMsg(BLKSIZE, pivotBatchTag);
               // Set a priority thats a function of your location wrt to the critical path
-              *(int*)CkPriorityPtr(outgoingPivotMsgs[i]) = (thisIndex.y<internalStep)? numBlks*BLKSIZE : thisIndex.y * BLKSIZE;
-              CkSetQueueing(outgoingPivotMsgs[i], CK_QUEUEING_IFIFO);
+              if (thisIndex.y < internalStep)
+                mgr->setPrio(outgoingPivotMsgs[i], PIVOT_NOT_CRITICAL);
+              else
+                mgr->setPrio(outgoingPivotMsgs[i], PIVOT_CRITICAL);
           }
       }
 
