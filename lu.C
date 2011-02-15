@@ -611,27 +611,6 @@ class LUBlk: public CBase_LUBlk {
 public:
   LUBlk() : storedVec(NULL), diagRec(0), msgsRecvd(0) {
       __sdag_init();
-
-    //CkAssert(BLKSIZE>0); // If this fails, readonly variables aren't
-			 // propagated soon enough. I'm assuming they
-			 // are safe to use here.
-
-
-
-
-    /*internalStep = 0;	 
-     
-    traceUserSuppliedData(-1);	
-    traceMemoryUsage();	 
-     
-    MatGen rnd(thisIndex.x * numBlks + thisIndex.y);	  
-    for (int i=0; i<BLKSIZE*BLKSIZE; i++) {  
-      LU[i] = rnd.toRndDouble(rnd.nextRndInt());  
-    } 
-
-
-    testdgemm();*/
-
   }
 
   //VALIDATION
