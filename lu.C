@@ -883,30 +883,6 @@ public:
     CrnInitStream(&blockStream, seed_A + thisIndex.x*numBlks + thisIndex.y, 0);
     genBlock();
 
-#if 0
-    double b = thisIndex.x * BLKSIZE + 1, c = thisIndex.y * BLKSIZE + 1;
-    for (int i = 0; i<BLKSIZE*BLKSIZE; i++) {
-      if (i % BLKSIZE == 0 && thisIndex.y == 0) {
-	LU[i] = b;
-	b += 1.0;
-	c += 1.0;
-      } else if (i < BLKSIZE && thisIndex.x == 0) {
-	LU[i] = c;
-	c += 1.0;
-      } else 
-	LU[i] = 0.0;
-    }
-
-    if (thisIndex.x == thisIndex.y) {
-      b = thisIndex.x * BLKSIZE + 1;
-
-      for (int i = 0; i < BLKSIZE*BLKSIZE; i+=BLKSIZE+1) {
-	LU[i] = b;
-	b += 1.0;
-      }
-    }
-#endif
-
     this->print("input-generated-LU");
 
     testdgemm();
