@@ -461,7 +461,56 @@ public:
       return std::make_pair(numPErows, numPEcols);
   }
 
-  
+  double testdgemm(unsigned long blocksize) {
+#if USE_MEMALIGN
+    double *m1 = (double*)memalign(128, blocksize*blocksize*sizeof(double));
+    double *m2 = (double*)memalign(128, blocksize*blocksize*sizeof(double));
+    double *m3 = (double*)memalign(128, blocksize*blocksize*sizeof(double));
+    if (m1 == NULL || m2 == NULL || m3 == NULL)
+      return;
+#else
+    double *m1 = new double[blocksize*blocksize];
+    double *m2 = new double[blocksize*blocksize];
+    double *m3 = new double[blocksize*blocksize];
+#endif
+
+    MatGen rnd(0);
+
+    rnd.getNRndDoubles(blocksize * blocksize, m1);
+    rnd.getNRndDoubles(blocksize * blocksize, m2);
+    rnd.getNRndDoubles(blocksize * blocksize, m3);
+
+    double startTest = CmiWallTimer();
+
+#if USE_ESSL || USE_ACML
+    dgemm(BLAS_NOTRANSPOSE, BLAS_NOTRANSPOSE,
+          blocksize, blocksize, blocksize,
+          -1.0, m1,
+          blocksize, m2, blocksize,
+          1.0, m3, blocksize);
+#else
+    cblas_dgemm(CblasRowMajor,
+                CblasNoTrans, CblasNoTrans,
+                blocksize, blocksize, blocksize,
+                -1.0, m1,
+                blocksize, m2, blocksize,
+                1.0, m3, blocksize);
+#endif
+
+    double endTest = CmiWallTimer();
+    double duration = endTest-startTest;
+
+    double flopcount = (double)blocksize * (double)blocksize * (double)blocksize * 2.0;
+    double gflopcount = flopcount / 1000000000.0;
+    double gflopPerSec = gflopcount / duration;
+
+    delete[] m1;
+    delete[] m2;
+    delete[] m3;
+
+    return gflopPerSec;
+  }
+
   void outputStats() {
     double endTime = CmiWallTimer();
     double duration = endTime-startTime;
@@ -500,6 +549,10 @@ public:
       std::cout << "If ran on " << peaks[i].machine << ", I think you got \t"
 		<< 100.0*fractionOfPeak << "% of peak" << std::endl;
     }
+    double dgemmflops = testdgemm(luCfg.blockSize);
+    CkPrintf("The dgemm %d x %d achieves %g GFlop/sec\n", luCfg.blockSize,
+             luCfg.blockSize, dgemmflops);
+    CkPrintf("Percent of DGEMM is: %g%%\n", gflops_per_core / dgemmflops * 100.0);
   }
 
   void calcScaledResidual(CkReductionMsg *msg) {
@@ -725,91 +778,6 @@ public:
     contribute(CkCallback(CkIndex_Main::continueIter(), mainProxy));	
   }
 
-  void testdgemm(){
-#if 0
-    unsigned long blocksize = 32 << thisIndex.x;
-    
-    if(thisIndex.y == 0 && thisIndex.x == 1){	  
-      
-#if USE_MEMALIGN
-      double *m1 = (double*)memalign(128, blocksize*blocksize*sizeof(double) );
-      double *m2 = (double*)memalign(128, blocksize*blocksize*sizeof(double) ); 
-      double *m3 = (double*)memalign(128, blocksize*blocksize*sizeof(double) );
-      if(m1 == NULL || m2 == NULL || m3 == NULL)
-	return;
-#else
-      double *m1 = new double[blocksize*blocksize]; 
-      double *m2 = new double[blocksize*blocksize]; 
-      double *m3 = new double[blocksize*blocksize]; 
-#endif
-
-      MatGen rnd(0); 
-
-      rnd.getNRndDoubles(blocksize * blocksize, m1);
-      rnd.getNRndDoubles(blocksize * blocksize, m2);
-      rnd.getNRndDoubles(blocksize * blocksize, m3);
-
-      double startTest = CmiWallTimer(); 
-      
-#if USE_ESSL || USE_ACML
-      dgemm( BLAS_NOTRANSPOSE, BLAS_NOTRANSPOSE,
-	     blocksize, blocksize, blocksize,
-	     -1.0, m1,
-	     blocksize, m2, blocksize,
-	     1.0, m3, blocksize);
-#else
-      cblas_dgemm( CblasRowMajor, 
-		   CblasNoTrans, CblasNoTrans, 
-		   blocksize, blocksize, blocksize, 
-		   -1.0, m1, 
-		   blocksize, m2, blocksize, 
-		   1.0, m3, blocksize); 
-#endif	   
-      
-      double endTest = CmiWallTimer(); 
-      double duration = endTest-startTest; 
-      
-      CkPrintf("The dgemm %d x %d call takes %g seconds\n", blocksize, blocksize, duration); 
-      double flopcount = (double)blocksize * (double)blocksize * (double)blocksize * 2.0; 
-      double gflopcount = flopcount / 1000000000.0; 
-      double gflopPerSec = gflopcount / duration; 
-      CkPrintf("The dgemm\t%d\tx %d achieves\t%g\tGFlop/sec\n", blocksize, blocksize, gflopPerSec); 
-
-      {
-
-#if USE_ESSL || USE_ACML
-      dgemm( BLAS_TRANSPOSE, BLAS_TRANSPOSE,
-	     blocksize, blocksize, blocksize,
-	     -1.0, m1,
-	     blocksize, m2, blocksize,
-	     1.0, m3, blocksize);
-#else
-      cblas_dgemm( CblasRowMajor, 
-		   CblasTrans, CblasTrans, 
-		   blocksize, blocksize, blocksize, 
-		   -1.0, m1, 
-		   blocksize, m2, blocksize, 
-		   1.0, m3, blocksize); 
-#endif	   
-      
-      double endTest = CmiWallTimer(); 
-      double duration = endTest-startTest; 
-      
-      CkPrintf("The dgemm %d x %d Transpose call takes %g seconds\n", blocksize, blocksize, duration); 
-      double flopcount = (double)blocksize * (double)blocksize * (double)blocksize * 2.0; 
-      double gflopcount = flopcount / 1000000000.0; 
-      double gflopPerSec = gflopcount / duration; 
-      CkPrintf("The dgemm\t%d\tx %d Transpose achieves\t%g\tGFlop/sec\n", blocksize, blocksize, gflopPerSec); 
-      
-      }
-
-      delete[] m1;
-      delete[] m2;
-      delete[] m3;
-    } 
-#endif
-  }
-
   void initVec() {
     bvec = new double[BLKSIZE];
 
@@ -884,8 +852,6 @@ public:
     genBlock();
 
     this->print("input-generated-LU");
-
-    testdgemm();
 
     // Create a multicast manager group
     CkGroupID mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
