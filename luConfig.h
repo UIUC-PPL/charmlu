@@ -19,6 +19,7 @@ class LUConfig {
 
         void pup(PUP::er &p)
         {
+            p | matrixSize;
             p | blockSize;
             p | numBlocks;
             p | pivotBatchSize;
