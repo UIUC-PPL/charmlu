@@ -317,12 +317,21 @@ struct ScheduleDiag : public CBase_ScheduleDiag {
         }
       }
 
+      pending.insert(make_pair(x, y));
+
       if (diagRunning) {
         //CkPrintf("(%d, %d) beginWork, active = %d insert pending\n", x, y, active);
-        pending.insert(make_pair(x, y));
       } else {
-        //CkPrintf("(%d, %d) beginWork, active = %d allowed\n", x, y, active);
-        luArrProxy(x, y).allowContinue(0);
+        int miny = 1000000;
+        pair<int, int> found;
+        for (set<pair<int, int> >::iterator iter = pending.begin();
+             iter != pending.end();
+             ++iter) {
+          if (iter->second < miny)
+            found = *iter;
+        }
+        luArrProxy(found.first, found.second).allowContinue(0);
+        pending.erase(pending.find(found));
       }
     } else {
       //CkPrintf("(%d, %d) beginWork, active = %d enabled\n", x, y, active);
