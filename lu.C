@@ -368,11 +368,19 @@ struct ScheduleDiag : public CBase_ScheduleDiag {
       }
     }
     if (!diagRunning && pending.size() > 0) {
-      set<pair<int, int> >::iterator n = pending.begin();
-      luArrProxy(n->first, n->second).allowContinue(0);
+      int miny = 1000000;
+      pair<int, int> found;
+      for (set<pair<int, int> >::iterator iter = pending.begin();
+             iter != pending.end();
+             ++iter) {
+        if (iter->second < miny)
+          found = *iter;
+      }
+      //set<pair<int, int> >::iterator n = pending.begin();
+      luArrProxy(found.first, found.second).allowContinue(0);
       //CkPrintf("(%d, %d) beginWork, active = %d scheduling (%d, %d)\n", x, y,
-      //active, n->first, n->second);
-      pending.erase(pending.begin());
+      //active, found.first, found.second);
+      pending.erase(pending.find(found));
     }
   }
 };
