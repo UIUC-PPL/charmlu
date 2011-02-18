@@ -289,12 +289,13 @@ static inline void dropRef(void *m) {
 }
 
 struct ScheduleDiag : public CBase_ScheduleDiag {
-  ScheduleDiag(CProxy_LUBlk proxy) : luArrProxy(proxy) {}
+  ScheduleDiag(CProxy_LUBlk proxy) : luArrProxy(proxy), lastDiag(0) {}
 
   set<pair<int, int> > pending;
   map<pair<int, int>, bool> activePanel;
   map<pair<int, int>, bool> other;
   CProxy_LUBlk luArrProxy;
+  int lastDiag;
 
   void registerBlock(int x, int y) {
     if (x >= y) {
@@ -305,6 +306,10 @@ struct ScheduleDiag : public CBase_ScheduleDiag {
   }
 
   void beginWork(int x, int y, int active) {
+    if (y == lastDiag) {
+      luArrProxy(x, y).allowContinue(0);
+      return;
+    }
     if (!active) {
       bool diagRunning = false;
       for (map<pair<int, int>, bool>::iterator iter = activePanel.begin();
@@ -326,6 +331,25 @@ struct ScheduleDiag : public CBase_ScheduleDiag {
     } else {
       //CkPrintf("(%d, %d) beginWork, active = %d enabled\n", x, y, active);
       activePanel[make_pair(x, y)] = true;
+
+      if (x == y) {
+        lastDiag = x;
+        set<pair<int, int> > toRemove;
+        for (set<pair<int, int> >::iterator iter = pending.begin();
+             iter != pending.end();
+             ++iter) {
+          if (iter->second == lastDiag) {
+            luArrProxy(iter->first, iter->second).allowContinue(0);
+            toRemove.insert(*iter);
+          }
+        }
+        for (set<pair<int, int> >::iterator iter = toRemove.begin();
+             iter != toRemove.end();
+             ++iter) {
+          pending.erase(pending.find(*iter));
+        }
+      }
+
     }
   }
 
