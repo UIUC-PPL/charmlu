@@ -50,6 +50,15 @@ mainmodule lu {
       entry locker();
   }
 
+  class CProxy_LUBlk;
+
+  group ScheduleDiag {
+    entry ScheduleDiag(CProxy_LUBlk);
+    entry void registerBlock(int x, int y);
+    entry void beginWork(int x, int y, int active);
+    entry void endWork(int x, int y, int active);
+  }
+
   array [2D] LUBlk {
     entry LUBlk(void);
     entry void prepareForPivotRedn(rednSetupMsg *);
@@ -70,6 +79,7 @@ mainmodule lu {
     entry void acceptPivotData(pivotRowsMsg *msg);
     entry [nokeep] void sendUSegment(UMsg* msg);
     entry void performUpdate(int);
+    entry void allowContinue(int);
 
     entry void belowPivot(int targetCol) {
       // Wait for the replacement row from the diagonal chare so that you have the updated block
@@ -141,6 +151,11 @@ mainmodule lu {
               when recvU[internalStep](blkMsg *mU) atomic
               { takeRef(mU); U = mU; }
           }
+        atomic {
+          sdiag[CkMyPe()].beginWork(thisIndex.x, thisIndex.y, 0);
+        }
+        when allowContinue(int dummy) {}
+
         // Schedule the trailing update for sometime later
         atomic "trailing_schedule_update" {
 	  DEBUG_PRINT("blocks available, scheduling trailing update");
@@ -153,6 +168,7 @@ mainmodule lu {
           updateMatrix(L, U);
           dropRef(L);
           dropRef(U);
+          sdiag[CkMyPe()].endWork(thisIndex.x, thisIndex.y, 0);
         }
       }
 
@@ -208,6 +224,7 @@ mainmodule lu {
       // Below diagonal
       else {
         atomic {
+            sdiag[CkMyPe()].beginWork(thisIndex.x, thisIndex.y, 1);
             // Find the pivot candidate for just the first column in the block
             pivotCandidate = findLocVal(0, 0);
             pendingUmsg = NULL;
@@ -242,6 +259,7 @@ mainmodule lu {
           DEBUG_PRINT("done computing L");
 	  multicastRecvL();
           pivotBatchTag += BLKSIZE;
+          sdiag[CkMyPe()].endWork(thisIndex.x, thisIndex.y, 1);
         }
 
         for (internalStep++;  internalStep <= thisIndex.x; internalStep++) {
@@ -285,6 +303,7 @@ mainmodule lu {
 
     entry void processLU() {
       atomic {
+        sdiag[CkMyPe()].beginWork(thisIndex.x, thisIndex.y, 1);
         if (STOP_AFTER == thisIndex.x) {
             flushLogs();
             CkAbort("Aborting factorization in progress");
@@ -362,6 +381,7 @@ mainmodule lu {
           // Multicast the local block of L rightwards to the blocks in the same row
           multicastRecvL();
         }
+        sdiag[CkMyPe()].endWork(thisIndex.x, thisIndex.y, 1);
         // Contribute to a reduction indicating that this chare is done with its factorization work
 	DEBUG_PRINT("contributing");
         contribute(CkCallback(CkIndex_Main::startNextStep(), mainProxy));
@@ -373,9 +393,9 @@ mainmodule lu {
     entry void beginBackward(int size, double preVec[size]);
     entry void recvSolveData(CkReductionMsg *m);
 
-    entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr) {
+    entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr, CProxy_ScheduleDiag _sdiag) {
       atomic {
-        init(luCfg, _mgr);
+        init(luCfg, _mgr, _sdiag);
       }
       when multicastRedns(int dummy) {
         if (thisIndex.x >= thisIndex.y) {

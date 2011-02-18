@@ -8,8 +8,13 @@
 #include <iostream>
 #include <sstream>
 #include <map>
+#include <set>
 #include <algorithm>
 using std::min;
+using std::set;
+using std::pair;
+using std::map;
+using std::make_pair;
 #include <limits>
 
 #if USE_CBLAS_H
@@ -283,6 +288,71 @@ static inline void dropRef(void *m) {
     CmiUnlock(lock);
 }
 
+struct ScheduleDiag : public CBase_ScheduleDiag {
+  ScheduleDiag(CProxy_LUBlk proxy) : luArrProxy(proxy) {}
+
+  set<pair<int, int> > pending;
+  map<pair<int, int>, bool> activePanel;
+  map<pair<int, int>, bool> other;
+  CProxy_LUBlk luArrProxy;
+
+  void registerBlock(int x, int y) {
+    if (x >= y) {
+      activePanel[make_pair(x, y)] = false;
+    } else {
+      other[make_pair(x, y)] = true;
+    }
+  }
+
+  void beginWork(int x, int y, int active) {
+    if (!active) {
+      bool diagRunning = false;
+      for (map<pair<int, int>, bool>::iterator iter = activePanel.begin();
+           iter != activePanel.end();
+           ++iter) {
+        if (iter->second) {
+          diagRunning = true;
+          break;
+        }
+      }
+
+      if (diagRunning) {
+        //CkPrintf("(%d, %d) beginWork, active = %d insert pending\n", x, y, active);
+        pending.insert(make_pair(x, y));
+      } else {
+        //CkPrintf("(%d, %d) beginWork, active = %d allowed\n", x, y, active);
+        luArrProxy(x, y).allowContinue(0);
+      }
+    } else {
+      //CkPrintf("(%d, %d) beginWork, active = %d enabled\n", x, y, active);
+      activePanel[make_pair(x, y)] = true;
+    }
+  }
+
+  void endWork(int x, int y, int active) {
+    if (active) {
+      //CkPrintf("(%d, %d) beginWork, active = %d disabled\n", x, y, active);
+      activePanel[make_pair(x, y)] = false;
+    }
+    bool diagRunning = false;
+    for (map<pair<int, int>, bool>::iterator iter = activePanel.begin();
+         iter != activePanel.end();
+         ++iter) {
+      if (iter->second) {
+        diagRunning = true;
+        break;
+      }
+    }
+    if (!diagRunning && pending.size() > 0) {
+      set<pair<int, int> >::iterator n = pending.begin();
+      luArrProxy(n->first, n->second).allowContinue(0);
+      //CkPrintf("(%d, %d) beginWork, active = %d scheduling (%d, %d)\n", x, y,
+      //active, n->first, n->second);
+      pending.erase(pending.begin());
+    }
+  }
+};
+
 class Main : public CBase_Main {
   LUConfig luCfg;
   double startTime;
@@ -430,12 +500,13 @@ public:
       }
 
       CProxy_LUMgr mgr = CProxy_PrioLU::ckNew(luCfg.blockSize, luCfg.matrixSize);
-
       luArrProxy = CProxy_LUBlk::ckNew(opts);
+
+      CProxy_ScheduleDiag sdiag  = CProxy_ScheduleDiag::ckNew(luArrProxy);
 
       LUcomplete = true;
     
-      luArrProxy.startup(luCfg, mgr);
+      luArrProxy.startup(luCfg, mgr, sdiag);
     }
   }
 
@@ -659,6 +730,8 @@ class LUBlk: public CBase_LUBlk {
   /// Pointer to a U msg indicating a pending L sub-block update. Used only in L chares
   UMsg *pendingUmsg;
 
+  CProxy_ScheduleDiag sdiag;
+
   LUBlk_SDAG_CODE
 
 public:
@@ -813,12 +886,15 @@ public:
       rnd.getNRndDoubles(BLKSIZE, buf);
     }
 
-  void init(const LUConfig _cfg, CProxy_LUMgr _mgr) {
+  void init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_ScheduleDiag _sdiag) {
     cfg = _cfg;
     BLKSIZE = cfg.blockSize;
     numBlks = cfg.numBlocks;
     mgr = _mgr.ckLocalBranch();
     suggestedPivotBatchSize = cfg.pivotBatchSize;
+    sdiag = _sdiag;//.ckLocalBranch();
+
+    sdiag[CkMyPe()].registerBlock(thisIndex.x, thisIndex.y);
     
     // Set the schedulers memory usage threshold to the one based upon a control point
     schedAdaptMemThresholdMB = cfg.memThreshold;
