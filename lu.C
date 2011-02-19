@@ -177,7 +177,7 @@ public:
   }
 };
 
-struct BlockReadyMsg : public CMessage_BlockReadyMsg {
+struct BlockReadyMsg : public CkMcastBaseMsg, CMessage_BlockReadyMsg {
   BlockReadyMsg(CkIndex2D idx) : src(idx)
   {
     CkSetRefNum(this, min(src.x, src.y));
