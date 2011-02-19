@@ -1,51 +1,52 @@
-#include <charm++.h>
+#include "lu.decl.h"
 #include <vector>
 #include <list>
 #include <utility>
+#include <map>
+#include <algorithm>
 
-class BlockReadyMsg;
+struct BlockReadyMsg : public CkMcastBaseMsg, CMessage_BlockReadyMsg {
+  BlockReadyMsg(CkIndex2D idx) : src(idx)
+  {
+    CkSetRefNum(this, std::min(src.x, src.y));
+  }
+  CkIndex2D src;
+};
 
 class BlockScheduler : public CBase_BlockScheduler {
 public:
-    BlockScheduler(CProxy_LUBlk luArr_)
-	: lock(CmiCreateLock()), luArr(luArr_)
-	{ }
+  BlockScheduler(CProxy_LUBlk luArr_)
+    : luArr(luArr_)
+  { }
 
-    void wantBlocks(CkIndex2D requester, BlockReadyMsg *mL, BlockReadyMsg *mU, int step);
-
-  void updateDone(CkIndex2D requester, int step);
-  void blockArrived(int x, int y);
-  double *block(int x, int y);
+  void registerBlock(CkIndex2D index);
+  void pivotsDone(CkIndex2D index);
+  void dataReady(CkIndex2D index, BlockReadyMsg *m);
 
 private:
-  CmiNodeLock lock;
-  CProxy_LUBlk luArr;
-  struct request {
-    CkIndex2D requester;
-    BlockReadyMsg *mL, *mU;
-    int step;
-    request(CkIndex2D requester_, BlockReadyMsg *mL_, BlockReadyMsg *mU_, int step_)
-      : requester(requester_), mL(mL_), mU(mU_), step(step_)
-    { }
-  };
-
-  struct block_state {
+  struct BlockState {
+    // Index of block
+    int ix, iy;
+    // Count of trailing updates completed
+    int updatesCompleted;
+    // Have pivots been completed for this step?
+    bool pivotsDone;
+    // State of the L and U input blocks for the next update
+    struct InputState {
+      BlockReadyMsg *m;
       double *data;
-      int interested;
+      enum {
+        PENDING_SPACE, ALLOCATED, PENDING_REQUEST, REQUESTED, ARRIVED
+      } state;
 
-  block_state(double *d) : data(d), interested(0) {}
+      InputState() : m(NULL), data(NULL), state(PENDING_SPACE) {}
+    } Lstate, Ustate;
+
+    BlockState(CkIndex2D index)
+      : ix(index.x), iy(index.y), updatesCompleted(0), pivotsDone(false) {}
   };
 
-  /// Drop a reference to the named block, and return whether this freed space 
-  bool drop_block(int x, int y);
+  std::list<BlockState> localBlocks;
 
-  void processing(request r);
-  void progress();
-
-  typedef std::list<request> req_list;
-  req_list reqs_waiting, reqs_pending, reqs_processing;
-
-  typedef std::map<std::pair<int, int>, block_state> block_map;
-  block_map blocks_ready;
-  std::vector<double *> blocks_free;
+  CProxy_LUBlk luArr;
 };

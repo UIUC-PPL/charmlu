@@ -177,14 +177,6 @@ public:
   }
 };
 
-struct BlockReadyMsg : public CkMcastBaseMsg, CMessage_BlockReadyMsg {
-  BlockReadyMsg(CkIndex2D idx) : src(idx)
-  {
-    CkSetRefNum(this, min(src.x, src.y));
-  }
-  CkIndex2D src;
-};
-
 struct blkMsg: public CkMcastBaseMsg, CMessage_blkMsg {
   // TODO: what is happening?
   char pad[16-((sizeof(envelope)+sizeof(int))%16)];
@@ -828,6 +820,7 @@ public:
 
   void init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs) {
     scheduler = bs;
+    bs.ckLocalBranch()->registerBlock(thisIndex);
     cfg = _cfg;
     BLKSIZE = cfg.blockSize;
     numBlks = cfg.numBlocks;
@@ -1552,104 +1545,5 @@ private:
   }
 
 };
-
-class CkLocker
-{
-  CmiNodeLock &lock;
-  
-public:
-  CkLocker(CmiNodeLock &l) : lock(l) { CmiLock(lock); }
-  ~CkLocker() { CmiUnlock(lock); }
-
-private:
-  CkLocker(const CkLocker &);
-  void operator=(const CkLocker &);
-};
-
-void BlockScheduler::wantBlocks(CkIndex2D requester, BlockReadyMsg *mL, BlockReadyMsg *mU, int step)
-{
-  CkLocker l(lock);
-  request r(requester, mL, mU, step);
-
-  LUBlk *srcL = luArr[mL->src].ckLocal(), *srcU = luArr[mU->src].ckLocal();
-  if (srcL) {
-    delete mL;
-    r.mL = NULL;
-    luArr[requester].availL(step);
-  }
-  if (srcU) {
-    delete mU;
-    r.mU = NULL;
-    luArr[requester].availU(step);
-  }
-  if (srcL && srcU) {
-    processing(r);
-    // No other local state has changed
-    return;
-  }
-
-  reqs_waiting.push_back(r);
-  progress();
-}
-
-double* BlockScheduler::block(int x, int y)
-{
-  block_map::iterator b = blocks_ready.find(std::make_pair(x,y));
-  if (blocks_ready.end() != b) {
-    return b->second.data;
-  } else {
-    CkAssert(luArr(x,y).ckLocal());
-    return luArr(x,y).ckLocal()->getBlock();
-  }
-}
-
-void BlockScheduler::processing(request r)
-{
-  reqs_processing.push_back(r);
-}
-
-void BlockScheduler::progress()
-{
-
-}
-
-inline bool operator==(const CkIndex2D &l, const CkIndex2D &r)
-{ return l.x == r.x && l.y == r.y; }
-inline bool operator<(const CkIndex2D &l, const CkIndex2D &r)
-{ return l.x < r.x || (l.x == r.x && l.y < r.y); }
-
-void BlockScheduler::updateDone(CkIndex2D requester, int step)
-{
-  CkLocker l(lock);
-
-  req_list::iterator i = reqs_processing.begin();
-  for(; i != reqs_processing.end(); ++i) {
-    if (i->requester == requester && i->step == step) {
-      break;
-    }
-  }
-  CkAssert(i != reqs_processing.end());
-  reqs_processing.erase(i);
-
-  if (drop_block(requester.x, step) ||
-      drop_block(step, requester.y))
-    progress();
-}
-
-bool BlockScheduler::drop_block(int x, int y)
-{
-  block_map::iterator b = blocks_ready.find(std::make_pair(x,y));
-  if (b != blocks_ready.end() && 0 == --b->second.interested) {
-      blocks_free.push_back(b->second.data);
-      blocks_ready.erase(b);
-      return true;
-  }
-  return false;
-}
-
-void BlockScheduler::blockArrived(int x, int y)
-{
-
-}
 
 #include "lu.def.h"

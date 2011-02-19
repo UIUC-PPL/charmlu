@@ -53,6 +53,7 @@ mainmodule lu {
   }
 
   class CProxy_BlockScheduler;
+  class LUConfig;
 
   array [2D] LUBlk {
     entry LUBlk(void);
@@ -139,29 +140,25 @@ mainmodule lu {
               }
           }
 
-	  // Once all pending pivot ops from the current step of the
-	  // computation are complete, request the data for the
-	  // trailing update from the current step as it becomes available
-	  // XXX: Could overlap more aggressively, by requesting separately
-	  when readyL[internalStep](BlockReadyMsg *mL),
-	       readyU[internalStep](BlockReadyMsg *mU) atomic {
-	      scheduler.ckLocalBranch()->wantBlocks(thisIndex, mL, mU, internalStep);
-	  }
+          // Notify the local scheduler that this block is ready for its
+          // next trailing update
+          atomic {
+            scheduler.ckLocalBranch()->pivotsDone(thisIndex);
+          }
 
-	  // Schedule the trailing update for sometime later
-	  when availL[internalStep](int step1),
-	       availU[internalStep](int step2)
-	  atomic "trailing_schedule_update" {
-	      DEBUG_PRINT("blocks available, scheduling trailing update");
-	      CkEntryOptions opts;
-              mgr->setPrio(PROCESS_TRAILING_UPDATE, opts, thisIndex.y);
-	      thisProxy(thisIndex).processTrailingUpdate(internalStep, &opts);
-	  }
-	  when processTrailingUpdate[internalStep](int step) atomic "trailing_update" {
+          overlap {
+            when readyL[internalStep](BlockReadyMsg *mL) atomic {
+	      scheduler.ckLocalBranch()->dataReady(thisIndex, mL);
+            }
+            when readyU[internalStep](BlockReadyMsg *mU) atomic {
+              scheduler.ckLocalBranch()->dataReady(thisIndex, mU);
+            }
+          }
+
+	  when processTrailingUpdate[internalStep](int step)
+            atomic "trailing_update" {
 	      DEBUG_PRINT("doing trailing update");
-	      updateMatrix(scheduler.ckLocalBranch()->block(thisIndex.x, internalStep),
-			   scheduler.ckLocalBranch()->block(internalStep, thisIndex.y));
-	      scheduler.ckLocalBranch()->updateDone(thisIndex, internalStep);
+	      updateMatrix(NULL, NULL);
 	      thisProxy(thisIndex.x, internalStep).blockUsed(0);
 	  }
       }
@@ -485,9 +482,6 @@ mainmodule lu {
     entry void readyL(BlockReadyMsg *mL);
     entry void readyU(BlockReadyMsg *mU);
 
-    entry void availL(int);
-    entry void availU(int);
-
     // These process* entry methods are invoked locally by each block
     // on itself with varying priorities, to let the scheduler decide
     // when the work they represent (the bulk of the computation)
@@ -499,7 +493,7 @@ mainmodule lu {
     // should schedule invocations of this entry method when it is in
     // a memory critical (i.e. over threshold) condition, so that
     // retained messages can be freed.
-    entry [memcritical] void processTrailingUpdate(int ignoredParam);
+    entry [local] void processTrailingUpdate(int step);
     // This frees a buffered message, but don't really reduce
     // memory pressure, because it generates multicasts along the
     // way. Hence, it's not marked [memcritical].
@@ -511,7 +505,6 @@ mainmodule lu {
 
   group BlockScheduler {
       entry BlockScheduler(CProxy_LUBlk luArr);
-      entry void blockArrived(int x, int y);
   }
 
   group BlockCyclicMap : CkArrayMap{
