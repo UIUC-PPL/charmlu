@@ -1035,7 +1035,7 @@ public:
     
     CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
           
-    BlockReadyMsg *mU = new BlockReadyMsg(thisIndex);
+    BlockReadyMsg *mU = new(8*sizeof(int)) BlockReadyMsg(thisIndex);
     mgr->setPrio(mU, MULT_RECV_U);
     oneCol.readyU(mU);
   }
@@ -1058,7 +1058,7 @@ public:
       oneRow.recvL(givenL);
     } else {
       DEBUG_PRINT("Announce block ready to part of row %d", thisIndex.x);
-      BlockReadyMsg *mL = new BlockReadyMsg(thisIndex);
+      BlockReadyMsg *mL = new(8*sizeof(int)) BlockReadyMsg(thisIndex);
       oneRow.readyL(mL);
     }
   }
