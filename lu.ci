@@ -509,7 +509,7 @@ mainmodule lu {
     entry void print();
   };
 
-  nodegroup BlockScheduler {
+  group BlockScheduler {
       entry BlockScheduler(CProxy_LUBlk luArr);
       entry void blockArrived(int x, int y);
   }
