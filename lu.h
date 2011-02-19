@@ -2,6 +2,16 @@
 #include <list>
 #include <algorithm>
 
+struct blkMsg: public CkMcastBaseMsg, CMessage_blkMsg {
+  double *data;
+  CkIndex2D src;
+
+  void setMsgData(double *data_, int step, int BLKSIZE) {
+    memcpy(data, data_, sizeof(double)*BLKSIZE*BLKSIZE);
+    CkSetRefNum(this, step);
+  }
+};
+
 struct BlockReadyMsg : public CkMcastBaseMsg, CMessage_BlockReadyMsg {
   BlockReadyMsg(CkIndex2D idx) : src(idx)
   {

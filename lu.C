@@ -177,17 +177,6 @@ public:
   }
 };
 
-struct blkMsg: public CkMcastBaseMsg, CMessage_blkMsg {
-  // TODO: what is happening?
-  char pad[16-((sizeof(envelope)+sizeof(int))%16)];
-  double *data;
-
-  void setMsgData(double *data_, int step, int BLKSIZE) {
-    memcpy(data, data_, sizeof(double)*BLKSIZE*BLKSIZE);
-    CkSetRefNum(this, step);
-  }
-};
-
 class UMsg : public CMessage_UMsg, public CkMcastBaseMsg {
     public:
         UMsg(const int numElements, double *useg) {
