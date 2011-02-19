@@ -148,17 +148,19 @@ mainmodule lu {
 
           overlap {
             when readyL[internalStep](BlockReadyMsg *mL) atomic {
+              DEBUG_PRINT("readyL");
 	      scheduler.ckLocalBranch()->dataReady(thisIndex, mL);
             }
             when readyU[internalStep](BlockReadyMsg *mU) atomic {
+              DEBUG_PRINT("readyU");
               scheduler.ckLocalBranch()->dataReady(thisIndex, mU);
             }
           }
 
-	  when processTrailingUpdate[internalStep](int step)
+	  when processTrailingUpdate[internalStep](int step, intptr_t L, intptr_t U)
             atomic "trailing_update" {
 	      DEBUG_PRINT("doing trailing update");
-	      updateMatrix(NULL, NULL);
+	      updateMatrix((double*)L, (double*)U);
 	      thisProxy(thisIndex.x, internalStep).blockUsed(0);
               scheduler.ckLocalBranch()->updateDone(thisIndex);
 	  }
@@ -494,7 +496,7 @@ mainmodule lu {
     // should schedule invocations of this entry method when it is in
     // a memory critical (i.e. over threshold) condition, so that
     // retained messages can be freed.
-    entry [local] void processTrailingUpdate(int step);
+    entry [local] void processTrailingUpdate(int step, intptr_t L, intptr_t U);
     // This frees a buffered message, but don't really reduce
     // memory pressure, because it generates multicasts along the
     // way. Hence, it's not marked [memcritical].
@@ -506,6 +508,7 @@ mainmodule lu {
 
   group BlockScheduler {
       entry BlockScheduler(CProxy_LUBlk luArr);
+      entry void deliverBlock(blkMsg *m);
   }
 
   group BlockCyclicMap : CkArrayMap{

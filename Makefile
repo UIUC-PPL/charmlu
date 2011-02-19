@@ -9,7 +9,7 @@ CHARMINC := $(CHARM)/include
 
 # The relevant source files for this project
 HDR       =
-SRC       = lu.C 
+SRC       = lu.C scheduler.C
 OBJ       = $(SRC:.C=.o)
 INTF      = lu.ci   
 

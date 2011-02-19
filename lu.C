@@ -1234,7 +1234,7 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
 inline blkMsg* LUBlk::createABlkMsg() {
   blkMsg *msg = mgr->createBlockMessage(thisIndex.x, thisIndex.y,
                                         internalStep, sizeof(int)*8);
-  msg->setMsgData(LU[0], internalStep, BLKSIZE);
+  msg->setMsgData(LU[0], internalStep, BLKSIZE, thisIndex);
   return msg;
 }
 
