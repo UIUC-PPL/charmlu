@@ -1,3 +1,8 @@
+#ifndef LU_MANAGER_H
+#define LU_MANAGER_H
+
+#include "lu.decl.h"
+#include "messages.h"
 
 // Prefix notation:
 // b: an index into an LUBlk chare array
@@ -85,3 +90,5 @@ struct PrioLU : public LUMgr
       CkSetRefNum(msg, refnum);
   }
 };
+
+#endif

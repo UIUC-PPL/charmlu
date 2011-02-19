@@ -1,3 +1,7 @@
+#ifndef LU_MAPPING_H
+#define LU_MAPPING_H
+
+#include "lu.decl.h"
 #include <string>
 
 class LUMap : public CkArrayMap {
@@ -366,3 +370,5 @@ public:
 
     std::string desc() { return "strong scaling"; }
 };
+
+#endif

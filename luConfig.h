@@ -1,7 +1,7 @@
-#include "pup.h"
-
 #ifndef LU_CONFIG_H
 #define LU_CONFIG_H
+
+#include "pup.h"
 
 #ifndef STOP_AFTER
     #define STOP_AFTER -1
