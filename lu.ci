@@ -160,6 +160,7 @@ mainmodule lu {
 	      DEBUG_PRINT("doing trailing update");
 	      updateMatrix(NULL, NULL);
 	      thisProxy(thisIndex.x, internalStep).blockUsed(0);
+              scheduler.ckLocalBranch()->updateDone(thisIndex);
 	  }
       }
 
