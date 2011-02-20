@@ -47,7 +47,7 @@ void BlockScheduler::dataReady(CkIndex2D index, BlockReadyMsg *m) {
   StateList::iterator iter = findBlockState(index);
   BlockState::InputState &input = m->src.x == index.x ? iter->Lstate : iter->Ustate;
   input.m = m;
-  DEBUG_SCHED("dataReady message src = (%d, %d)\n", input.m->src.x, input.m->src.y);
+  DEBUG_SCHED("dataReady message src = (%d, %d)", input.m->src.x, input.m->src.y);
   progress();
 }
 
@@ -79,7 +79,7 @@ void BlockScheduler::progress() {
   for (StateList::iterator iter = pendingBlocks.begin(); iter != pendingBlocks.end();
        ++iter) {
     BlockState &block = *iter;
-    DEBUG_SCHED("examining pending block (%d, %d)\n", block.ix, block.iy);
+    DEBUG_SCHED("examining pending block (%d, %d)", block.ix, block.iy);
     if (block.pivotsDone) {
       // For Lstate
       if (block.Lstate.state == PENDING_SPACE) {
@@ -109,7 +109,7 @@ void BlockScheduler::progress() {
 
       if (block.Ustate.state == ARRIVED &&
           block.Lstate.state == ARRIVED) {
-        DEBUG_SCHED("both block indicate arrived for (%d, %d)\n", block.ix, block.iy);
+        DEBUG_SCHED("both block indicate arrived for (%d, %d)", block.ix, block.iy);
         readyBlocks.push_back(block);
         iter = pendingBlocks.erase(iter);
         stateModified = true;
@@ -147,7 +147,7 @@ void BlockScheduler::progress() {
 
 void BlockScheduler::getBlock(BlockState::InputState &input) {
   CkAssert(input.state == ALLOCATED);
-  DEBUG_SCHED("requesting getBlock from (%d, %d)\n", input.m->src.x, input.m->src.y);
+  DEBUG_SCHED("requesting getBlock from (%d, %d)", input.m->src.x, input.m->src.y);
   luArr(input.m->src.x, input.m->src.y).
     getBlock(CkCallback(CkIndex_BlockScheduler::deliverBlock(NULL), thishandle));
   input.state = REQUESTED;

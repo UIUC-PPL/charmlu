@@ -10,7 +10,7 @@ using std::min;
 
 #ifdef CHARMLU_DEBUG
     #define DEBUG_PRINT(FORMAT, ...) CkPrintf("(%d: [%d,%d]@%d) " FORMAT "\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep ,##__VA_ARGS__)
-    #define DEBUG_SCHED(FORMAT, ...) CkPrintf("(%dS: " FORMAT "\n", CkMyPe() ,##__VA_ARGS__)
+    #define DEBUG_SCHED(FORMAT, ...) CkPrintf("(%d S): " FORMAT "\n", CkMyPe() ,##__VA_ARGS__)
     #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
     #define VERBOSE_PROGRESS(...) CkPrintf(__VA_ARGS__)
     #define VERY_VERBOSE_PIVOT_AGGLOM(...) CkPrintf(__VA_ARGS__)
