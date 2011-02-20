@@ -509,6 +509,7 @@ mainmodule lu {
   group BlockScheduler {
     entry BlockScheduler(CProxy_LUBlk luArr, LUConfig config);
       entry void deliverBlock(blkMsg *m);
+      entry void printBlockLimit();
   }
 
   group BlockCyclicMap : CkArrayMap{

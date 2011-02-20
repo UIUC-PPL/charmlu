@@ -9,6 +9,10 @@ inline bool operator==(const CkIndex2D &l, const CkIndex2D &r)
 inline bool operator<(const CkIndex2D &l, const CkIndex2D &r)
 { return l.x < r.x || (l.x == r.x && l.y < r.y); }
 
+void BlockScheduler::printBlockLimit() {
+  CkPrintf("%d: block limit = %d\n", CkMyPe(), blockLimit);
+}
+
 void BlockScheduler::registerBlock(CkIndex2D index) {
   blockLimit--;
   if (index.x != 0 && index.y != 0)
