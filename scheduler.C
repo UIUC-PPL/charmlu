@@ -3,11 +3,17 @@
 #include "messages.h"
 #include "lu.h"
 #include <algorithm>
+#include <utility>
+using std::pair;
+using std::make_pair;
 
 inline bool operator==(const CkIndex2D &l, const CkIndex2D &r)
 { return l.x == r.x && l.y == r.y; }
 inline bool operator<(const CkIndex2D &l, const CkIndex2D &r)
 { return l.x < r.x || (l.x == r.x && l.y < r.y); }
+pair<int, int> make_pair(CkIndex2D index) {
+  return make_pair(index.x, index.y);
+}
 
 void BlockScheduler::printBlockLimit() {
   CkPrintf("%d: block limit = %d\n", CkMyPe(), blockLimit);
@@ -69,109 +75,175 @@ struct updatesCompletedSorter {
   }
 };
 
+struct earliestRelevantSorter {
+  bool operator()(const BlockState& state1, const BlockState& state2) {
+    return state1.ix != state2.ix ? state1.ix < state2.ix : state1.iy < state2.iy;
+  }
+};
+
 void BlockScheduler::progress() {
-  bool stateModified = false;
-  localBlocks.sort(updatesCompletedSorter());
+  // Prevent reentrance
+  if (inProgress)
+    return;
 
-  while ((pendingBlocks.size() + readyBlocks.size()) * 2 < blockLimit && localBlocks.size() > 0) {
-    // Move some blocks from localBlocks to pendingBlocks
-    pendingBlocks.splice(pendingBlocks.end(), localBlocks, localBlocks.begin());
-    stateModified = true;
-  }
+  inProgress = true;
+  bool stateModified;
 
-  // Try to advance state for each
-  for (StateList::iterator iter = pendingBlocks.begin(); iter != pendingBlocks.end();
-       ++iter) {
-    BlockState &block = *iter;
-    DEBUG_SCHED("examining pending block (%d, %d)", block.ix, block.iy);
-    if (block.pivotsDone) {
-      // For Lstate
-      if (block.Lstate.state == PENDING_SPACE) {
-        block.Lstate.state = ALLOCATED;
-        stateModified = true;
-      }
+  do {
+    stateModified = false;
+    localBlocks.sort(updatesCompletedSorter());
 
-      if (block.Lstate.state == ALLOCATED) {
-        if (block.Lstate.m) {
-          getBlock(block.Lstate);
-          stateModified = true;
-        } // else we wait for ready msg
-      }
-
-      // For Ustate
-      if (block.Ustate.state == PENDING_SPACE) {
-        block.Ustate.state = ALLOCATED;
-        stateModified = true;
-      }
-
-      if (block.Ustate.state == ALLOCATED) {
-        if (block.Ustate.m) {
-          getBlock(block.Ustate);
-          stateModified = true;
-        } // else we wait for ready msg
-      }
-
-      if (block.Ustate.state == ARRIVED &&
-          block.Lstate.state == ARRIVED) {
-        DEBUG_SCHED("both block indicate arrived for (%d, %d)", block.ix, block.iy);
-        readyBlocks.push_back(block);
-        iter = pendingBlocks.erase(iter);
-        stateModified = true;
-      }
+    while (wantedBlocks.size() < blockLimit && localBlocks.size() > 0) {
+      // Move some blocks from localBlocks to pendingBlocks
+      BlockState &block = *localBlocks.begin();
+      pair<int, int> L(block.ix, block.updatesCompleted), U(block.updatesCompleted, block.iy);
+      DEBUG_SCHED("putting into pendingBlocks: (%d, %d)", block.ix, block.iy);
+      wantedBlocks.insert(make_pair(L, wantedBlock()));
+      wantedBlocks.insert(make_pair(U, wantedBlock()));
+      pendingBlocks.splice(pendingBlocks.end(), localBlocks, localBlocks.begin());
+      stateModified = true;
     }
-  }
 
-  StateList::iterator block = readyBlocks.begin();
-  if (block != readyBlocks.end()) {
-    CkIndex2D Lsrc = block->Lstate.m->src, Usrc = block->Ustate.m->src;
-    double *Ldata = block->Lstate.data, *Udata = block->Ustate.data;
-    CkAssert(block->updatesCompleted == Lsrc.y && block->updatesCompleted == Usrc.x);
-    luArr(block->ix, block->iy).ckLocal()->
-      processTrailingUpdate(block->updatesCompleted, (intptr_t)block->Lstate.data,
-                            (intptr_t)block->Ustate.data);
-    for (std::list<blkMsg*>::iterator iter = blockMessages.begin();
-         iter != blockMessages.end();
+    // Try to advance state for each
+    for (StateList::iterator iter = pendingBlocks.begin(); iter != pendingBlocks.end();
          ++iter) {
-      if ((*iter)->data == Ldata || (*iter)->data == Udata) {
-        delete *iter;
-        iter = blockMessages.erase(iter);
+      BlockState &block = *iter;
+      DEBUG_SCHED("examining pending block (%d, %d), Lstate = %d, Ustate = %d", block.ix, block.iy,
+                  block.Lstate.state, block.Ustate.state);
+      if (block.pivotsDone) {
+        // For Lstate
+        if (block.Lstate.state == PENDING_SPACE) {
+          block.Lstate.state = ALLOCATED;
+          stateModified = true;
+        }
+
+        if (block.Lstate.state == ALLOCATED) {
+          if (block.Lstate.m) {
+            getBlock(block.Lstate);
+            stateModified = true;
+          } // else we wait for ready msg
+        }
+
+        // For Ustate
+        if (block.Ustate.state == PENDING_SPACE) {
+          block.Ustate.state = ALLOCATED;
+          stateModified = true;
+        }
+
+        if (block.Ustate.state == ALLOCATED) {
+          if (block.Ustate.m) {
+            getBlock(block.Ustate);
+            stateModified = true;
+          } // else we wait for ready msg
+        }
+
+        if (block.Ustate.state == ARRIVED &&
+            block.Lstate.state == ARRIVED) {
+          DEBUG_SCHED("both block indicate arrived for (%d, %d)", block.ix, block.iy);
+          readyBlocks.push_back(block);
+          iter = pendingBlocks.erase(iter);
+          stateModified = true;
+        }
       }
     }
-    if (block->updatesCompleted < std::min(block->ix, block->iy))
-      localBlocks.splice(localBlocks.end(), readyBlocks, block);
-    else
-      readyBlocks.erase(block);
-    stateModified = true;
-  }
 
-  if (stateModified) {
-    progress();
-  }
+    StateList::iterator block = readyBlocks.begin();
+    if (block != readyBlocks.end()) {
+      CkIndex2D Lsrc = block->Lstate.m->src, Usrc = block->Ustate.m->src;
+      CkAssert(block->updatesCompleted == Lsrc.y && block->updatesCompleted == Usrc.x);
+
+      int Lref = --wantedBlocks[make_pair(block->ix, block->updatesCompleted)].refs;
+      int Uref = --wantedBlocks[make_pair(block->updatesCompleted, block->iy)].refs;
+
+      CkAssert(block->Lstate.data && block->Ustate.data);
+
+      luArr(block->ix, block->iy).ckLocal()->
+        processTrailingUpdate(block->updatesCompleted, (intptr_t)block->Lstate.data,
+                              (intptr_t)block->Ustate.data);
+
+      if (Lref == 0) {
+        std::map<pair<int, int>, wantedBlock>::iterator iter =
+          wantedBlocks.find(make_pair(block->ix, block->updatesCompleted-1));
+        delete iter->second.m;
+        wantedBlocks.erase(iter);
+      }
+      if (Uref == 0) {
+        std::map<pair<int, int>, wantedBlock>::iterator iter =
+          wantedBlocks.find(make_pair(block->updatesCompleted-1, block->iy));
+        delete iter->second.m;
+        wantedBlocks.erase(iter);
+      }
+
+      if (block->updatesCompleted < std::min(block->ix, block->iy))
+        localBlocks.splice(localBlocks.end(), readyBlocks, block);
+      else
+        readyBlocks.erase(block);
+
+      stateModified = true;
+    }
+  } while (stateModified);
+
+  inProgress = false;
 }
+
+struct WillUse {
+  BlockScheduler::wantedBlock &block;
+  pair<int, int> index;
+  WillUse(BlockScheduler::wantedBlock &block_, pair<int, int> index_) : block(block_), index(index_) {}
+  void operator()(BlockState &rblock) {
+    if (rblock.ix == index.first && index.second > rblock.iy ||
+        rblock.iy == index.second && index.first > rblock.ix) {
+      block.refs++;
+    }
+  }
+};
 
 void BlockScheduler::getBlock(BlockState::InputState &input) {
   CkAssert(input.state == ALLOCATED);
   DEBUG_SCHED("requesting getBlock from (%d, %d)", input.m->src.x, input.m->src.y);
-  luArr(input.m->src.x, input.m->src.y).
-    getBlock(CkCallback(CkIndex_BlockScheduler::deliverBlock(NULL), thishandle));
+
+  pair<int, int> src = make_pair(input.m->src);
+
   input.state = REQUESTED;
+
+  if (wantedBlocks[src].m) {
+    input.data = wantedBlocks[src].m->data;
+    input.state = ARRIVED;
+    return;
+  }
+  if (wantedBlocks[src].requested) {
+    return;
+  }
+
+  std::for_each(pendingBlocks.begin(), pendingBlocks.end(), WillUse(wantedBlocks[src], src));
+  std::for_each(localBlocks.begin(), localBlocks.end(), WillUse(wantedBlocks[src], src));
+  std::for_each(readyBlocks.begin(), readyBlocks.end(), WillUse(wantedBlocks[src], src));
+
+  wantedBlocks[src].requested = true;
+  luArr(src.first, src.second).getBlock(CkCallback(CkIndex_BlockScheduler::deliverBlock(NULL), thishandle));
 }
 
-void BlockScheduler::deliverBlock(blkMsg *m) {
-  blockMessages.push_back(m);
-  CkIndex2D &src = m->src;
-  int step = std::min(src.x, src.y);
-  CkAssert(step == CkGetRefNum(m));
-  for (StateList::iterator iter = pendingBlocks.begin(); iter != pendingBlocks.end();
-       ++iter) {
+struct TryDeliver {
+  BlockScheduler::wantedBlock &block;
+  TryDeliver(BlockScheduler::wantedBlock &block_) : block(block_) {}
+  void operator()(BlockState &rblock) {
+    const CkIndex2D src = block.m->src;
+    int step = std::min(src.x, src.y);
     bool isU = src.x < src.y;
-    BlockState::InputState &input = isU ? iter->Ustate : iter->Lstate;
-    if (input.state == REQUESTED && input.m->src == src && step == iter->updatesCompleted) {
-      DEBUG_SCHED("delivered %s with from (%d, %d) for (%d, %d) step = %d", isU ? "U" : "L", src.x, src.y, iter->ix, iter->iy, iter->updatesCompleted);
+    BlockState::InputState &input = isU ? rblock.Ustate : rblock.Lstate;
+    if (input.m && input.m->src == src && step == rblock.updatesCompleted) {
+      DEBUG_SCHED("delivered %s with from (%d, %d) for (%d, %d) step = %d", isU ? "U" : "L",
+                  src.x, src.y, rblock.ix, rblock.iy, rblock.updatesCompleted);
       input.state = ARRIVED;
-      input.data = m->data;
-      break;
+      input.data = block.m->data;
     }
   }
+};
+
+void BlockScheduler::deliverBlock(blkMsg *m) {
+  pair<int, int> src = make_pair(m->src);
+  wantedBlocks[src].m = m;
+  std::for_each(pendingBlocks.begin(), pendingBlocks.end(), TryDeliver(wantedBlocks[src]));
+  std::for_each(localBlocks.begin(), localBlocks.end(), TryDeliver(wantedBlocks[src]));
   progress();
 }
