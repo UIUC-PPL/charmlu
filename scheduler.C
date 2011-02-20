@@ -200,18 +200,19 @@ struct WillUse {
 
 void BlockScheduler::getBlock(BlockState::InputState &input) {
   CkAssert(input.state == ALLOCATED);
-  DEBUG_SCHED("requesting getBlock from (%d, %d)", input.m->src.x, input.m->src.y);
 
   pair<int, int> src = make_pair(input.m->src);
 
   input.state = REQUESTED;
 
   if (wantedBlocks[src].m) {
+    DEBUG_SCHED("already ARRIVED from (%d, %d)", input.m->src.x, input.m->src.y);
     input.data = wantedBlocks[src].m->data;
     input.state = ARRIVED;
     return;
   }
   if (wantedBlocks[src].requested) {
+    DEBUG_SCHED("already REQUESTED from (%d, %d)", input.m->src.x, input.m->src.y);
     return;
   }
 
@@ -220,6 +221,7 @@ void BlockScheduler::getBlock(BlockState::InputState &input) {
   std::for_each(readyBlocks.begin(), readyBlocks.end(), WillUse(wantedBlocks[src], src));
 
   wantedBlocks[src].requested = true;
+  DEBUG_SCHED("requesting getBlock from (%d, %d)", input.m->src.x, input.m->src.y);
   luArr(src.first, src.second).getBlock(CkCallback(CkIndex_BlockScheduler::deliverBlock(NULL), thishandle));
 }
 
