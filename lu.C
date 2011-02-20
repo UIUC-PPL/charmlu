@@ -182,6 +182,7 @@ class Main : public CBase_Main {
   bool solved, LUcomplete;
   bool sentVectorData;
   CProxy_LUBlk luArrProxy;
+  CProxy_BlockScheduler bs;
 
 public:
     Main(CkArgMsg* m) : solved(false), LUcomplete(false), sentVectorData(false) {
@@ -325,7 +326,7 @@ public:
       CProxy_LUMgr mgr = CProxy_PrioLU::ckNew(luCfg.blockSize, luCfg.matrixSize);
 
       luArrProxy = CProxy_LUBlk::ckNew(opts);
-      CProxy_BlockScheduler bs = CProxy_BlockScheduler::ckNew(luArrProxy);
+      bs = CProxy_BlockScheduler::ckNew(luArrProxy, luCfg);
 
       LUcomplete = true;
 

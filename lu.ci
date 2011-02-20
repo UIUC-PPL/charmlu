@@ -507,7 +507,7 @@ mainmodule lu {
   };
 
   group BlockScheduler {
-      entry BlockScheduler(CProxy_LUBlk luArr);
+    entry BlockScheduler(CProxy_LUBlk luArr, LUConfig config);
       entry void deliverBlock(blkMsg *m);
   }
 

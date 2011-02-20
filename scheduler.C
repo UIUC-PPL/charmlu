@@ -10,8 +10,10 @@ inline bool operator<(const CkIndex2D &l, const CkIndex2D &r)
 { return l.x < r.x || (l.x == r.x && l.y < r.y); }
 
 void BlockScheduler::registerBlock(CkIndex2D index) {
+  blockLimit--;
   if (index.x != 0 && index.y != 0)
     localBlocks.push_back(BlockState(index));
+  CkAssert(blockLimit >= 2);
 }
 
 struct findByIndex {
@@ -67,7 +69,7 @@ void BlockScheduler::progress() {
   bool stateModified = false;
   localBlocks.sort(updatesCompletedSorter());
 
-  while ((pendingBlocks.size() + readyBlocks.size()) * 2 < BLOCK_LIMIT && localBlocks.size() > 0) {
+  while ((pendingBlocks.size() + readyBlocks.size()) * 2 < blockLimit && localBlocks.size() > 0) {
     // Move some blocks from localBlocks to pendingBlocks
     pendingBlocks.splice(pendingBlocks.end(), localBlocks, localBlocks.begin());
     stateModified = true;
