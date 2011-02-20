@@ -120,13 +120,15 @@ void BlockScheduler::progress() {
   StateList::iterator block = readyBlocks.begin();
   if (block != readyBlocks.end()) {
     CkIndex2D Lsrc = block->Lstate.m->src, Usrc = block->Ustate.m->src;
+    double *Ldata = block->Lstate.data, *Udata = block->Ustate.data;
+    CkAssert(block->updatesCompleted == Lsrc.y && block->updatesCompleted == Usrc.x);
     luArr(block->ix, block->iy).ckLocal()->
       processTrailingUpdate(block->updatesCompleted, (intptr_t)block->Lstate.data,
                             (intptr_t)block->Ustate.data);
     for (std::list<blkMsg*>::iterator iter = blockMessages.begin();
          iter != blockMessages.end();
          ++iter) {
-      if ((*iter)->src == Lsrc || (*iter)->src == Usrc) {
+      if ((*iter)->data == Ldata || (*iter)->data == Udata) {
         delete *iter;
         iter = blockMessages.erase(iter);
       }
@@ -154,11 +156,14 @@ void BlockScheduler::getBlock(BlockState::InputState &input) {
 void BlockScheduler::deliverBlock(blkMsg *m) {
   blockMessages.push_back(m);
   CkIndex2D &src = m->src;
+  int step = std::min(src.x, src.y);
+  CkAssert(step == CkGetRefNum(m));
   for (StateList::iterator iter = pendingBlocks.begin(); iter != pendingBlocks.end();
        ++iter) {
-    BlockState::InputState &input = src.x < src.y ? iter->Ustate : iter->Lstate;
-    if (input.state == REQUESTED && input.m->src == src) {
-      DEBUG_SCHED("delivered block from (%d, %d) for (%d, %d)\n", src.x, src.y, iter->ix, iter->iy);
+    bool isU = src.x < src.y;
+    BlockState::InputState &input = isU ? iter->Ustate : iter->Lstate;
+    if (input.state == REQUESTED && input.m->src == src && step == iter->updatesCompleted) {
+      DEBUG_SCHED("delivered %s with from (%d, %d) for (%d, %d) step = %d", isU ? "U" : "L", src.x, src.y, iter->ix, iter->iy, iter->updatesCompleted);
       input.state = ARRIVED;
       input.data = m->data;
       break;
