@@ -187,9 +187,9 @@ struct WillUse {
   BlockScheduler::wantedBlock &block;
   pair<int, int> index;
   WillUse(BlockScheduler::wantedBlock &block_, pair<int, int> index_) : block(block_), index(index_) {}
-  void operator()(BlockState &rblock) {
-    if (rblock.ix == index.first && index.second > rblock.iy ||
-        rblock.iy == index.second && index.first > rblock.ix) {
+  void operator()(BlockState &trailingBlock) {
+    if (trailingBlock.ix == index.first && trailingBlock.iy > index.second  ||
+        trailingBlock.iy == index.second && trailingBlock.ix > index.first) {
       block.refs++;
     }
   }
