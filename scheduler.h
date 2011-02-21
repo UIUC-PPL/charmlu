@@ -10,7 +10,7 @@
 #include <algorithm>
 
 enum INPUT_STATE {
-  PENDING_SPACE, ALLOCATED, REQUESTED, ARRIVED
+    PENDING_SPACE, ALLOCATED, REQUESTED, ARRIVED, LOCAL
 };
 
 struct BlockState {
@@ -35,12 +35,13 @@ struct BlockState {
     }
 
     bool available() {
-      return state == ARRIVED;
+      return m && (state == ARRIVED || state == LOCAL);
     }
   } Lstate, Ustate;
+  bool updateScheduled;
 
   BlockState(CkIndex2D index)
-    : ix(index.x), iy(index.y), updatesCompleted(0), pivotsDone(false) {}
+    : ix(index.x), iy(index.y), updatesCompleted(0), updateScheduled(false), pivotsDone(false) {}
 };
 
 typedef std::list<BlockState> StateList;
@@ -48,7 +49,7 @@ typedef std::list<BlockState> StateList;
 class BlockScheduler : public CBase_BlockScheduler {
 public:
   BlockScheduler(CProxy_LUBlk luArr_, LUConfig config)
-    : luArr(luArr_), blocksHeld(0), inProgress(false) {
+    : luArr(luArr_), blocksHeld(0), foundLocal(0), localBlocks(), inProgress(false) {
     blockLimit = config.memThreshold * 1024 * 1024 / (config.blockSize * config.blockSize * sizeof(double));
   }
 
@@ -64,14 +65,14 @@ private:
   StateList pendingBlocks;
   StateList readyBlocks;
   CProxy_LUBlk luArr;
-  int blockLimit, blocksHeld;
+  int blockLimit, blocksHeld, foundLocal;
   bool inProgress;
 
   struct wantedBlock {
     int refs;
-    bool requested;
+    bool requested, foundLocal;
     blkMsg* m;
-    wantedBlock() : refs(0), requested(false), m(NULL) {}
+  wantedBlock() : refs(0), requested(false), foundLocal(false), m(NULL) {}
   };
 
   std::map<std::pair<int, int>, wantedBlock> wantedBlocks;
@@ -79,7 +80,7 @@ private:
   StateList::iterator findBlockState(CkIndex2D index);
   void progress();
   void getBlock(BlockState::InputState &input);
-  bool advanceInput(BlockState::InputState &input);
+  bool advanceInput(BlockState::InputState &input, int srcX, int srcY);
   void wantBlock(BlockState::InputState &input, int x, int y);
   void incrementRefs(CkIndex2D index);
 
