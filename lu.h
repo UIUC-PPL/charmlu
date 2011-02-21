@@ -20,7 +20,8 @@ using std::min;
     #define VERBOSE_PIVOT_AGGLOM
 #else
     #define DEBUG_PRINT(...)
-    #define DEBUG_SCHED(...)
+    #define DEBUG_SCHED(FORMAT, ...) CkPrintf("(%d S): " FORMAT "\n", CkMyPe() ,##__VA_ARGS__)
+//    #define DEBUG_SCHED(...)
     #define DEBUG_PIVOT(...)
     #define VERBOSE_PROGRESS(...)
     #define VERY_VERBOSE_PIVOT_AGGLOM(...)
