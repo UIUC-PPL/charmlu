@@ -33,6 +33,10 @@ struct BlockState {
       data = NULL;
       state = PENDING_SPACE;
     }
+
+    bool available() {
+      return state == ARRIVED;
+    }
   } Lstate, Ustate;
 
   BlockState(CkIndex2D index)

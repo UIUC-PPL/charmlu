@@ -135,8 +135,7 @@ void BlockScheduler::progress() {
 	stateModified |= advanceInput(block.Lstate);
 	stateModified |= advanceInput(block.Ustate);
 
-        if (block.Ustate.state == ARRIVED &&
-            block.Lstate.state == ARRIVED) {
+        if (block.Ustate.available() && block.Lstate.available()) {
           DEBUG_SCHED("both block indicate arrived for (%d, %d)", block.ix, block.iy);
           readyBlocks.push_back(block);
           iter = pendingBlocks.erase(iter);
