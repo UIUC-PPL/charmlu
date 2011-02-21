@@ -4,6 +4,7 @@
 #include "luConfig.h"
 #include "lu.decl.h"
 #include <ckmulticast.h>
+#include <limits>
 #include <map>
 #include <algorithm>
 using std::min;
