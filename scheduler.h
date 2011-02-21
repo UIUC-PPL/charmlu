@@ -60,7 +60,6 @@ private:
   StateList pendingBlocks;
   StateList readyBlocks;
   CProxy_LUBlk luArr;
-  /*std::list<blkMsg*> blockMessages;*/
   int blockLimit, blocksHeld;
   bool inProgress;
 
