@@ -81,6 +81,7 @@ private:
   void getBlock(BlockState::InputState &input);
   bool advanceInput(BlockState::InputState &input);
   void wantBlock(BlockState::InputState &input, int x, int y);
+  void incrementRefs(CkIndex2D index);
 
   friend class WillUse;
   friend class TryDeliver;

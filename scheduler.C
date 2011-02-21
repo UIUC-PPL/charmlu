@@ -195,6 +195,13 @@ struct WillUse {
   }
 };
 
+void BlockScheduler::incrementRefs(CkIndex2D index) {
+  pair<int, int> src = make_pair(index);
+  std::for_each(pendingBlocks.begin(), pendingBlocks.end(), WillUse(wantedBlocks[src], src));
+  std::for_each(localBlocks.begin(), localBlocks.end(), WillUse(wantedBlocks[src], src));
+  std::for_each(readyBlocks.begin(), readyBlocks.end(), WillUse(wantedBlocks[src], src));
+}
+
 void BlockScheduler::getBlock(BlockState::InputState &input) {
   CkAssert(input.state == ALLOCATED);
 
@@ -213,9 +220,7 @@ void BlockScheduler::getBlock(BlockState::InputState &input) {
     return;
   }
 
-  std::for_each(pendingBlocks.begin(), pendingBlocks.end(), WillUse(wantedBlocks[src], src));
-  std::for_each(localBlocks.begin(), localBlocks.end(), WillUse(wantedBlocks[src], src));
-  std::for_each(readyBlocks.begin(), readyBlocks.end(), WillUse(wantedBlocks[src], src));
+  incrementRefs(input.m->src);
 
   wantedBlocks[src].requested = true;
   DEBUG_SCHED("requesting getBlock from (%d, %d)", input.m->src.x, input.m->src.y);
