@@ -81,6 +81,24 @@ struct earliestRelevantSorter {
   }
 };
 
+bool BlockScheduler::advanceInput(BlockState::InputState &input) {
+    bool stateModified = false;
+
+    if (input.state == PENDING_SPACE) {
+	input.state = ALLOCATED;
+	stateModified = true;
+    }
+
+    if (input.state == ALLOCATED) {
+	if (input.m) {
+            getBlock(input);
+            stateModified = true;
+	} // else we wait for ready msg
+    }
+
+    return stateModified;
+}
+
 void BlockScheduler::progress() {
   // Prevent reentrance
   if (inProgress)
@@ -111,31 +129,8 @@ void BlockScheduler::progress() {
       DEBUG_SCHED("examining pending block (%d, %d), Lstate = %d, Ustate = %d", block.ix, block.iy,
                   block.Lstate.state, block.Ustate.state);
       if (block.pivotsDone) {
-        // For Lstate
-        if (block.Lstate.state == PENDING_SPACE) {
-          block.Lstate.state = ALLOCATED;
-          stateModified = true;
-        }
-
-        if (block.Lstate.state == ALLOCATED) {
-          if (block.Lstate.m) {
-            getBlock(block.Lstate);
-            stateModified = true;
-          } // else we wait for ready msg
-        }
-
-        // For Ustate
-        if (block.Ustate.state == PENDING_SPACE) {
-          block.Ustate.state = ALLOCATED;
-          stateModified = true;
-        }
-
-        if (block.Ustate.state == ALLOCATED) {
-          if (block.Ustate.m) {
-            getBlock(block.Ustate);
-            stateModified = true;
-          } // else we wait for ready msg
-        }
+	stateModified |= advanceInput(block.Lstate);
+	stateModified |= advanceInput(block.Ustate);
 
         if (block.Ustate.state == ARRIVED &&
             block.Lstate.state == ARRIVED) {

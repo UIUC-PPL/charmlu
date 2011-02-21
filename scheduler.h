@@ -75,6 +75,7 @@ private:
   StateList::iterator findBlockState(CkIndex2D index);
   void progress();
   void getBlock(BlockState::InputState &input);
+  bool advanceInput(BlockState::InputState &input);
 
   friend class WillUse;
   friend class TryDeliver;
