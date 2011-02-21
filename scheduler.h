@@ -76,6 +76,7 @@ private:
   void progress();
   void getBlock(BlockState::InputState &input);
   bool advanceInput(BlockState::InputState &input);
+  void wantBlock(BlockState::InputState &input, int x, int y);
 
   friend class WillUse;
   friend class TryDeliver;

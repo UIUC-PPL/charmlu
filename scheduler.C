@@ -99,6 +99,10 @@ bool BlockScheduler::advanceInput(BlockState::InputState &input) {
     return stateModified;
 }
 
+void BlockScheduler::wantBlock(BlockState::InputState &input, int x, int y) {
+  wantedBlocks.insert(make_pair(make_pair(x, y), wantedBlock()));
+}
+
 void BlockScheduler::progress() {
   // Prevent reentrance
   if (inProgress)
@@ -114,10 +118,9 @@ void BlockScheduler::progress() {
     while (wantedBlocks.size() < blockLimit && localBlocks.size() > 0) {
       // Move some blocks from localBlocks to pendingBlocks
       BlockState &block = *localBlocks.begin();
-      pair<int, int> L(block.ix, block.updatesCompleted), U(block.updatesCompleted, block.iy);
       DEBUG_SCHED("putting into pendingBlocks: (%d, %d)", block.ix, block.iy);
-      wantedBlocks.insert(make_pair(L, wantedBlock()));
-      wantedBlocks.insert(make_pair(U, wantedBlock()));
+      wantBlock(block.Lstate, block.ix, block.updatesCompleted);
+      wantBlock(block.Ustate, block.updatesCompleted, block.iy);
       pendingBlocks.splice(pendingBlocks.end(), localBlocks, localBlocks.begin());
       stateModified = true;
     }
