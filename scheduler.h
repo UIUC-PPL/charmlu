@@ -49,7 +49,7 @@ typedef std::list<BlockState> StateList;
 class BlockScheduler : public CBase_BlockScheduler {
 public:
   BlockScheduler(CProxy_LUBlk luArr_, LUConfig config)
-    : luArr(luArr_), blocksHeld(0), foundLocal(0), localBlocks(), inProgress(false) {
+    : luArr(luArr_), blocksHeld(0), localBlocks(), inProgress(false) {
     blockLimit = config.memThreshold * 1024 * 1024 / (config.blockSize * config.blockSize * sizeof(double));
   }
 
@@ -65,14 +65,14 @@ private:
   StateList pendingBlocks;
   StateList readyBlocks;
   CProxy_LUBlk luArr;
-  int blockLimit, blocksHeld, foundLocal;
+  int blockLimit, blocksHeld;
   bool inProgress;
 
   struct wantedBlock {
     int refs;
-    bool requested, foundLocal;
+    bool requested;
     blkMsg* m;
-  wantedBlock() : refs(0), requested(false), foundLocal(false), m(NULL) {}
+    wantedBlock() : refs(0), requested(false), m(NULL) {}
   };
 
   std::map<std::pair<int, int>, wantedBlock> wantedBlocks;
@@ -83,6 +83,7 @@ private:
   bool advanceInput(BlockState::InputState &input, int srcX, int srcY);
   void wantBlock(BlockState::InputState &input, int x, int y);
   void incrementRefs(CkIndex2D index);
+  void releaseBlock(BlockState::InputState &input);
 
   friend class WillUse;
   friend class TryDeliver;
