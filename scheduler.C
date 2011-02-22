@@ -61,32 +61,24 @@ void BlockScheduler::dataReady(CkIndex2D index, BlockReadyMsg *m) {
   progress();
 }
 
+void BlockScheduler::releaseBlock(BlockState::InputState &input) {
+  int ref = 0;
+  if (input.state != LOCAL)
+    ref = --wantedBlocks[make_pair(input.m->src)].refs;
+
+  if (ref == 0 && input.state != LOCAL) {
+    std::map<pair<int, int>, wantedBlock>::iterator iter =
+      wantedBlocks.find(make_pair(input.m->src));
+    delete iter->second.m;
+    wantedBlocks.erase(iter);
+  }
+}
+
 void BlockScheduler::updateDone(CkIndex2D index) {
-  DEBUG_SCHED("updateDone for (%d, %d)", index.x, index.y);
   StateList::iterator block = findBlockState(index);
 
-  int Lref = 0, Uref = 0;
-
-  if (block->Lstate.state != LOCAL)
-    Lref = --wantedBlocks[make_pair(block->ix, block->updatesCompleted)].refs;
-
-  if (block->Ustate.state != LOCAL)
-    Uref = --wantedBlocks[make_pair(block->updatesCompleted, block->iy)].refs;
-
-  CkAssert(Lref >= 0 && Uref >= 0);
-
-  if (Lref == 0 && block->Lstate.state != LOCAL) {
-    std::map<pair<int, int>, wantedBlock>::iterator iter =
-      wantedBlocks.find(make_pair(block->ix, block->updatesCompleted));
-    delete iter->second.m;
-    wantedBlocks.erase(iter);
-  }
-  if (Uref == 0 && block->Ustate.state != LOCAL) {
-    std::map<pair<int, int>, wantedBlock>::iterator iter =
-      wantedBlocks.find(make_pair(block->updatesCompleted, block->iy));
-    delete iter->second.m;
-    wantedBlocks.erase(iter);
-  }
+  releaseBlock(block->Lstate);
+  releaseBlock(block->Ustate);
 
   block->updatesCompleted++;
   block->pivotsDone = false;
@@ -122,9 +114,7 @@ struct earliestRelevantSorter {
 bool BlockScheduler::advanceInput(BlockState::InputState &input, int srcX, int srcY) {
     bool stateModified = false;
 
-    LUBlk *src = NULL;
-
-    src = luArr(srcX, srcY).ckLocal();
+    LUBlk *src = luArr(srcX, srcY).ckLocal();
 
     if (input.state != LOCAL && src) {
       input.state = LOCAL;
@@ -149,8 +139,13 @@ bool BlockScheduler::advanceInput(BlockState::InputState &input, int srcX, int s
 }
 
 void BlockScheduler::wantBlock(BlockState::InputState &input, int x, int y) {
-  if (!luArr(x,y).ckLocal())
-    wantedBlocks.insert(make_pair(make_pair(x, y), wantedBlock()));
+  DEBUG_SCHED("wantBlock called for (%d, %d)", x, y);
+  if (!luArr(x,y).ckLocal()) {
+    if (wantedBlocks.find(make_pair(x, y)) == wantedBlocks.end())
+      wantedBlocks.insert(make_pair(make_pair(x, y), wantedBlock()));
+    else
+      wantedBlocks[make_pair(x, y)].refs++;
+  }
 }
 
 void BlockScheduler::progress() {
@@ -165,7 +160,7 @@ void BlockScheduler::progress() {
     stateModified = false;
     localBlocks.sort(updatesCompletedSorter());
 
-    while (wantedBlocks.size() + 1 - foundLocal < blockLimit && localBlocks.size() > 0) {
+    while (wantedBlocks.size() + 1 < blockLimit && localBlocks.size() > 0) {
       // Move some blocks from localBlocks to pendingBlocks
       BlockState &block = *localBlocks.begin();
       DEBUG_SCHED("putting into pendingBlocks: (%d, %d)", block.ix, block.iy);
@@ -175,6 +170,8 @@ void BlockScheduler::progress() {
       stateModified = true;
     }
 
+    CkAssert(wantedBlocks.size() <= blockLimit);
+
     // Try to advance state for each
     for (StateList::iterator iter = pendingBlocks.begin(); iter != pendingBlocks.end();
          ++iter) {
@@ -182,7 +179,7 @@ void BlockScheduler::progress() {
       DEBUG_SCHED("examining pending block (%d, %d), Lstate = %d, Ustate = %d", block.ix, block.iy,
                   block.Lstate.state, block.Ustate.state);
       if (block.pivotsDone) {
-	stateModified |= advanceInput(block.Lstate, block.ix, block.updatesCompleted);
+        stateModified |= advanceInput(block.Lstate, block.ix, block.updatesCompleted);
 	stateModified |= advanceInput(block.Ustate, block.updatesCompleted, block.iy);
 
         if (block.Ustate.available() && block.Lstate.available()) {
@@ -193,6 +190,8 @@ void BlockScheduler::progress() {
         }
       }
     }
+
+    CkAssert(wantedBlocks.size() <= blockLimit);
 
     StateList::iterator block = readyBlocks.begin();
     if (block != readyBlocks.end() && !block->updateScheduled) {
@@ -231,7 +230,6 @@ struct WillUse {
 void BlockScheduler::incrementRefs(CkIndex2D index) {
   pair<int, int> src = make_pair(index);
   std::for_each(pendingBlocks.begin(), pendingBlocks.end(), WillUse(wantedBlocks[src], src));
-  std::for_each(localBlocks.begin(), localBlocks.end(), WillUse(wantedBlocks[src], src));
   std::for_each(readyBlocks.begin(), readyBlocks.end(), WillUse(wantedBlocks[src], src));
 }
 
@@ -281,6 +279,5 @@ void BlockScheduler::deliverBlock(blkMsg *m) {
   pair<int, int> src = make_pair(m->src);
   wantedBlocks[src].m = m;
   std::for_each(pendingBlocks.begin(), pendingBlocks.end(), TryDeliver(wantedBlocks[src]));
-  std::for_each(localBlocks.begin(), localBlocks.end(), TryDeliver(wantedBlocks[src]));
   progress();
 }
