@@ -276,6 +276,7 @@ struct TryDeliver {
 };
 
 void BlockScheduler::deliverBlock(blkMsg *m) {
+  DEBUG_SCHED("deliverBlock src (%d, %d)", m->src.x, m->src.y);
   pair<int, int> src = make_pair(m->src);
   wantedBlocks[src].m = m;
   std::for_each(pendingBlocks.begin(), pendingBlocks.end(), TryDeliver(wantedBlocks[src]));

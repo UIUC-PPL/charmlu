@@ -9,6 +9,7 @@
 #include <utility>
 #include <algorithm>
 
+// MOVE TO scheduler.C
 enum INPUT_STATE {
     PENDING_SPACE, ALLOCATED, REQUESTED, ARRIVED, LOCAL
 };
@@ -38,6 +39,7 @@ struct BlockState {
       return m && (state == ARRIVED || state == LOCAL);
     }
   } Lstate, Ustate;
+  // Indicates that the update was ready and scheduled but not started
   bool updateScheduled;
 
   BlockState(CkIndex2D index)
