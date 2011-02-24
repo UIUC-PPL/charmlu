@@ -505,6 +505,7 @@ void LUBlk::recvXvec(int size, double* xvec) {
 
   //sum-reduction of result across row with diagonal element as target
   thisProxy(thisIndex.x,thisIndex.x).sumBvec(BLKSIZE,partial_b);
+  delete[] partial_b;
 
   //if you are not the diagonal, find your max A value and contribute
   if(thisIndex.x != thisIndex.y) {
@@ -559,8 +560,10 @@ void LUBlk::calcResiduals() {
   //find local max values
   double A_max = infNorm(BLKSIZE * BLKSIZE, LU[0]);
   double b_max = infNorm(BLKSIZE, b);
+  delete[] b;
   double x_max = infNorm(BLKSIZE, bvec);
   double res_max = infNorm(BLKSIZE, residuals);
+  delete[] residuals;
   VERBOSE_VALIDATION("[%d,%d] A_max  = %e\n",thisIndex.x,thisIndex.y,A_max);
   VERBOSE_VALIDATION("[%d,%d] b_max  = %e\n",thisIndex.x,thisIndex.y,b_max);
   VERBOSE_VALIDATION("[%d,%d] x_max  = %e\n",thisIndex.x,thisIndex.y,x_max);
@@ -896,6 +899,7 @@ void LUBlk::beginForward(int size, double *preVec) {
   localSolve(xvec, preVec);
   CkCallback cb(CkIndex_LUBlk::recvSolveData(0), thisProxy(thisIndex.x, thisIndex.x));
   mcastMgr->contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double, rowBeforeCookie, cb, thisIndex.x);
+  delete[] xvec;
 }
 
 
@@ -905,6 +909,7 @@ void LUBlk::beginBackward(int size, double *preVec) {
   localSolve(xvec, preVec);
   CkCallback cb(CkIndex_LUBlk::recvSolveData(0), thisProxy(thisIndex.x, thisIndex.x));
   mcastMgr->contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double, rowAfterCookie, cb, thisIndex.x);
+  delete[] xvec;
 }
 
 

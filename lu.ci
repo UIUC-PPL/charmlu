@@ -57,12 +57,12 @@ mainmodule lu {
 
   array [2D] LUBlk {
     entry LUBlk(void);
-    entry void prepareForPivotRedn(rednSetupMsg *);
+    entry [nokeep] void prepareForPivotRedn(rednSetupMsg *);
     entry void prepareForActivePanel(rednSetupMsg *);
-    entry void prepareForPivotLR(rednSetupMsg *);
-    entry void prepareForRowBeforeDiag(rednSetupMsg *);
-    entry void prepareForRowAfterDiag(rednSetupMsg *);
-    entry void prepareForMulticastL(rednSetupMsg *);
+    entry [nokeep] void prepareForPivotLR(rednSetupMsg *);
+    entry [nokeep] void prepareForRowBeforeDiag(rednSetupMsg *);
+    entry [nokeep] void prepareForRowAfterDiag(rednSetupMsg *);
+    entry [nokeep] void prepareForMulticastL(rednSetupMsg *);
     entry void multicastRedns(int dummy);
     entry void initVec();
     entry void startValidation();
