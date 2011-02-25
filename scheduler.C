@@ -49,6 +49,7 @@ void BlockScheduler::updatePanel(std::map<K, Panel> &panels, K index) {
     for (std::list<StateList::iterator>::iterator i = panel.dependents.begin();
 	 i != panel.dependents.end(); ++i) {
       repositionBlock(*i);
+      (*i)->pendingDependencies--;
     }
 
     panels.erase(iter);
