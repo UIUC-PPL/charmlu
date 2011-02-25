@@ -201,6 +201,7 @@ void BlockScheduler::factorizationDone(CkIndex2D index) {
 }
 
 void BlockScheduler::progress() {
+  DEBUG_SCHED("Called progress, already? %s", inProgress? "true" : "false" );
   // Prevent reentrance
   if (inProgress)
     return;
@@ -211,8 +212,16 @@ void BlockScheduler::progress() {
 
   do {
     stateModified = false;
-    if (wantedBlocks.size() < blockLimit) {
+    if (wantedBlocks.size() < 2) {
       if (localBlocks.size() > 0) {
+	DEBUG_SCHED("Local Blocks: ");
+	for (StateList::iterator block = localBlocks.begin(); block != localBlocks.end();
+	     ++block) {
+	  DEBUG_SCHED("\t(%d,%d), deps: %d, updatesCompleted %d, updatesPlanned %d",
+		      block->ix, block->iy, block->pendingDependencies,
+		      block->updatesCompleted, block->updatesPlanned);
+	}
+
 	CkAssert(localBlocks.front().pendingDependencies == 0);
 	planUpdate(localBlocks.begin());
 	//stateModified = true;

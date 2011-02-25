@@ -46,10 +46,19 @@ struct Update {
   double *L, *U;
 
   void tryDeliver(int srcx, int srcy, double *data) {
-    if (srcx == target->ix && srcy == t)
+    if (srcx == target->ix && srcy == t) {
+      CkPrintf("(%d S): Delivering L (%d,%d) to (%d,%d)\n",
+	       CkMyPe(), srcx, srcy, target->ix, target->iy);
       L = data;
-    else if (srcy == target->iy && srcx == t)
+    }
+    else if (srcy == target->iy && srcx == t) {
+      CkPrintf("(%d S): Delivering U (%d,%d) to (%d,%d)\n",
+	       CkMyPe(), srcx, srcy, target->ix, target->iy);
       U = data;
+    } else {
+      CkPrintf("(%d S): No delivery of (%d,%d) to (%d,%d)\n",
+	       CkMyPe(), srcx, srcy, target->ix, target->iy);
+    }
   }
 
   bool ready() { return L && U; }
