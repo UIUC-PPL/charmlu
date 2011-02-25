@@ -27,7 +27,7 @@ void BlockScheduler::registerBlock(CkIndex2D index) {
   if (index.x >= index.y)
     Lpanels[index.y].updatesLeftToPlan += index.y;
   else
-    Ublocks[make_pair(index)].updatesLeftToPlan = 1;
+    Ublocks[make_pair(index)].updatesLeftToPlan = index.x;
 
   CkAssert(blockLimit >= 2);
 }
