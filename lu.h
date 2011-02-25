@@ -7,11 +7,10 @@
 #include <limits>
 #include <map>
 #include <algorithm>
+#include <vector>
 using std::min;
 
 #ifdef CHARMLU_DEBUG
-    #define DEBUG_PRINT(FORMAT, ...) CkPrintf("(%d: [%d,%d]@%d) " FORMAT "\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep ,##__VA_ARGS__)
-    #define DEBUG_SCHED(FORMAT, ...) CkPrintf("(%d S): " FORMAT "\n", CkMyPe() ,##__VA_ARGS__)
     #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
     #define VERBOSE_PROGRESS(...) CkPrintf(__VA_ARGS__)
     #define VERY_VERBOSE_PIVOT_AGGLOM(...) CkPrintf(__VA_ARGS__)
@@ -19,8 +18,10 @@ using std::min;
     #define VERBOSE_PIVOT_RECORDING
     #define VERBOSE_PIVOT_AGGLOM
 #else
-    #define DEBUG_PRINT(...)
-    #define DEBUG_SCHED(...)
+    #define DEBUG_PRINT(FORMAT, ...) CkPrintf("(%d: [%d,%d]@%d) " FORMAT "\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep ,##__VA_ARGS__)
+    #define DEBUG_SCHED(FORMAT, ...) CkPrintf("(%d S): " FORMAT "\n", CkMyPe() ,##__VA_ARGS__)
+//    #define DEBUG_PRINT(...)
+//    #define DEBUG_SCHED(...)
     #define DEBUG_PIVOT(...)
     #define VERBOSE_PROGRESS(...)
     #define VERY_VERBOSE_PIVOT_AGGLOM(...)
@@ -40,24 +41,27 @@ extern int traceTrailingUpdate;
 extern int traceComputeU;
 extern int traceComputeL;
 extern int traceSolveLocalLU;
-extern CProxy_locker lg;
 
 /// Global that holds the reducer type for locval
 extern CkReduction::reducerType LocValReducer;
-extern CmiNodeLock lock;
+//extern CmiNodeLock lock;
 
 static inline void takeRef(void *m) {
-    CmiLock(lock);
+//    CmiLock(lock);
     CmiReference(UsrToEnv(m));
-    CmiUnlock(lock);
+//    CmiUnlock(lock);
 }
 static inline void dropRef(void *m) {
-    CmiLock(lock);
+//    CmiLock(lock);
     CmiFree(UsrToEnv(m));
-    CmiUnlock(lock);
+//    CmiUnlock(lock);
 }
 
 class LUBlk: public CBase_LUBlk {
+public:
+  int internalStep;
+  bool factored;
+private:
   CProxy_BlockScheduler scheduler;
   int l_block, u_block;
 
@@ -73,7 +77,7 @@ class LUBlk: public CBase_LUBlk {
   int BLKSIZE, numBlks;
   blkMsg *L, *U;
   BlockReadyMsg *mL, *mU;
-  int internalStep, activeCol, ind;
+  int activeCol, ind;
 
   LUMgr *mgr;
 
@@ -114,6 +118,8 @@ class LUBlk: public CBase_LUBlk {
   int suggestedPivotBatchSize;
   /// How many blocks to our right have pulled our data and consumed it?
   int blockPulled;
+  /// Which PE's schedulers have requested this block?
+  std::vector<int> requestingPEs;
 
   /// The sub-diagonal chare array section that will participate in pivot selection
   /// @note: Only the diagonal chares will create and mcast along this section
@@ -150,7 +156,7 @@ class LUBlk: public CBase_LUBlk {
   LUBlk_SDAG_CODE
 
   public:
-  LUBlk() : storedVec(NULL), diagRec(0), msgsRecvd(0) {
+  LUBlk() : factored(false), storedVec(NULL), diagRec(0), msgsRecvd(0) {
     __sdag_init();
   }
 
@@ -177,7 +183,7 @@ class LUBlk: public CBase_LUBlk {
   void recvU(blkMsg *);
   //broadcast the L rightwards to the blocks in the same row
   void multicastRecvL();
-  void getBlock(CkCallback cb);
+  void getBlock(int pe);
   double *getBlock();
   void processComputeU(int ignoredParam);
   void localSolve(double *xvec, double *preVec);

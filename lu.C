@@ -72,7 +72,6 @@ int traceTrailingUpdate;
 int traceComputeU;
 int traceComputeL;
 int traceSolveLocalLU;
-CProxy_locker lg;
 
 #include <cmath>
 
@@ -170,12 +169,6 @@ struct traceLU {
   }
 };
 
-CmiNodeLock lock;
-
-struct locker : public CBase_locker {
-    locker() { lock = CmiCreateLock(); }
-};
-
 class Main : public CBase_Main {
   LUConfig luCfg;
   double startTime;
@@ -266,8 +259,6 @@ public:
     traceRegisterUserEvent("Local Multicast Deliveries", 10000);
     traceRegisterUserEvent("Remote Multicast Forwarding - preparing", 10001);
     traceRegisterUserEvent("Remote Multicast Forwarding - sends", 10002);
-
-    lg = CProxy_locker::ckNew();
 
     thisProxy.startNextStep();
   }
@@ -621,6 +612,7 @@ void LUBlk::genVec(double *buf)
 void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs) {
   scheduler = bs;
   bs.ckLocalBranch()->registerBlock(thisIndex);
+  contribute(CkCallback(CkIndex_BlockScheduler::allRegistered(NULL), bs));
   cfg = _cfg;
   BLKSIZE = cfg.blockSize;
   numBlks = cfg.numBlocks;
@@ -811,12 +803,15 @@ inline void LUBlk::multicastRecvU() {
 
   CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
 
-  BlockReadyMsg *mU = new(8*sizeof(int)) BlockReadyMsg(thisIndex);
-  mgr->setPrio(mU, MULT_RECV_U);
-  oneCol.readyU(mU);
-}
+  for (int i = 0; i < requestingPEs.size(); ++i)
+    scheduler[i].deliverBlock(createABlkMsg());
 
-void LUBlk::recvU(blkMsg *) {}
+  requestingPEs.clear();
+
+  // BlockReadyMsg *mU = new(8*sizeof(int)) BlockReadyMsg(thisIndex);
+  // mgr->setPrio(mU, MULT_RECV_U);
+  // oneCol.readyU(mU);
+}
 
 //broadcast the L rightwards to the blocks in the same row
 inline void LUBlk::multicastRecvL() {
@@ -833,14 +828,25 @@ inline void LUBlk::multicastRecvL() {
     mgr->setPrio(givenL, MULT_RECV_L);
     oneRow.recvL(givenL);
   } else {
-    DEBUG_PRINT("Announce block ready to part of row %d", thisIndex.x);
-    BlockReadyMsg *mL = new(8*sizeof(int)) BlockReadyMsg(thisIndex);
-    oneRow.readyL(mL);
+    DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
+
+    for (int i = 0; i < requestingPEs.size(); ++i)
+      scheduler[i].deliverBlock(createABlkMsg());
+
+    requestingPEs.clear();
+
+    // DEBUG_PRINT("Announce block ready to part of row %d", thisIndex.x);
+    // BlockReadyMsg *mL = new(8*sizeof(int)) BlockReadyMsg(thisIndex);
+    // oneRow.readyL(mL);
   }
 }
 
-void LUBlk::getBlock(CkCallback cb) {
-  cb.send(createABlkMsg());
+void LUBlk::getBlock(int pe) {
+  if (internalStep < min(thisIndex.x, thisIndex.y)) {
+    requestingPEs.push_back(pe);
+  }
+  else
+    scheduler[pe].deliverBlock(createABlkMsg());
 }
 double* LUBlk::getBlock() {
   return LU[0];
@@ -859,6 +865,8 @@ void LUBlk::processComputeU(int ignoredParam) {
   multicastRecvU(); //broadcast the newly computed U downwards to the blocks in the same column
 
   dropRef(L);
+  factored = true;
+  scheduler.ckLocalBranch()->factorizationDone(thisIndex);
 
   DEBUG_PRINT("done");
 }

@@ -23,129 +23,180 @@ void BlockScheduler::registerBlock(CkIndex2D index) {
   blockLimit--;
   if (index.x != 0 && index.y != 0)
     localBlocks.push_back(BlockState(index));
+
+  if (index.x >= index.y)
+    Lpanels[index.y].updatesLeftToPlan += index.y;
+  else
+    Ublocks[make_pair(index)].updatesLeftToPlan = 1;
+
   CkAssert(blockLimit >= 2);
 }
 
-struct findByIndex {
-  bool operator()(const BlockState &state) {
-    return state.ix == index.x && state.iy == index.y;
-  }
-
-  CkIndex2D index;
-  findByIndex(CkIndex2D _index) : index(_index) {}
-};
-
-StateList::iterator BlockScheduler::findBlockState(CkIndex2D index) {
-  StateList::iterator iter = find_if(localBlocks.begin(),
-                                     localBlocks.end(), findByIndex(index));
-  if (iter == localBlocks.end()) {
-    iter = find_if(pendingBlocks.begin(), pendingBlocks.end(), findByIndex(index));
-  }
-  if (iter == pendingBlocks.end()) {
-    iter = find_if(readyBlocks.begin(), readyBlocks.end(), findByIndex(index));
-  }
-  CkAssert(iter != readyBlocks.end());
-  return iter;
+void BlockScheduler::repositionBlock(StateList::iterator block) {
+  StateList::iterator pos = block->pendingDependencies == 0 ?
+    localBlocks.begin() : localBlocks.end();
+  localBlocks.splice(pos, localBlocks, block);
 }
 
-void BlockScheduler::pivotsDone(CkIndex2D index) {
-  findBlockState(index)->pivotsDone = true;
+template <typename K>
+void BlockScheduler::updatePanel(std::map<K, Panel> &panels, K index) {
+  typename std::map<K, Panel>::iterator iter = panels.find(index);
+  CkAssert(iter != panels.end());
+  Panel &panel = iter->second;
+
+  panel.updatesLeftToPlan--;
+  if(panel.updatesLeftToPlan == 0) {
+    for (std::list<StateList::iterator>::iterator i = panel.dependents.begin();
+	 i != panel.dependents.end(); ++i) {
+      repositionBlock(*i);
+    }
+
+    panels.erase(iter);
+  }
+}
+
+template <typename K>
+void BlockScheduler::addDependence(std::map<K, Panel> &panels, K index,
+				   StateList::iterator block) {
+  typename std::map<K, Panel>::iterator panel = panels.find(index);
+  if (panel != panels.end()) {
+    block->pendingDependencies++;
+    panel->second.addDependent(block);
+  }
+}
+
+void BlockScheduler::planUpdate(StateList::iterator target) {
+  CkAssert(target->pendingDependencies == 0);
+
+  int t = target->updatesPlanned++;
+
+  plannedUpdates.push_back(Update(&*target, t));
+  Update &update = plannedUpdates.back();
+  if (target->ix >= target->iy)
+    updatePanel(Lpanels, target->iy);
+  else
+    updatePanel(Ublocks, make_pair(target->ix, target->iy));
+
+  getBlock(target->ix, t, update.L, &update);
+  getBlock(t, target->iy, update.U, &update);
+
+  if (target->updatesPlanned != min(target->ix, target->iy)) {
+    addDependence(Lpanels, t+1, target);
+    addDependence(Ublocks, make_pair(t+1, target->iy), target);
+    repositionBlock(target);
+  } else {
+    doneBlocks.splice(doneBlocks.end(), localBlocks, target);
+  }
+}
+
+void BlockScheduler::getBlock(int srcx, int srcy, double *&data,
+			      Update *update) {
+  LUBlk *local = luArr(srcx, srcy).ckLocal();
+  if (local) {
+    if (local->factored) {
+      DEBUG_SCHED("Found block (%d, %d) ready locally for update to (%d,%d)",
+		  srcx, srcy, update->target->ix, update->target->iy);
+      data = local->getBlock();
+    } else {
+      DEBUG_SCHED("Found block (%d, %d) pending locally for update to (%d,%d)",
+		  srcx, srcy, update->target->ix, update->target->iy);
+      localWantedBlocks[make_pair(srcx, srcy)].push_back(update);
+    }
+    return;
+  }
+
+  pair<int, int> src = make_pair(srcx, srcy);
+  wantedBlock &block = wantedBlocks[src];
+
+  block.refs.push_back(update);
+
+  if (block.refs.size() == 1) {
+    // First reference to this block, so ask for it
+    DEBUG_SCHED("requesting getBlock from (%d, %d)", srcx, srcy);
+    luArr(src.first, src.second).getBlock(CkMyPe());
+  }
+
+  if (block.m) {
+    DEBUG_SCHED("already ARRIVED from (%d, %d)", srcx, srcy);
+    update->tryDeliver(srcx, srcy, block.m->data);
+  }
+}
+
+void BlockScheduler::deliverBlock(blkMsg *m) {
+  DEBUG_SCHED("deliverBlock src (%d, %d)", m->src.x, m->src.y);
+  wantedBlock &block = wantedBlocks[make_pair(m->src)];
+  block.m = m;
+
+  for (std::list<Update*>::iterator update = block.refs.begin();
+       update != block.refs.end(); ++update) {
+    DEBUG_SCHED("tryDeliver of (%d,%d) to (%d,%d) @ %d", m->src.x, m->src.y,
+		(*update)->target->ix, (*update)->target->iy, (*update)->t);
+    (*update)->tryDeliver(m->src.x, m->src.y, m->data);
+  }
+
   progress();
 }
 
-void BlockScheduler::dataReady(CkIndex2D index, BlockReadyMsg *m) {
-  StateList::iterator iter = findBlockState(index);
-  BlockState::InputState &input = m->src.x == index.x ? iter->Lstate : iter->Ustate;
-  input.m = m;
-  DEBUG_SCHED("dataReady message src = (%d, %d)", input.m->src.x, input.m->src.y);
+void BlockScheduler::dropRef(int srcx, int srcy, Update *update) {
+  std::map<std::pair<int, int>, wantedBlock>::iterator input =
+    wantedBlocks.find(make_pair(srcx, srcy));
+
+  if (input == wantedBlocks.end())
+    return;
+
+  input->second.refs.remove(update);
+  if (input->second.refs.size() == 0) {
+    delete input->second.m;
+    wantedBlocks.erase(input);
+  }
+}
+
+void BlockScheduler::runUpdate(std::list<Update>::iterator iter) {
+  Update &update = *iter;
+  CkAssert(update.ready());
+  int tx = update.target->ix, ty = update.target->iy;
+
+  luArr(tx, ty).ckLocal()->processTrailingUpdate(update.t, (intptr_t)&update);
+}
+
+void BlockScheduler::updateDone(intptr_t update_ptr) {
+  Update &update = *(Update *)update_ptr;
+  int tx = update.target->ix, ty = update.target->iy; 
+  DEBUG_SCHED("updateDone on (%d,%d)", tx, ty);
+
+  dropRef(tx, update.t, &update);
+  dropRef(update.t, ty, &update);
+
+  update.target->updatesCompleted++;
+  if (update.target->updatesCompleted == min(update.target->ix, update.target->iy)) {
+    // Last update on this block
+    doneBlocks.remove(*update.target);
+  }
+
+  plannedUpdates.remove(update);
+
   progress();
 }
 
-void BlockScheduler::releaseBlock(BlockState::InputState &input) {
-  int ref = 0;
-  if (input.state != LOCAL)
-    ref = --wantedBlocks[make_pair(input.m->src)].refs;
+void BlockScheduler::factorizationDone(CkIndex2D index) {
+  DEBUG_SCHED("factorizationDone on (%d,%d)", index.x, index.y);
+  std::map<std::pair<int, int>, std::list<Update*> >::iterator wanters =
+    localWantedBlocks.find(make_pair(index.x, index.y));
+  if (wanters != localWantedBlocks.end()) {
+    std::list<Update*> &wantList = wanters->second;
+    CkAssert(luArr(index).ckLocal());
 
-  if (ref == 0 && input.state != LOCAL) {
-    std::map<pair<int, int>, wantedBlock>::iterator iter =
-      wantedBlocks.find(make_pair(input.m->src));
-    delete iter->second.m;
-    wantedBlocks.erase(iter);
+    for (std::list<Update*>::iterator wanter = wantList.begin();
+	 wanter != wantList.end(); ++wanter) {
+      DEBUG_SCHED("tryDeliver of (%d,%d) to (%d,%d) @ %d", index.x, index.y,
+		  (*wanter)->target->ix, (*wanter)->target->iy, (*wanter)->t);
+      (*wanter)->tryDeliver(index.x, index.y, luArr(index).ckLocal()->getBlock());
+    }
+
+    localWantedBlocks.erase(wanters);
   }
-}
 
-void BlockScheduler::updateDone(CkIndex2D index) {
-  StateList::iterator block = findBlockState(index);
-
-  releaseBlock(block->Lstate);
-  releaseBlock(block->Ustate);
-
-  block->updatesCompleted++;
-  block->pivotsDone = false;
-  block->updateScheduled = false;
-  block->Lstate.reset();
-  block->Ustate.reset();
-
-  if (block->updatesCompleted < std::min(block->ix, block->iy)) {
-    DEBUG_SCHED("Updated block (%d, %d) at step %d, returning to localBlocks",
-                block->ix, block->iy, block->updatesCompleted);
-    localBlocks.splice(localBlocks.end(), readyBlocks, block);
-  }
-  else {
-    DEBUG_SCHED("Updated block (%d, %d) at step %d, done",
-                block->ix, block->iy, block->updatesCompleted);
-    readyBlocks.erase(block);
-  }
   progress();
-}
-
-struct updatesCompletedSorter {
-  bool operator()(const BlockState& state1, const BlockState& state2) {
-    return state1.updatesCompleted < state2.updatesCompleted;
-  }
-};
-
-struct earliestRelevantSorter {
-  bool operator()(const BlockState& state1, const BlockState& state2) {
-    return state1.ix != state2.ix ? state1.ix < state2.ix : state1.iy < state2.iy;
-  }
-};
-
-bool BlockScheduler::advanceInput(BlockState::InputState &input, int srcX, int srcY) {
-    bool stateModified = false;
-
-    LUBlk *src = luArr(srcX, srcY).ckLocal();
-
-    if (input.state != LOCAL && src) {
-      input.state = LOCAL;
-      input.data = src->getBlock();
-      CkAssert(input.data);
-      stateModified = true;
-    }
-
-    if (input.state == PENDING_SPACE) {
-      input.state = ALLOCATED;
-      stateModified = true;
-    }
-
-    if (input.state == ALLOCATED) {
-      if (input.m) {
-        getBlock(input);
-        stateModified = true;
-      } // else we wait for ready msg
-    }
-
-    return stateModified;
-}
-
-void BlockScheduler::wantBlock(BlockState::InputState &input, int x, int y) {
-  DEBUG_SCHED("wantBlock called for (%d, %d)", x, y);
-  if (!luArr(x,y).ckLocal()) {
-    if (wantedBlocks.find(make_pair(x, y)) == wantedBlocks.end())
-      wantedBlocks.insert(make_pair(make_pair(x, y), wantedBlock()));
-    else
-      wantedBlocks[make_pair(x, y)].refs++;
-  }
 }
 
 void BlockScheduler::progress() {
@@ -154,131 +205,30 @@ void BlockScheduler::progress() {
     return;
 
   inProgress = true;
+
   bool stateModified;
 
   do {
     stateModified = false;
-    localBlocks.sort(updatesCompletedSorter());
-
-    while (wantedBlocks.size() + 1 < blockLimit && localBlocks.size() > 0) {
-      // Move some blocks from localBlocks to pendingBlocks
-      BlockState &block = *localBlocks.begin();
-      DEBUG_SCHED("putting into pendingBlocks: (%d, %d)", block.ix, block.iy);
-      wantBlock(block.Lstate, block.ix, block.updatesCompleted);
-      wantBlock(block.Ustate, block.updatesCompleted, block.iy);
-      pendingBlocks.splice(pendingBlocks.end(), localBlocks, localBlocks.begin());
-      stateModified = true;
-    }
-
-    CkAssert(wantedBlocks.size() <= blockLimit);
-
-    // Try to advance state for each
-    for (StateList::iterator iter = pendingBlocks.begin(); iter != pendingBlocks.end();
-         ++iter) {
-      BlockState &block = *iter;
-      DEBUG_SCHED("examining pending block (%d, %d), Lstate = %d, Ustate = %d", block.ix, block.iy,
-                  block.Lstate.state, block.Ustate.state);
-      if (block.pivotsDone) {
-        stateModified |= advanceInput(block.Lstate, block.ix, block.updatesCompleted);
-	stateModified |= advanceInput(block.Ustate, block.updatesCompleted, block.iy);
-
-        if (block.Ustate.available() && block.Lstate.available()) {
-          DEBUG_SCHED("both block indicate arrived for (%d, %d)", block.ix, block.iy);
-          readyBlocks.push_back(block);
-          iter = pendingBlocks.erase(iter);
-          stateModified = true;
-        }
+    if (wantedBlocks.size() < blockLimit) {
+      if (localBlocks.size() > 0) {
+	CkAssert(localBlocks.front().pendingDependencies == 0);
+	planUpdate(localBlocks.begin());
+	//stateModified = true;
       }
     }
 
-    CkAssert(wantedBlocks.size() <= blockLimit);
-
-    StateList::iterator block = readyBlocks.begin();
-    if (block != readyBlocks.end() && !block->updateScheduled) {
-      CkIndex2D Lsrc = block->Lstate.m->src, Usrc = block->Ustate.m->src;
-      CkAssert(block->updatesCompleted == Lsrc.y && block->updatesCompleted == Usrc.x);
-      DEBUG_SCHED("Updating block (%d, %d) at step %d",
-		  block->ix, block->iy, block->updatesCompleted);
-
-      CkAssert(block->Lstate.data && block->Ustate.data);
-
-      block->updateScheduled = true;
-
-      luArr(block->ix, block->iy).ckLocal()->
-        processTrailingUpdate(block->updatesCompleted, (intptr_t)block->Lstate.data,
-                              (intptr_t)block->Ustate.data);
-
-      stateModified = true;
+    if (plannedUpdates.size() > 0) {
+      for (std::list<Update>::iterator update = plannedUpdates.begin();
+	   update != plannedUpdates.end(); ++update) {
+	if (update->ready()) {
+	  runUpdate(update);
+	  stateModified = true;
+	  break;
+	}
+      }
     }
   } while (stateModified);
 
   inProgress = false;
-}
-
-struct WillUse {
-  BlockScheduler::wantedBlock &block;
-  pair<int, int> index;
-  WillUse(BlockScheduler::wantedBlock &block_, pair<int, int> index_) : block(block_), index(index_) {}
-  void operator()(BlockState &trailingBlock) {
-    if (trailingBlock.ix == index.first && trailingBlock.iy > index.second  ||
-        trailingBlock.iy == index.second && trailingBlock.ix > index.first) {
-      block.refs++;
-    }
-  }
-};
-
-void BlockScheduler::incrementRefs(CkIndex2D index) {
-  pair<int, int> src = make_pair(index);
-  std::for_each(pendingBlocks.begin(), pendingBlocks.end(), WillUse(wantedBlocks[src], src));
-  std::for_each(readyBlocks.begin(), readyBlocks.end(), WillUse(wantedBlocks[src], src));
-}
-
-void BlockScheduler::getBlock(BlockState::InputState &input) {
-  CkAssert(input.state == ALLOCATED);
-
-  pair<int, int> src = make_pair(input.m->src);
-
-  input.state = REQUESTED;
-
-  if (wantedBlocks[src].m) {
-    DEBUG_SCHED("already ARRIVED from (%d, %d)", input.m->src.x, input.m->src.y);
-    input.data = wantedBlocks[src].m->data;
-    input.state = ARRIVED;
-    return;
-  }
-  if (wantedBlocks[src].requested) {
-    DEBUG_SCHED("already REQUESTED from (%d, %d)", input.m->src.x, input.m->src.y);
-    return;
-  }
-
-  incrementRefs(input.m->src);
-
-  wantedBlocks[src].requested = true;
-  DEBUG_SCHED("requesting getBlock from (%d, %d)", input.m->src.x, input.m->src.y);
-  luArr(src.first, src.second).getBlock(CkCallback(CkIndex_BlockScheduler::deliverBlock(NULL), thishandle));
-}
-
-struct TryDeliver {
-  BlockScheduler::wantedBlock &block;
-  TryDeliver(BlockScheduler::wantedBlock &block_) : block(block_) {}
-  void operator()(BlockState &rblock) {
-    const CkIndex2D src = block.m->src;
-    int step = std::min(src.x, src.y);
-    bool isU = src.x < src.y;
-    BlockState::InputState &input = isU ? rblock.Ustate : rblock.Lstate;
-    if (input.m && input.m->src == src && step == rblock.updatesCompleted) {
-      DEBUG_SCHED("delivered %s with from (%d, %d) for (%d, %d) step = %d", isU ? "U" : "L",
-                  src.x, src.y, rblock.ix, rblock.iy, rblock.updatesCompleted);
-      input.state = ARRIVED;
-      input.data = block.m->data;
-    }
-  }
-};
-
-void BlockScheduler::deliverBlock(blkMsg *m) {
-  DEBUG_SCHED("deliverBlock src (%d, %d)", m->src.x, m->src.y);
-  pair<int, int> src = make_pair(m->src);
-  wantedBlocks[src].m = m;
-  std::for_each(pendingBlocks.begin(), pendingBlocks.end(), TryDeliver(wantedBlocks[src]));
-  progress();
 }

@@ -21,7 +21,7 @@ ARGS      = 64 16 500 8 2
 # Specify the compilers, run script, flags etc.
 CXX       = $(CHARMBIN)/charmc
 CHARMC    = $(CHARMBIN)/charmc
-OPT       = -O3 -g
+OPT       = -g
 CPPFLAGS += -DADAPT_SCHED_MEM $(BLAS_INC)
 CXXFLAGS += -language charm++ $(OPT)
 LDFLAGS  += -module comlib -module CkMulticast -tracemode projections $(BLAS_LD)

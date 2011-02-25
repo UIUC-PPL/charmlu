@@ -4,7 +4,6 @@ mainmodule lu {
   readonly int traceComputeU;
   readonly int traceComputeL;
   readonly int traceSolveLocalLU;
-  readonly CProxy_locker lg;
 
   // Register the reducer function that handles reductions of locval
   initproc void registerLocValReducer();
@@ -48,10 +47,6 @@ mainmodule lu {
     entry PrioLU(int BLKSIZE, int matSize);
   };
 
-  nodegroup locker {
-      entry locker();
-  }
-
   class CProxy_BlockScheduler;
   class LUConfig;
 
@@ -76,7 +71,7 @@ mainmodule lu {
     entry [nokeep] void sendUSegment(UMsg* msg);
     entry void performUpdate(int);
     entry void blockUsed(int);
-    entry void getBlock(CkCallback cb);
+    entry void getBlock(int pe);
 
     entry void belowPivot(int targetCol) {
       // Wait for the replacement row from the diagonal chare so that you have the updated block
@@ -140,29 +135,25 @@ mainmodule lu {
               }
           }
 
-          // Notify the local scheduler that this block is ready for its
-          // next trailing update
-          atomic {
-            scheduler.ckLocalBranch()->pivotsDone(thisIndex);
-          }
+	  /// Preserved for RDMA variant
+          // overlap {
+          //   when readyL[internalStep](BlockReadyMsg *mL) atomic {
+          //     DEBUG_PRINT("readyL");
+	  //     scheduler.ckLocalBranch()->dataReady(thisIndex, mL);
+          //   }
+          //   when readyU[internalStep](BlockReadyMsg *mU) atomic {
+          //     DEBUG_PRINT("readyU");
+          //     scheduler.ckLocalBranch()->dataReady(thisIndex, mU);
+          //   }
+          // }
 
-          overlap {
-            when readyL[internalStep](BlockReadyMsg *mL) atomic {
-              DEBUG_PRINT("readyL");
-	      scheduler.ckLocalBranch()->dataReady(thisIndex, mL);
-            }
-            when readyU[internalStep](BlockReadyMsg *mU) atomic {
-              DEBUG_PRINT("readyU");
-              scheduler.ckLocalBranch()->dataReady(thisIndex, mU);
-            }
-          }
-
-	  when processTrailingUpdate[internalStep](int step, intptr_t L, intptr_t U)
+	  when processTrailingUpdate[internalStep](int step, intptr_t update_ptr)
             atomic "trailing_update" {
+	      Update &update = *(Update *)update_ptr;
 	      DEBUG_PRINT("doing trailing update");
-	      updateMatrix((double*)L, (double*)U);
-	      thisProxy(thisIndex.x, internalStep).blockUsed(0);
-              scheduler.ckLocalBranch()->updateDone(thisIndex);
+	      updateMatrix(update.L, update.U);
+	      thisProxy(thisIndex.x, internalStep).blockUsed(1);
+              scheduler.ckLocalBranch()->updateDone(update_ptr);
 	  }
       }
 
@@ -251,11 +242,13 @@ mainmodule lu {
           if (pendingUmsg) dropRef(pendingUmsg);
           DEBUG_PRINT("done computing L");
 	  multicastRecvL();
+	  factored = true;
+	  scheduler.ckLocalBranch()->factorizationDone(thisIndex);
           pivotBatchTag += BLKSIZE;
         }
 
-	for (blockPulled = 0; blockPulled < numBlks-thisIndex.y-1; blockPulled++) {
-	    when blockUsed(int dummy) atomic {}
+	while (blockPulled < numBlks-thisIndex.y-1) {
+	  when blockUsed(int count) atomic { blockPulled += count; }
 	}
 
         for (internalStep++;  internalStep <= thisIndex.x; internalStep++) {
@@ -480,10 +473,9 @@ mainmodule lu {
     // instance to every object on a processor, rather than making a
     // separate copy for each object.
     entry [nokeep] void recvL(blkMsg *);
-    entry [nokeep] void recvU(blkMsg *);
 
-    entry void readyL(BlockReadyMsg *mL);
-    entry void readyU(BlockReadyMsg *mU);
+    //entry void readyL(BlockReadyMsg *mL);
+    //entry void readyU(BlockReadyMsg *mU);
 
     // These process* entry methods are invoked locally by each block
     // on itself with varying priorities, to let the scheduler decide
@@ -496,7 +488,7 @@ mainmodule lu {
     // should schedule invocations of this entry method when it is in
     // a memory critical (i.e. over threshold) condition, so that
     // retained messages can be freed.
-    entry [local] void processTrailingUpdate(int step, intptr_t L, intptr_t U);
+    entry [local] void processTrailingUpdate(int step, intptr_t update_ptr);
     // This frees a buffered message, but don't really reduce
     // memory pressure, because it generates multicasts along the
     // way. Hence, it's not marked [memcritical].
@@ -508,8 +500,9 @@ mainmodule lu {
 
   group BlockScheduler {
     entry BlockScheduler(CProxy_LUBlk luArr, LUConfig config);
-      entry void deliverBlock(blkMsg *m);
-      entry void printBlockLimit();
+    entry void deliverBlock(blkMsg *m);
+    entry void printBlockLimit();
+    entry void allRegistered(CkReductionMsg *m);
   }
 
   group BlockCyclicMap : CkArrayMap{
