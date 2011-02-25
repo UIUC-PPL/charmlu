@@ -842,11 +842,13 @@ inline void LUBlk::multicastRecvL() {
 }
 
 void LUBlk::getBlock(int pe) {
-  if (internalStep < min(thisIndex.x, thisIndex.y)) {
+  if (factored) {
+    DEBUG_PRINT("Delivering remote block to pe %d", pe);
+    scheduler[pe].deliverBlock(createABlkMsg());
+  } else {
+    DEBUG_PRINT("Queueing remote block for pe %d", pe);
     requestingPEs.push_back(pe);
   }
-  else
-    scheduler[pe].deliverBlock(createABlkMsg());
 }
 double* LUBlk::getBlock() {
   return LU[0];
