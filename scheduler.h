@@ -17,7 +17,7 @@ enum INPUT_STATE {
 struct BlockState {
   // Index of block
   int ix, iy;
-  // How many of the dependencies for the next update are not yet planned? 0, 1, or 2?
+  // How many of the dependencies for the next update are not yet planned? [0..3]?
   int pendingDependencies;
   // Count of trailing updates completed and planned
   int updatesCompleted, updatesPlanned, updatesEligible;
@@ -99,9 +99,15 @@ public:
   void deliverBlock(blkMsg *m);
 
 private:
-  StateList localBlocks, doneBlocks;
+  StateList localBlocks, eligibleBlocks, doneBlocks;
+
+  // L inputs - indexed by column
   std::map<int, Panel> Lpanels;
+  // U inputs - indexed by row and column
   std::map<std::pair<int, int>, Panel> Ublocks;
+  // Pivots - indexed by column and step
+  std::map<std::pair<int, int>, Panel> Ppanels;
+
   std::list<Update> plannedUpdates;
   CProxy_LUBlk luArr;
   int blockLimit;
