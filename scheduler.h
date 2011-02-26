@@ -42,6 +42,7 @@ typedef std::list<BlockState> StateList;
 
 struct Update {
   BlockState *target;
+  bool triggered;
   int t;
   double *L, *U;
 
@@ -61,10 +62,10 @@ struct Update {
     }
   }
 
-  bool ready() { return L && U; }
+  bool ready() { return L && U && !triggered; }
 
   Update(BlockState *target_, int step)
-    : target(target_), t(step), L(NULL), U(NULL) { }
+    : target(target_), triggered(false), t(step), L(NULL), U(NULL) { }
 
   bool operator==(const Update &rhs) {
     return target == rhs.target && t == rhs.t && L == rhs.L && U == rhs.U;

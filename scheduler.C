@@ -152,6 +152,7 @@ void BlockScheduler::runUpdate(std::list<Update>::iterator iter) {
   Update &update = *iter;
   CkAssert(update.ready());
   int tx = update.target->ix, ty = update.target->iy;
+  update.triggered = true;
 
   luArr(tx, ty).ckLocal()->processTrailingUpdate(update.t, (intptr_t)&update);
 }
