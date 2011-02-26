@@ -27,7 +27,7 @@ CXXFLAGS += -language charm++ $(OPT)
 LDFLAGS  += -module comlib -module CkMulticast -tracemode projections $(BLAS_LD)
 LDLIBS   += $(BLAS_LIBS)
 EXEC      = ./charmrun
-EXECFLAGS = +p$(NP)
+EXECFLAGS = +p$(NP) ++local
 TEST_SCRIPT=test_lu.pl
 ifdef $(NODELIST)
   EXECFLAGS += ++nodelist $(NODELIST)

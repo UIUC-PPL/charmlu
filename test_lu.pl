@@ -3,9 +3,7 @@
 use strict;
 use warnings;
 
-die "usage: test_lu.pl <exec> <execflags> <target>" if (@ARGV < 3);
-
-my ($exec1, $execflags, $target) = @ARGV;
+die "usage: test_lu.pl <exec> <execflags> <target>" if (@ARGV < 1);
 
 # "test identifier" => [params...]
 my %smalltests = (
@@ -68,7 +66,7 @@ sub run_tests {
     my %tests = @_;
     for my $key (sort keys %tests) {
         print "Executing test $key...";
-        my $ex = "$exec1 $execflags $target @{$tests{$key}}";
+        my $ex =  join(' ', @ARGV) . " @{$tests{$key}}";
         my $res = `$ex 2>&1 | grep residual`;
         if ($res =~ /residual = ([\d\.]*)/ and $1 < 16) {
             print "PASSED r = $1\n";
