@@ -210,7 +210,9 @@ void BlockScheduler::progress() {
 
   do {
     stateModified = false;
-    if (wantedBlocks.size() < blockLimit) {
+    bool plannedAnything = true;
+    while (wantedBlocks.size() < blockLimit && plannedAnything) {
+      plannedAnything = false;
       if (localBlocks.size() > 0) {
 	DEBUG_SCHED("Local Blocks: ");
 	for (StateList::iterator block = localBlocks.begin(); block != localBlocks.end();
@@ -222,7 +224,7 @@ void BlockScheduler::progress() {
 
 	CkAssert(localBlocks.front().pendingDependencies == 0);
 	planUpdate(localBlocks.begin());
-	//stateModified = true;
+	plannedAnything = true;
       }
     }
 
