@@ -77,7 +77,7 @@ void BlockScheduler::planUpdate(StateList::iterator target) {
   getBlock(target->ix, t, update.L, &update);
   getBlock(t, target->iy, update.U, &update);
 
-  if (target->updatesPlanned != min(target->ix, target->iy)) {
+  if (target->updatesPlanned < min(target->ix, target->iy)) {
     addDependence(panels, t+1, target);
     repositionBlock(target);
   } else {
