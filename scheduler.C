@@ -209,7 +209,7 @@ void BlockScheduler::progress() {
 
   do {
     stateModified = false;
-    if (wantedBlocks.size() < 2) {
+    if (wantedBlocks.size() < blockLimit) {
       if (localBlocks.size() > 0) {
 	DEBUG_SCHED("Local Blocks: ");
 	for (StateList::iterator block = localBlocks.begin(); block != localBlocks.end();
