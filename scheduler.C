@@ -28,7 +28,8 @@ void BlockScheduler::registerBlock(CkIndex2D index) {
     }
   }
 
-  CkAssert(blockLimit >= 2);
+  if (blockLimit< 2)
+    CkAbort("Too little space to plan even one trailing update");
 }
 
 void BlockScheduler::repositionBlock(StateList::iterator block) {
