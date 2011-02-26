@@ -23,8 +23,14 @@ void BlockScheduler::registerBlock(CkIndex2D index) {
   blockLimit--;
   if (index.x != 0 && index.y != 0) {
     localBlocks.push_back(BlockState(index));
-    for (int i = 1; i < min(index.x, index.y); ++i)
-      Ppanels[make_pair(index.y, i)].updatesLeftToPlan++;
+    if (index.y > 1)
+      for (int i = 1; i <= min(index.x, index.y) && i < index.y; ++i) {
+        Ppanels[make_pair(index.y, i)].updatesLeftToPlan++;
+      }
+
+    for (int i = 1; i <= min(index.x, index.y) && i < index.y + 1; ++i) {
+      Ppanels[make_pair(index.y+1, i)].updatesLeftToPlan++;
+    }
   }
 
   if (index.x >= index.y)
@@ -44,18 +50,19 @@ void BlockScheduler::repositionBlock(StateList::iterator block) {
 template <typename K>
 void BlockScheduler::updatePanel(std::map<K, Panel> &panels, K index) {
   typename std::map<K, Panel>::iterator iter = panels.find(index);
-  CkAssert(iter != panels.end());
-  Panel &panel = iter->second;
+  if (iter != panels.end()) {
+    Panel &panel = iter->second;
 
-  panel.updatesLeftToPlan--;
-  if(panel.updatesLeftToPlan == 0) {
-    for (std::list<StateList::iterator>::iterator i = panel.dependents.begin();
-	 i != panel.dependents.end(); ++i) {
-      (*i)->pendingDependencies--;
-      repositionBlock(*i);
+    panel.updatesLeftToPlan--;
+    if(panel.updatesLeftToPlan == 0) {
+      for (std::list<StateList::iterator>::iterator i = panel.dependents.begin();
+           i != panel.dependents.end(); ++i) {
+        (*i)->pendingDependencies--;
+        repositionBlock(*i);
+      }
+
+      panels.erase(iter);
     }
-
-    panels.erase(iter);
   }
 }
 
@@ -84,16 +91,19 @@ void BlockScheduler::planUpdate(StateList::iterator target) {
   getBlock(target->ix, t, update.L, &update);
   getBlock(t, target->iy, update.U, &update);
 
-  if (t >= 1 && t < min(target->ix, target->iy))
-      updatePanel(Ppanels, make_pair(target->iy, t));
-
   if (target->updatesPlanned != min(target->ix, target->iy)) {
     addDependence(Lpanels, t+1, target);
     addDependence(Ublocks, make_pair(t+1, target->iy), target);
     addDependence(Ppanels, make_pair(target->iy, t+1), target);
+    addDependence(Ppanels, make_pair(target->iy-1, t+1), target);
     repositionBlock(target);
   } else {
     doneBlocks.splice(doneBlocks.end(), localBlocks, target);
+  }
+
+  if (target->iy > 1 && target->iy > t+1) {
+    DEBUG_SCHED("decrementing for col = %d, step = %d", target->iy, t+1);
+    updatePanel(Ppanels, make_pair(target->iy, t+1));
   }
 }
 
@@ -169,7 +179,7 @@ void BlockScheduler::runUpdate(std::list<Update>::iterator iter) {
 
 void BlockScheduler::updateDone(intptr_t update_ptr) {
   Update &update = *(Update *)update_ptr;
-  int tx = update.target->ix, ty = update.target->iy; 
+  int tx = update.target->ix, ty = update.target->iy;
   DEBUG_SCHED("updateDone on (%d,%d)", tx, ty);
 
   dropRef(tx, update.t, &update);

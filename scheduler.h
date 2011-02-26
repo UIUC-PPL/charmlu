@@ -88,6 +88,11 @@ public:
 
   void registerBlock(CkIndex2D index);
   void allRegistered(CkReductionMsg *m) {
+    for (std::map<std::pair<int, int>, Panel>::iterator iter = Ppanels.begin();
+         iter != Ppanels.end(); ++iter) {
+      CkPrintf("%d S): col = %d, step = %d, # of updates = %d\n", CkMyPe(), 
+               iter->first.first, iter->first.second, iter->second.updatesLeftToPlan);
+    }
     delete m;
     progress();
   }
