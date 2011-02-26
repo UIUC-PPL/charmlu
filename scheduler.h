@@ -88,11 +88,6 @@ public:
 
   void registerBlock(CkIndex2D index);
   void allRegistered(CkReductionMsg *m) {
-    for (std::map<std::pair<int, int>, Panel>::iterator iter = Ppanels.begin();
-         iter != Ppanels.end(); ++iter) {
-      CkPrintf("%d S): col = %d, step = %d, # of updates = %d\n", CkMyPe(), 
-               iter->first.first, iter->first.second, iter->second.updatesLeftToPlan);
-    }
     delete m;
     progress();
   }
@@ -106,12 +101,7 @@ public:
 private:
   StateList localBlocks, eligibleBlocks, doneBlocks;
 
-  // L inputs - indexed by column
-  std::map<int, Panel> Lpanels;
-  // U inputs - indexed by row and column
-  std::map<std::pair<int, int>, Panel> Ublocks;
-  // Pivots - indexed by column and step
-  std::map<std::pair<int, int>, Panel> Ppanels;
+  std::map<int, Panel> panels;
 
   std::list<Update> plannedUpdates;
   CProxy_LUBlk luArr;
