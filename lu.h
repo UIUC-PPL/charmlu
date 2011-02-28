@@ -156,7 +156,7 @@ private:
   LUBlk_SDAG_CODE
 
   public:
-  LUBlk() : factored(false), storedVec(NULL), diagRec(0), msgsRecvd(0) {
+  LUBlk() : factored(false), storedVec(NULL), diagRec(0), msgsRecvd(0), blockPulled(0) {
     __sdag_init();
   }
 
