@@ -72,6 +72,7 @@ int traceTrailingUpdate;
 int traceComputeU;
 int traceComputeL;
 int traceSolveLocalLU;
+CkGroupID mcastMgrGID;
 
 #include <cmath>
 
@@ -248,6 +249,9 @@ public:
              );
     if (luCfg.mappingScheme == 3)
         CkPrintf("\tMapping PE tile size: %d x %d\n", luCfg.peTileRows, luCfg.peTileCols);
+
+    // Create a multicast manager group
+    mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
 
     mainProxy = thisProxy;
 
@@ -652,8 +656,6 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler b
 
   this->print("input-generated-LU");
 
-  // Create a multicast manager group
-  CkGroupID mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
   CkMulticastMgr *mcastMgr = CProxy_CkMulticastMgr(mcastMgrGID).ckLocalBranch();
 
   /// Chares on the active panels will create sections of their brethren

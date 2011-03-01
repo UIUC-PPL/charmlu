@@ -4,6 +4,7 @@ mainmodule lu {
   readonly int traceComputeU;
   readonly int traceComputeL;
   readonly int traceSolveLocalLU;
+  readonly CkGroupID mcastMgrGID;
 
   // Register the reducer function that handles reductions of locval
   initnode void registerLocValReducer();
