@@ -6,7 +6,7 @@ mainmodule lu {
   readonly int traceSolveLocalLU;
 
   // Register the reducer function that handles reductions of locval
-  initproc void registerLocValReducer();
+  initnode void registerLocValReducer();
 
   message BlockReadyMsg;
 
