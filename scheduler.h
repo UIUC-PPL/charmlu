@@ -71,12 +71,11 @@ struct Panel {
   Panel() : updatesLeftToPlan(0) { }
 };
 
+const int sdagOverheadPerBlock = 3760;
+
 class BlockScheduler : public CBase_BlockScheduler {
 public:
-  BlockScheduler(CProxy_LUBlk luArr_, LUConfig config)
-    : luArr(luArr_), inProgress(false) {
-    blockLimit = config.memThreshold * 1024 * 1024 / (config.blockSize * config.blockSize * sizeof(double));
-  }
+  BlockScheduler(CProxy_LUBlk luArr_, LUConfig config);
 
   void registerBlock(CkIndex2D index);
   void allRegistered(CkReductionMsg *m) {

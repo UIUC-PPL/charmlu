@@ -15,6 +15,12 @@ pair<int, int> make_pair(CkIndex2D index) {
   return make_pair(index.x, index.y);
 }
 
+BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config)
+  : luArr(luArr_), inProgress(false) {
+  blockLimit = config.memThreshold * 1024 * 1024 /
+    (config.blockSize * (config.blockSize + 1) * sizeof(double) + sizeof(LUBlk) + sdagOverheadPerBlock);
+}
+
 void BlockScheduler::printBlockLimit() {
   CkPrintf("%d: block limit = %d\n", CkMyPe(), blockLimit);
 }
