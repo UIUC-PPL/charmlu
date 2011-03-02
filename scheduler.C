@@ -204,6 +204,14 @@ void BlockScheduler::factorizationDone(CkIndex2D index) {
   progress();
 }
 
+bool eligibilityYOrder(const BlockState& block1, const BlockState& block2) {
+  if (block1.pendingDependencies != block2.pendingDependencies) {
+    return block1.pendingDependencies < block2.pendingDependencies;
+  } else {
+    return block1.iy < block2.iy;
+  }
+}
+
 void BlockScheduler::progress() {
   DEBUG_SCHED("Called progress, already? %s", inProgress? "true" : "false" );
   // Prevent reentrance
@@ -227,6 +235,8 @@ void BlockScheduler::progress() {
 		      block->ix, block->iy, block->pendingDependencies,
 		      block->updatesCompleted, block->updatesPlanned);
 	}
+
+        localBlocks.sort(eligibilityYOrder);
 
 	CkAssert(localBlocks.front().pendingDependencies == 0);
 	planUpdate(localBlocks.begin());
