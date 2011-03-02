@@ -517,7 +517,8 @@ void LUBlk::recvXvec(int size, double* xvec) {
     maxvals[2] = -1;
     maxvals[3] = -1;
 
-    contribute(sizeof(maxvals), &maxvals, CkReduction::max_double,CkCallback(CkIndex_Main::calcScaledResidual(NULL),mainProxy));
+    contribute(sizeof(maxvals), &maxvals, CkReduction::max_double,
+	       CkCallback(CkIndex_Main::calcScaledResidual(NULL), mainProxy));
   }
 }
 
@@ -575,7 +576,8 @@ void LUBlk::calcResiduals() {
   maxvals[2] = x_max;
   maxvals[3] = res_max;
 
-  contribute(sizeof(maxvals), &maxvals, CkReduction::max_double,CkCallback(CkIndex_Main::calcScaledResidual(NULL),mainProxy));
+  contribute(sizeof(maxvals), &maxvals, CkReduction::max_double,
+	     CkCallback(CkIndex_Main::calcScaledResidual(NULL), mainProxy));
 }
 
 void LUBlk::flushLogs() {
@@ -911,7 +913,8 @@ void LUBlk::beginForward(int size, double *preVec) {
   double *xvec = new double[BLKSIZE];
   localSolve(xvec, preVec);
   CkCallback cb(CkIndex_LUBlk::recvSolveData(0), thisProxy(thisIndex.x, thisIndex.x));
-  mcastMgr->contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double, rowBeforeCookie, cb, thisIndex.x);
+  mcastMgr->contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double,
+		       rowBeforeCookie, cb, thisIndex.x);
   delete[] xvec;
 }
 
@@ -921,7 +924,8 @@ void LUBlk::beginBackward(int size, double *preVec) {
   double *xvec = new double[BLKSIZE];
   localSolve(xvec, preVec);
   CkCallback cb(CkIndex_LUBlk::recvSolveData(0), thisProxy(thisIndex.x, thisIndex.x));
-  mcastMgr->contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double, rowAfterCookie, cb, thisIndex.x);
+  mcastMgr->contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double,
+		       rowAfterCookie, cb, thisIndex.x);
   delete[] xvec;
 }
 
