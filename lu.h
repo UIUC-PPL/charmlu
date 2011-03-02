@@ -72,7 +72,7 @@ private:
   CProxySection_LUBlk belowLeft, belowRight;
 
   /// Variables used during factorization
-  double **LU;
+  double *LU;
 
   int BLKSIZE, numBlks;
   blkMsg *L, *U;
@@ -220,4 +220,7 @@ private:
   /// received row of U and also find the candidate pivot in
   /// the immediate next column (after updating it simultaneously)
   locval computeMultipliersAndFindColMax(int col, double *U, int startingRow=0);
+  inline int getIndex(int i, int j) {
+    return i * BLKSIZE + j;
+  }
 };

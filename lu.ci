@@ -82,11 +82,11 @@ mainmodule lu {
           CkEntryOptions opts;
 	  thisProxy(thisIndex.y, thisIndex.y)
 	    .sendPivotData(internalStep*BLKSIZE + targetCol, pivotRow, BLKSIZE,
-			   &LU[pivotRow % BLKSIZE][0], bvec[pivotRow % BLKSIZE],
+			   &LU[getIndex(pivotRow % BLKSIZE,0)], bvec[pivotRow % BLKSIZE],
                            &(mgr->setPrio(SEND_PIVOT_DATA, opts)));
 	}
 	atomic "below_send_useg" {
-	  UMsg *anUmsg = new(BLKSIZE - targetCol, sizeof(int)*8) UMsg(BLKSIZE - targetCol, &LU[pivotRow % BLKSIZE][targetCol]);
+	  UMsg *anUmsg = new(BLKSIZE - targetCol, sizeof(int)*8) UMsg(BLKSIZE - targetCol, &LU[getIndex(pivotRow % BLKSIZE,targetCol)]);
           mgr->setPrio(anUmsg, BELOW_SEND_USEG, internalStep*BLKSIZE + targetCol);
           CkSetRefNum(anUmsg, internalStep*BLKSIZE + targetCol);
 	  pendingUmsg = (UMsg*)CkCopyMsg((void**)(&anUmsg));
@@ -321,7 +321,7 @@ mainmodule lu {
 	    // Now, send the post-diagonal portion of the pivot row (a segment of U) to all active panel brethren
 	    // so that they can start updating their sub-blocks right away
 	    atomic "diag_send_useg" {
-	      UMsg *anUmsg = new(BLKSIZE - activeCol, sizeof(int)*8) UMsg(BLKSIZE - activeCol, &LU[pivotCandidate.loc%BLKSIZE][activeCol]);
+	      UMsg *anUmsg = new(BLKSIZE - activeCol, sizeof(int)*8) UMsg(BLKSIZE - activeCol, &LU[getIndex(pivotCandidate.loc%BLKSIZE,activeCol)]);
               mgr->setPrio(anUmsg, DIAG_SEND_USEG);
 	      activePanel.sendUSegment(anUmsg);
 	    }
@@ -334,7 +334,7 @@ mainmodule lu {
 	      CkEntryOptions opts;
 	      thisProxy(pivotCandidate.loc / BLKSIZE, thisIndex.y)
 		.sendPivotData(internalStep*BLKSIZE + activeCol, pivotCandidate.loc, BLKSIZE,
-			       &LU[(activeCol + BLKSIZE * thisIndex.y) % BLKSIZE][0],
+			       &LU[getIndex((activeCol + BLKSIZE * thisIndex.y) % BLKSIZE,0)],
 			       bvec[(activeCol + BLKSIZE * thisIndex.y) % BLKSIZE],
                                &(mgr->setPrio(DIAG_SEND_PIVOT, opts)));
 	    }
@@ -355,12 +355,12 @@ mainmodule lu {
         /// Compute the multipliers and update the trailing sub-block
         atomic "diag_update" {
             // Pivoting is done, so the diagonal entry better not be zero; else the matrix is singular
-            if (fabs(LU[activeCol][activeCol]) <= 100 * std::numeric_limits<double>::epsilon() )
+            if (fabs(LU[getIndex(activeCol,activeCol)]) <= 100 * std::numeric_limits<double>::epsilon() )
                 CkAbort("Diagonal element very small despite pivoting. Is the matrix singular??");
             // Compute the multipliers and find the next local pivot candidate
-            pivotCandidate = computeMultipliersAndFindColMax(activeCol, &LU[activeCol][activeCol], activeCol+1);
+            pivotCandidate = computeMultipliersAndFindColMax(activeCol, &LU[getIndex(activeCol,activeCol)], activeCol+1);
             // Update the sub-block
-            updateLsubBlock(activeCol, &LU[activeCol][activeCol], 2, activeCol+1);
+            updateLsubBlock(activeCol, &LU[getIndex(activeCol,activeCol)], 2, activeCol+1);
         }
       }
 

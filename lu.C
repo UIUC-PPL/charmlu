@@ -491,10 +491,10 @@ void LUBlk::recvXvec(int size, double* xvec) {
 
   //Perform local dgemv
 #if USE_ESSL || USE_ACML
-  dgemv(BLAS_TRANSPOSE, BLKSIZE, BLKSIZE, 1.0, LU[0], BLKSIZE, xvec, 1, 0.0, partial_b, 1);
+  dgemv(BLAS_TRANSPOSE, BLKSIZE, BLKSIZE, 1.0, LU, BLKSIZE, xvec, 1, 0.0, partial_b, 1);
 #else
   cblas_dgemv( CblasRowMajor, CblasNoTrans,
-               BLKSIZE, BLKSIZE, 1.0, LU[0],
+               BLKSIZE, BLKSIZE, 1.0, LU,
                BLKSIZE, xvec, 1, 0.0, partial_b, 1);
 #endif
 
@@ -505,7 +505,7 @@ void LUBlk::recvXvec(int size, double* xvec) {
   //if you are not the diagonal, find your max A value and contribute
   if(thisIndex.x != thisIndex.y) {
     //find local max of A
-    double A_max = infNorm(BLKSIZE * BLKSIZE, LU[0]);
+    double A_max = infNorm(BLKSIZE * BLKSIZE, LU);
     VERBOSE_VALIDATION("[%d,%d] A_max  = %e\n",thisIndex.x,thisIndex.y,A_max);
 
     double maxvals[4];
@@ -555,7 +555,7 @@ void LUBlk::calcResiduals() {
   }
 
   //find local max values
-  double A_max = infNorm(BLKSIZE * BLKSIZE, LU[0]);
+  double A_max = infNorm(BLKSIZE * BLKSIZE, LU);
   double b_max = infNorm(BLKSIZE, b);
   delete[] b;
   double x_max = infNorm(BLKSIZE, bvec);
@@ -602,7 +602,7 @@ void LUBlk::genBlock()
   CrnStream stream;
   memcpy(&stream, &blockStream, sizeof(CrnStream));
 
-  for (double *d = LU[0]; d < LU[0] + BLKSIZE*BLKSIZE; ++d)
+  for (double *d = LU; d < LU + BLKSIZE*BLKSIZE; ++d)
     *d = CrnDouble(&stream);
 }
 
@@ -633,18 +633,11 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler b
   // are safe to use here.
 
 #if USE_MEMALIGN
-  LU    = (double**) memalign(128, BLKSIZE*sizeof(double*) );
+  LU = (double*) memalign(128, BLKSIZE * BLKSIZE * sizeof(double));
   CkAssert(LU != NULL);
-  LU[0] = (double*)  memalign(128, BLKSIZE*BLKSIZE*sizeof(double) );
-  CkAssert(LU[0] != NULL);
 #else
-  LU    = new double* [BLKSIZE];
-  LU[0] = new double  [BLKSIZE*BLKSIZE];
+  LU = new double [BLKSIZE*BLKSIZE];
 #endif
-
-  // Initialize the pointers to the rows of the matrix block
-  for (int i=1; i<BLKSIZE; i++)
-    LU[i] = LU[0] + i*BLKSIZE;
 
   internalStep = 0;
 
@@ -721,10 +714,8 @@ void LUBlk::prepareForActivePanel(rednSetupMsg *msg) { delete msg; }
 LUBlk::~LUBlk() {
   //CkPrintf("freeing LuBlk\n");
 #if USE_MEMALIGN
-  free(LU[0]);
   free(LU);
 #else
-  delete [] LU[0];
   delete [] LU;
 #endif
   LU = NULL;
@@ -757,9 +748,9 @@ void LUBlk::computeU(blkMsg *givenLMsg) {
   // givenL is implicitly transposed by telling dtrsm that it is a
   // right, upper matrix. Since this also switches the order of
   // multiplication, the transpose is output to LU.
-  dtrsm(BLAS_RIGHT, BLAS_UPPER, BLAS_NOTRANSPOSE, BLAS_UNIT, BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU[0], BLKSIZE);
+  dtrsm(BLAS_RIGHT, BLAS_UPPER, BLAS_NOTRANSPOSE, BLAS_UNIT, BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU, BLKSIZE);
 #else
-  cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU[0], BLKSIZE);
+  cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU, BLKSIZE);
 #endif
 }
 
@@ -771,9 +762,9 @@ void LUBlk::computeL(blkMsg *givenUMsg) {
   DEBUG_PRINT("computeL called");
 
 #if USE_ESSL
-  dtrsm("R", "U", "N", "N", BLKSIZE, BLKSIZE, 1.0, givenU, BLKSIZE, LU[0], BLKSIZE);
+  dtrsm("R", "U", "N", "N", BLKSIZE, BLKSIZE, 1.0, givenU, BLKSIZE, LU, BLKSIZE);
 #else
-  cblas_dtrsm(CblasRowMajor, CblasRight, CblasUpper, CblasNoTrans, CblasNonUnit, BLKSIZE, BLKSIZE, 1.0, givenU, BLKSIZE, LU[0], BLKSIZE);
+  cblas_dtrsm(CblasRowMajor, CblasRight, CblasUpper, CblasNoTrans, CblasNonUnit, BLKSIZE, BLKSIZE, 1.0, givenU, BLKSIZE, LU, BLKSIZE);
 #endif
 }
 
@@ -787,14 +778,14 @@ void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
          BLKSIZE, BLKSIZE, BLKSIZE,
          -1.0, incomingU,
          BLKSIZE, incomingL, BLKSIZE,
-         1.0, LU[0], BLKSIZE);
+         1.0, LU, BLKSIZE);
 #else
   cblas_dgemm( CblasRowMajor,
                CblasNoTrans, CblasNoTrans,
                BLKSIZE, BLKSIZE, BLKSIZE,
                -1.0, incomingL,
                BLKSIZE, incomingU, BLKSIZE,
-               1.0, LU[0], BLKSIZE);
+               1.0, LU, BLKSIZE);
 #endif
 }
 
@@ -851,7 +842,7 @@ void LUBlk::getBlock(int pe) {
   }
 }
 double* LUBlk::getBlock() {
-  return LU[0];
+  return LU;
 }
 
 void LUBlk::processComputeU(int ignoredParam) {
@@ -880,7 +871,7 @@ void LUBlk::localSolve(double *xvec, double *preVec) {
 
   for (int i = 0; i < BLKSIZE; i++) {
     for (int j = 0; j < BLKSIZE; j++) {
-      xvec[i] += LU[i][j] * preVec[j];
+      xvec[i] += LU[getIndex(i,j)] * preVec[j];
     }
   }
 }
@@ -888,7 +879,7 @@ void LUBlk::localSolve(double *xvec, double *preVec) {
 void LUBlk::localForward(double *xvec) {
   for (int i = 0; i < BLKSIZE; i++) {
     for (int j = 0; j < i; j++) {
-      xvec[i] -= LU[i][j] * xvec[j];
+      xvec[i] -= LU[getIndex(i,j)] * xvec[j];
     }
   }
 }
@@ -896,9 +887,9 @@ void LUBlk::localForward(double *xvec) {
 void LUBlk::localBackward(double *xvec) {
   for (int i = BLKSIZE-1; i >= 0; i--) {
     for (int j = i+1; j < BLKSIZE; j++) {
-      xvec[i] -= LU[i][j] * xvec[j];
+      xvec[i] -= LU[getIndex(i,j)] * xvec[j];
     }
-    xvec[i] /= LU[i][i];
+    xvec[i] /= LU[getIndex(i,i)];
   }
 }
 
@@ -936,7 +927,7 @@ void LUBlk::print(const char* step) {
 
   for (int i = 0; i < BLKSIZE; i++) {
     for (int j = 0; j < BLKSIZE; j++) {
-      fprintf(file, "%f ", LU[i][j]);
+      fprintf(file, "%f ", LU[getIndex(i,j)]);
     }
     fprintf(file, "\n");
   }
@@ -949,7 +940,7 @@ void LUBlk::print(const char* step) {
 void LUBlk::applySwap(int row, int offset, double *data, double b) {
   DEBUG_PIVOT("(%d, %d): remote pivot inserted at %d\n", thisIndex.x, thisIndex.y, row);
   bvec[row] = b;
-  memcpy( &(LU[row][offset]), data, sizeof(double)*(BLKSIZE-offset) );
+  memcpy( &(LU[getIndex(row,offset)]), data, sizeof(double)*(BLKSIZE-offset) );
 }
 
 // Exchange local data
@@ -957,7 +948,7 @@ void LUBlk::swapLocal(int row1, int row2, int offset) {
   if (row1 == row2) return;
   std::swap(bvec[row1], bvec[row2]);
   /// @todo: Is this better or is it better to do 3 memcpys
-  std::swap_ranges( &(LU[row1][offset]), &(LU[row1][BLKSIZE]), &(LU[row2][offset]) );
+  std::swap_ranges( &(LU[getIndex(row1,offset)]), &(LU[getIndex(row1,BLKSIZE)]), &(LU[getIndex(row2,offset)]) );
 }
 
 void LUBlk::doPivotLocal(int row1, int row2) {
@@ -1163,7 +1154,7 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
           ringStop  = beyondLast - 1;
 
           if (NULL == tmpBuf) tmpBuf = new double[BLKSIZE];
-          memcpy(tmpBuf, LU[*ringStart%BLKSIZE], BLKSIZE*sizeof(double));
+          memcpy(tmpBuf, &LU[getIndex(*ringStart%BLKSIZE,0)], BLKSIZE*sizeof(double));
           tmpB = bvec[*ringStart%BLKSIZE];
 #ifdef VERBOSE_PIVOT_AGGLOM
           pivotLog<<"tmp <-cpy- "<<*ringStart<<"; ";
@@ -1184,7 +1175,7 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
               // If you're sending to yourself, memcopy
               if (toChareIdx == thisIndex.x)
                 {
-                  applySwap(*to%BLKSIZE, 0, LU[fromLocal], bvec[fromLocal]);
+                  applySwap(*to%BLKSIZE, 0, &LU[getIndex(fromLocal,0)], bvec[fromLocal]);
 #ifdef VERBOSE_PIVOT_AGGLOM
                   pivotLog<<*to<<" <-cpy- "<<*from<<"; ";
 #endif
@@ -1192,7 +1183,7 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
               // else, copy the data into the appropriate msg
               else
                 {
-                  outgoingPivotMsgs[*to/BLKSIZE]->copyRow(*to, LU[fromLocal], bvec[fromLocal]);
+                  outgoingPivotMsgs[*to/BLKSIZE]->copyRow(*to, &LU[getIndex(fromLocal,0)], bvec[fromLocal]);
 #ifdef VERBOSE_PIVOT_AGGLOM
                   pivotLog<<*to<<" <-msg- "<<*from<<"; ";
 #endif
@@ -1250,7 +1241,7 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
 inline blkMsg* LUBlk::createABlkMsg() {
   blkMsg *msg = mgr->createBlockMessage(thisIndex.x, thisIndex.y,
                                         internalStep, sizeof(int)*8);
-  msg->setMsgData(LU[0], internalStep, BLKSIZE, thisIndex);
+  msg->setMsgData(LU, internalStep, BLKSIZE, thisIndex);
   return msg;
 }
 
@@ -1259,8 +1250,8 @@ inline blkMsg* LUBlk::createABlkMsg() {
 locval LUBlk::findLocVal(int startRow, int col, locval first) {
   locval l = first;
   for (int row = startRow; row < BLKSIZE; row++)
-    if ( fabs(LU[row][col]) > fabs(l.val) ) {
-      l.val = LU[row][col];
+    if ( fabs(LU[getIndex(row,col)]) > fabs(l.val) ) {
+      l.val = LU[getIndex(row,col)];
       l.loc = row + BLKSIZE * thisIndex.x;
     }
   return l;
@@ -1280,19 +1271,19 @@ void LUBlk::updateLsubBlock(int activeCol, double* U, int offset, int startingRo
   dger(BLKSIZE-(activeCol+offset), BLKSIZE-startingRow,
        -1.0,
        U+offset, 1,
-       &LU[startingRow][activeCol], BLKSIZE,
-       &LU[startingRow][activeCol+offset], BLKSIZE);
+       &LU[getIndex(startingRow,activeCol)], BLKSIZE,
+       &LU[getIndex(startingRow,activeCol+offset)], BLKSIZE);
 #elif USE_ACCELERATE_BLAS
   for(int j = startingRow; j < BLKSIZE; j++)
     for(int k = activeCol+offset; k<BLKSIZE; k++)
-      LU[j][k] -=  LU[j][activeCol] * U[k-activeCol];
+      LU[getIndex(j,k)] -=  LU[getIndex(j,activeCol)] * U[k-activeCol];
 #else
   cblas_dger(CblasRowMajor,
              BLKSIZE-startingRow, BLKSIZE-(activeCol+offset),
              -1.0,
-             &LU[startingRow][activeCol], BLKSIZE,
+             &LU[getIndex(startingRow,activeCol)], BLKSIZE,
              U+offset, 1,
-             &LU[startingRow][activeCol+offset], BLKSIZE);
+             &LU[getIndex(startingRow,activeCol+offset)], BLKSIZE);
 #endif
 }
 
@@ -1312,12 +1303,12 @@ locval LUBlk::computeMultipliersAndFindColMax(int col, double *U, int startingRo
   if (col < BLKSIZE -1) {
     for (int j = startingRow; j < BLKSIZE; j++) {
       // Compute the multiplier
-      LU[j][col]    = LU[j][col] / U[0];
+      LU[getIndex(j,col)]    = LU[getIndex(j,col)] / U[0];
       // Update the immediate next column
-      LU[j][col+1] -= LU[j][col] * U[1];
+      LU[getIndex(j,col+1)] -= LU[getIndex(j,col)] * U[1];
       // Update the max value thus far
-      if ( fabs(LU[j][col+1]) > fabs(maxVal.val) ) {
-        maxVal.val = LU[j][col+1];
+      if ( fabs(LU[getIndex(j,col+1)]) > fabs(maxVal.val) ) {
+        maxVal.val = LU[getIndex(j,col+1)];
         maxVal.loc = j;
       }
     }
@@ -1326,7 +1317,7 @@ locval LUBlk::computeMultipliersAndFindColMax(int col, double *U, int startingRo
   }
   else {
     for (int j = startingRow; j < BLKSIZE; j++)
-      LU[j][col]    = LU[j][col] / U[0];
+      LU[getIndex(j,col)]    = LU[getIndex(j,col)] / U[0];
   }
 
   return maxVal;
