@@ -76,6 +76,7 @@ const int sdagOverheadPerBlock = 3760;
 class BlockScheduler : public CBase_BlockScheduler {
 public:
   BlockScheduler(CProxy_LUBlk luArr_, LUConfig config);
+  BlockScheduler(CkMigrateMessage *m) { }
 
   void registerBlock(CkIndex2D index);
   void allRegistered(CkReductionMsg *m) {

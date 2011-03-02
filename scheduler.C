@@ -19,6 +19,8 @@ BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config)
   : luArr(luArr_), inProgress(false) {
   blockLimit = config.memThreshold * 1024 * 1024 /
     (config.blockSize * (config.blockSize + 1) * sizeof(double) + sizeof(LUBlk) + sdagOverheadPerBlock);
+
+  contribute(CkCallback(CkIndex_LUBlk::schedulerReady(NULL), luArr));
 }
 
 void BlockScheduler::printBlockLimit() {
@@ -258,3 +260,4 @@ void BlockScheduler::progress() {
 
   inProgress = false;
 }
+

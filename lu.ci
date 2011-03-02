@@ -140,11 +140,11 @@ mainmodule lu {
           // overlap {
           //   when readyL[internalStep](BlockReadyMsg *mL) atomic {
           //     DEBUG_PRINT("readyL");
-	  //     scheduler.ckLocalBranch()->dataReady(thisIndex, mL);
+	  //     localScheduler->dataReady(thisIndex, mL);
           //   }
           //   when readyU[internalStep](BlockReadyMsg *mU) atomic {
           //     DEBUG_PRINT("readyU");
-          //     scheduler.ckLocalBranch()->dataReady(thisIndex, mU);
+          //     localScheduler->dataReady(thisIndex, mU);
           //   }
           // }
 
@@ -154,7 +154,7 @@ mainmodule lu {
 	      DEBUG_PRINT("doing trailing update");
 	      updateMatrix(update.L, update.U);
 	      thisProxy(thisIndex.x, internalStep).blockUsed(1);
-              scheduler.ckLocalBranch()->updateDone(update_ptr);
+              localScheduler->updateDone(update_ptr);
 	  }
       }
 
@@ -244,7 +244,7 @@ mainmodule lu {
           DEBUG_PRINT("done computing L");
 	  multicastRecvL();
 	  factored = true;
-	  scheduler.ckLocalBranch()->factorizationDone(thisIndex);
+	  localScheduler->factorizationDone(thisIndex);
           pivotBatchTag += BLKSIZE;
         }
 
@@ -381,10 +381,12 @@ mainmodule lu {
     entry void beginForward(int size, double preVec[size]);
     entry void beginBackward(int size, double preVec[size]);
     entry void recvSolveData(CkReductionMsg *m);
+    entry void schedulerReady(CkReductionMsg *m);
 
     entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs) {
-      atomic {
-	  init(luCfg, _mgr, bs);
+      when schedulerReady(CkReductionMsg *m) atomic {
+	delete m;
+	init(luCfg, _mgr, bs);
       }
       when multicastRedns(int dummy) {
         if (thisIndex.x >= thisIndex.y) {
@@ -502,7 +504,11 @@ mainmodule lu {
     entry void print();
   };
 
-  group BlockScheduler {
+  group OnePerPE : CkArrayMap {
+    entry OnePerPE();
+  };
+
+  array [1D] BlockScheduler {
     entry BlockScheduler(CProxy_LUBlk luArr, LUConfig config);
     entry void deliverBlock(blkMsg *m);
     entry void printBlockLimit();

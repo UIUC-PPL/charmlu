@@ -63,6 +63,7 @@ public:
   bool factored;
 private:
   CProxy_BlockScheduler scheduler;
+  BlockScheduler *localScheduler;
   int l_block, u_block;
 
   /// configuration settings

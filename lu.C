@@ -321,7 +321,10 @@ public:
       CProxy_LUMgr mgr = CProxy_PrioLU::ckNew(luCfg.blockSize, luCfg.matrixSize);
 
       luArrProxy = CProxy_LUBlk::ckNew(opts);
-      bs = CProxy_BlockScheduler::ckNew(luArrProxy, luCfg);
+
+      CkArrayOptions bsOpts(CkNumPes());
+      bsOpts.setMap(CProxy_OnePerPE::ckNew());
+      bs = CProxy_BlockScheduler::ckNew(luArrProxy, luCfg, bsOpts);
 
       LUcomplete = true;
 
@@ -617,7 +620,9 @@ void LUBlk::genVec(double *buf)
 
 void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs) {
   scheduler = bs;
-  bs.ckLocalBranch()->registerBlock(thisIndex);
+  localScheduler = scheduler[CkMyPe()].ckLocal();
+  CkAssert(localScheduler);
+  localScheduler->registerBlock(thisIndex);
   contribute(CkCallback(CkIndex_BlockScheduler::allRegistered(NULL), bs));
   cfg = _cfg;
   BLKSIZE = cfg.blockSize;
@@ -859,7 +864,7 @@ void LUBlk::processComputeU(int ignoredParam) {
 
   dropRef(L);
   factored = true;
-  scheduler.ckLocalBranch()->factorizationDone(thisIndex);
+  localScheduler->factorizationDone(thisIndex);
 
   DEBUG_PRINT("done");
 }

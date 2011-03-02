@@ -371,4 +371,16 @@ public:
     std::string desc() { return "strong scaling"; }
 };
 
+/// Mapping for BlockScheduler - created as an array to hack around
+/// inability to do group section multicasts
+struct OnePerPE : public CBase_OnePerPE {
+  OnePerPE() { }
+  int registerArray(CkArrayIndexMax& numElements,CkArrayID aid) {
+    CkAssert(CkNumPes() == numElements.index[0]);
+  }
+  int procNum(int arrayHdl, const CkArrayIndex &elt) {
+    return elt.index[0];
+  }
+};
+
 #endif
