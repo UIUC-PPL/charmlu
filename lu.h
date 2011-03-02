@@ -120,7 +120,7 @@ private:
   /// How many blocks to our right have pulled our data and consumed it?
   int blockPulled;
   /// Which PE's schedulers have requested this block?
-  std::vector<int> requestingPEs;
+  std::vector<CkArrayIndex1D> requestingPEs;
 
   /// The sub-diagonal chare array section that will participate in pivot selection
   /// @note: Only the diagonal chares will create and mcast along this section
@@ -180,6 +180,7 @@ private:
   void computeL(blkMsg *givenUMsg);
   void updateMatrix(double *incomingL, double *incomingU);
   //broadcast the U downwards to the blocks in the same column
+  void multicastRequestedBlock(PrioType prio);
   void multicastRecvU();
   void recvU(blkMsg *);
   //broadcast the L rightwards to the blocks in the same row

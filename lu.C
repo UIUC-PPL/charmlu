@@ -794,6 +794,19 @@ void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
 #endif
 }
 
+void LUBlk::multicastRequestedBlock(PrioType prio) {
+  blkMsg *m = createABlkMsg();
+  mgr->setPrio(m, prio);
+
+  CProxySection_BlockScheduler requesters =
+    CProxySection_BlockScheduler::ckNew(CkArrayID(scheduler),
+					&requestingPEs[0], requestingPEs.size());
+  requesters.ckSectionDelegate(mcastMgr);
+  requesters.deliverBlock(m);
+
+  requestingPEs.clear();
+}
+
 //broadcast the U downwards to the blocks in the same column
 inline void LUBlk::multicastRecvU() {
   traceUserSuppliedData(internalStep);
@@ -801,10 +814,7 @@ inline void LUBlk::multicastRecvU() {
 
   DEBUG_PRINT("Multicast to part of column %d", thisIndex.y);
 
-  for (int i = 0; i < requestingPEs.size(); ++i)
-    scheduler[requestingPEs[i]].deliverBlock(createABlkMsg());
-
-  requestingPEs.clear();
+  multicastRequestedBlock(MULT_RECV_U);
 
   // BlockReadyMsg *mU = new(8*sizeof(int)) BlockReadyMsg(thisIndex);
   // mgr->setPrio(mU, MULT_RECV_U);
@@ -826,10 +836,7 @@ inline void LUBlk::multicastRecvL() {
   } else {
     DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
 
-    for (int i = 0; i < requestingPEs.size(); ++i)
-      scheduler[requestingPEs[i]].deliverBlock(createABlkMsg());
-
-    requestingPEs.clear();
+    multicastRequestedBlock(MULT_RECV_L);
 
     // DEBUG_PRINT("Announce block ready to part of row %d", thisIndex.x);
     // BlockReadyMsg *mL = new(8*sizeof(int)) BlockReadyMsg(thisIndex);
@@ -843,7 +850,7 @@ void LUBlk::getBlock(int pe) {
     scheduler[pe].deliverBlock(createABlkMsg());
   } else {
     DEBUG_PRINT("Queueing remote block for pe %d", pe);
-    requestingPEs.push_back(pe);
+    requestingPEs.push_back(CkArrayIndex1D(pe));
   }
 }
 double* LUBlk::getBlock() {
