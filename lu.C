@@ -535,8 +535,10 @@ void LUBlk::sumBvec(int size, double* partial_b) {
   }
 
   //if all messages recieved, calculate the residual
-  if (msgsRecvd == numBlks)
+  if (msgsRecvd == numBlks) {
     calcResiduals();
+    delete[]  Ax;
+  }
 }
 
 //VALIDATION
