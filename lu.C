@@ -803,8 +803,6 @@ inline void LUBlk::multicastRecvU() {
 
   DEBUG_PRINT("Multicast to part of column %d", thisIndex.y);
 
-  CProxySection_LUBlk oneCol = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
-
   for (int i = 0; i < requestingPEs.size(); ++i)
     scheduler[requestingPEs[i]].deliverBlock(createABlkMsg());
 
