@@ -818,11 +818,9 @@ inline void LUBlk::multicastRecvL() {
   traceUserSuppliedData(internalStep);
   traceMemoryUsage();
 
-  CProxySection_LUBlk oneRow = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, thisIndex.x, 1, thisIndex.y+1, numBlks-1, 1);
-
-  oneRow.ckSectionDelegate(mcastMgr);
-
   if (thisIndex.x == thisIndex.y) {
+    CProxySection_LUBlk oneRow = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, thisIndex.x, 1, thisIndex.y+1, numBlks-1, 1);
+    oneRow.ckSectionDelegate(mcastMgr);
     DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
     blkMsg *givenL = createABlkMsg();
     mgr->setPrio(givenL, MULT_RECV_L);
