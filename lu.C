@@ -797,6 +797,9 @@ void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
 }
 
 void LUBlk::multicastRequestedBlock(PrioType prio) {
+  if (requestingPEs.size() == 0)
+    return;
+
   blkMsg *m = createABlkMsg();
   mgr->setPrio(m, prio);
 
