@@ -377,6 +377,7 @@ struct OnePerPE : public CBase_OnePerPE {
   OnePerPE() { }
   int registerArray(CkArrayIndexMax& numElements,CkArrayID aid) {
     CkAssert(CkNumPes() == numElements.index[0]);
+    return 0;
   }
   int procNum(int arrayHdl, const CkArrayIndex &elt) {
     return elt.index[0];
