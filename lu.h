@@ -77,7 +77,7 @@ private:
 
   int BLKSIZE, numBlks;
   blkMsg *L, *U;
-  BlockReadyMsg *mL, *mU;
+  //BlockReadyMsg *mL, *mU;
   int activeCol, ind;
 
   LUMgr *mgr;
