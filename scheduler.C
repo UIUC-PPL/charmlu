@@ -169,10 +169,10 @@ void BlockScheduler::updateDone(intptr_t update_ptr) {
   update.target->updatesCompleted++;
   if (update.target->updatesCompleted == min(update.target->ix, update.target->iy)) {
     // Last update on this block
-    doneBlocks.remove(*update.target);
+    doneBlocks.erase(std::find(doneBlocks.begin(), doneBlocks.end(), *update.target));
   }
 
-  plannedUpdates.remove(update);
+  plannedUpdates.erase(std::find(plannedUpdates.begin(), plannedUpdates.end(), update));
 
   progress();
 }
