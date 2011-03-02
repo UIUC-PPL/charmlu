@@ -315,6 +315,7 @@ mainmodule lu {
         when colMax(CkReductionMsg *m) {
 	  atomic "diag_found_colmax" {
 	    pivotCandidate = *(locval *)(m->getData());
+            delete m;
 	  }
 	  if (pivotCandidate.loc / BLKSIZE == thisIndex.x) {
 	    // Now, send the post-diagonal portion of the pivot row (a segment of U) to all active panel brethren
