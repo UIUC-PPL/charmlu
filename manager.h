@@ -56,7 +56,10 @@ struct PrioLU : public LUMgr
     case SEND_PIVOT_DATA: case DIAG_SEND_PIVOT:
       prio = -1;
       break;
-    case PROCESS_TRAILING_UPDATE: case RECVL:
+    case RECVL:
+      prio = -1;
+      break;
+    case PROCESS_TRAILING_UPDATE:
       prio = y * BLKSIZE;
       break;
     }
