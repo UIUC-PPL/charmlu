@@ -380,7 +380,7 @@ struct OnePerPE : public CBase_OnePerPE {
     return 0;
   }
   int procNum(int arrayHdl, const CkArrayIndex &elt) {
-    return elt.index[0];
+    return *(int*)elt.data();
   }
 };
 
