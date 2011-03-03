@@ -221,6 +221,12 @@ public:
     else
         luCfg.mappingScheme = 1;
 
+    if (sizeof(CMK_REFNUM_TYPE) != sizeof(int)) {
+      CkPrintf("Refnum size too small for large matrices."
+               " Compile charm with build option --with-refnum-type=int\n");
+      CkExit();
+    }
+
     if (luCfg.matrixSize % luCfg.blockSize!=0) {
       CkPrintf("The matrix size %d should be a multiple of block size %d!\n",
                luCfg.matrixSize, luCfg.blockSize);
