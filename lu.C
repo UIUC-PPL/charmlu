@@ -342,7 +342,7 @@ public:
   std::pair<int,int> computePETileDimensions()
   {
       // Identify two factors that can be used as the tile dimensions for the PE tile
-      int factor1 = std::sqrt(CkNumPes());
+      int factor1 = std::sqrt((double)CkNumPes());
       while ( (CkNumPes() % factor1 != 0) && (factor1 > 0) )
           factor1--;
       if (factor1 == 0)
