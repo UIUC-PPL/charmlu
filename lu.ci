@@ -217,7 +217,6 @@ mainmodule lu {
       // Below diagonal
       else {
         atomic {
-            localScheduler->startedActivePanel(thisIndex.x, thisIndex.y);
             // Find the pivot candidate for just the first column in the block
             pivotCandidate = findLocVal(0, 0);
             pendingUmsg = NULL;
@@ -243,6 +242,9 @@ mainmodule lu {
           atomic { thisProxy(thisIndex.x, thisIndex.y).belowPivot(activeCol); }
           // Wait for the post-diagonal U segment from the original owner of the pivot row
           when sendUSegment(UMsg* anUmsg) atomic "below_recv_useg" {
+            if (activeCol == 0) {
+              localScheduler->startedActivePanel(thisIndex.x, thisIndex.y);
+            }
             // Compute multipliers and update just one column to find the next candidate pivot
             pivotCandidate = computeMultipliersAndFindColMax(activeCol, anUmsg->data);
             // Save the Umsg for later use
@@ -304,7 +306,6 @@ mainmodule lu {
 
     entry void processLU() {
       atomic {
-        localScheduler->startedActivePanel(thisIndex.x, thisIndex.y);
         CkAssert(pivotBatchTag == thisIndex.x*BLKSIZE);
         pivotRecords.clear();
         numRowsSinceLastPivotSend = 0;
@@ -322,6 +323,9 @@ mainmodule lu {
         // Share the pivot info with the appropriate array section
         when colMax(CkReductionMsg *m) {
 	  atomic "diag_found_colmax" {
+            if (activeCol == 0) {
+              localScheduler->startedActivePanel(thisIndex.x, thisIndex.y);
+            }
 	    pivotCandidate = *(locval *)(m->getData());
             delete m;
 	  }
