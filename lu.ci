@@ -164,9 +164,15 @@ mainmodule lu {
 
       // On chare array diagonal
       if (thisIndex.x == thisIndex.y) atomic {
-        ckout << "--------------------------------------------------------------------"<<endl
-              <<"Block " << thisIndex.x << " queueing local LU at internalStep " << internalStep<<endl;
-        thisProxy(thisIndex.x, thisIndex.y).processLU();
+        if (STOP_AFTER == thisIndex.x) {
+            flushLogs();
+            CkStartQD( CkCallback(CkCallback::ckExit) );
+        }
+        else {
+            ckout<< "--------------------------------------------------------------------"<<endl
+                 <<"Block " << thisIndex.x << " queueing local LU at internalStep " << internalStep<<endl;
+            thisProxy(thisIndex.x, thisIndex.y).processLU();
+        }
       }
       // Above diagonal
       else if (thisIndex.x < thisIndex.y) {
@@ -293,10 +299,6 @@ mainmodule lu {
 
     entry void processLU() {
       atomic {
-        if (STOP_AFTER == thisIndex.x) {
-            flushLogs();
-            CkAbort("Aborting factorization in progress");
-        }
         CkAssert(pivotBatchTag == thisIndex.x*BLKSIZE);
         pivotRecords.clear();
         numRowsSinceLastPivotSend = 0;
