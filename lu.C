@@ -791,19 +791,17 @@ void LUBlk::multicastRequestedBlock(PrioType prio) {
 
   mgr->setPrio(LUmsg, prio);
 
-  if (requestingPEs.size() > 4) {
-    CProxySection_BlockScheduler requesters =
-      CProxySection_BlockScheduler::ckNew(CkArrayID(scheduler),
-                                          &requestingPEs[0], requestingPEs.size());
+  CProxySection_BlockScheduler requesters =
+    CProxySection_BlockScheduler::ckNew(CkArrayID(scheduler),
+                                        &requestingPEs[0], requestingPEs.size());
+  envelope *env = UsrToEnv(LUmsg);
+  _SET_USED(env, 0);
+
+  if (requestingPEs.size() > 4)
     requesters.ckSectionDelegate(mcastMgr);
-    takeRef(LUmsg);
-    requesters.deliverBlock(LUmsg);
-  } else {
-    for (int i = 0; i < requestingPEs.size(); i++) {
-      takeRef(LUmsg);
-      scheduler[requestingPEs[i]].deliverBlock(LUmsg);
-    }
-  }
+
+  takeRef(LUmsg);
+  requesters.deliverBlock(LUmsg);
 
   requestingPEs.clear();
 }
