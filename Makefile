@@ -18,6 +18,7 @@ ARGS      = 64 16 500 8 2
 CHARMC    = $(CHARMPROD)/bin/charmc
 CHARMINC  = $(CHARMPROD)/include
 OPT       = -O3
+#CPPFLAGS += -DSCHED_PIVOT_REDN
 CPPFLAGS += -DSEND_LIM=$(SEND_LIM) $(BLAS_INC)
 CXXFLAGS += -language charm++ $(OPT)
 LDFLAGS  += -module comlib -module CkMulticast $(BLAS_LD)

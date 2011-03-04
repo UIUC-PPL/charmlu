@@ -78,7 +78,7 @@ mainmodule lu {
     entry [nokeep] void applyPivots(pivotSequencesMsg *msg);
     entry void acceptPivotData(pivotRowsMsg *msg);
     entry [nokeep] void sendUSegment(UMsg* msg);
-    entry void performUpdate(int);
+    entry void performUpdate(CkMarshallMsg *dummyMsg);
     entry void blockUsed(int);
     entry void getBlock(int pe, int rx, int ry);
 
@@ -257,20 +257,24 @@ mainmodule lu {
           atomic "below_find_pivot" {
             // Contribute to a reduction along the active panel to identify the pivot row
             mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
-	    thisProxy(thisIndex.x, thisIndex.y).performUpdate(0);
-            if (activeCol % 20 == 0) {
-              flushLogs();
-            }
+#ifndef SCHED_PIVOT_REDN
+            void *yuckMsg = CkAllocSysMsg();
+            thisProxy(thisIndex.x, thisIndex.y).performUpdate((CkMarshallMsg*)yuckMsg);
+#endif
           }
-	  when performUpdate(int dummy) atomic "useg_delayed_update" {
+	  when performUpdate(CkMarshallMsg *dummyMsg) atomic "useg_delayed_update" {
 	    // Delayed update using the U segment from the prev activeCol iteration
 	    if (pendingUmsg) {
 	      updateLsubBlock(activeCol-1, pendingUmsg->data, 2);
 	      dropRef(pendingUmsg);
 	      pendingUmsg = NULL;
+          if (activeCol % 20 == 0) {
+              flushLogs();
+          }
 	    }
 	    ownedPivotThisStep = false;
             thisProxy(thisIndex.x, thisIndex.y).belowPivot(activeCol);
+        delete dummyMsg;
 	  }
           // Wait for the post-diagonal U segment from the original owner of the pivot row
           when sendUSegment(UMsg* anUmsg) atomic "below_recv_useg" {
@@ -489,6 +493,9 @@ mainmodule lu {
           when prepareForPivotRedn(rednSetupMsg *msg) atomic {
             mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
             CkGetSectionInfo(pivotCookie, msg);
+#ifdef SCHED_PIVOT_REDN
+            mcastMgr->setReductionProgressEvent(pivotCookie, CkCallback(CkIndex_LUBlk::performUpdate(0), CkArrayIndex2D(thisIndex.x,thisIndex.y), thisArrayID) );
+#endif
           }
         }
         if (thisIndex.x > thisIndex.y) {
