@@ -8,8 +8,7 @@ struct blkMsg: public CkMcastBaseMsg, CMessage_blkMsg {
   double *data;
   CkIndex2D src;
 
-  void setMsgData(double *data_, int step, int BLKSIZE, CkIndex2D index) {
-    memcpy(data, data_, sizeof(double)*BLKSIZE*BLKSIZE);
+  void setMsgData(int step, CkIndex2D index) {
     src = index;
     CkSetRefNum(this, step);
   }
