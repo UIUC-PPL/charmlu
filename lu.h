@@ -185,6 +185,7 @@ private:
   void recvU(blkMsg *);
   //broadcast the L rightwards to the blocks in the same row
   void multicastRecvL();
+  void sendBlocks(int);
   void getBlock(int pe);
   double *getBlock();
   void processComputeU(int ignoredParam);

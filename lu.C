@@ -841,10 +841,18 @@ inline void LUBlk::multicastRecvL() {
   }
 }
 
+void LUBlk::sendBlocks(int) {
+  multicastRequestedBlock(MULT_RECV_L);
+}
+
 void LUBlk::getBlock(int pe) {
   if (factored) {
-    DEBUG_PRINT("Delivering remote block to pe %d", pe);
-    scheduler[pe].deliverBlock(createABlkMsg());
+    requestingPEs.push_back(CkArrayIndex1D(pe));
+    if (requestingPEs.size() == 1) {
+      CkEntryOptions opts;
+      thisProxy(thisIndex.x, thisIndex.y).
+        sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
+    }
   } else {
     DEBUG_PRINT("Queueing remote block for pe %d", pe);
     requestingPEs.push_back(CkArrayIndex1D(pe));

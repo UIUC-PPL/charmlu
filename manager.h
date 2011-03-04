@@ -11,7 +11,7 @@ enum PrioType {
   SEND_PIVOT_DATA, PROCESS_TRAILING_UPDATE, RECVL, DIAG_SEND_PIVOT,
   BELOW_SEND_USEG, DIAG_SEND_USEG, MULT_RECV_U, MULT_RECV_L,
   PIVOT_RIGHT_SEC, PIVOT_LEFT_SEC, PIVOT_CRITICAL, PIVOT_NOT_CRITICAL,
-  GET_BLOCK
+  GET_BLOCK, SEND_BLOCKS
 };
 
 class LUMgr : public CBase_LUMgr
@@ -61,6 +61,9 @@ struct PrioLU : public LUMgr
       prio = -1;
       break;
     case GET_BLOCK:
+      prio = -3;
+      break;
+    case SEND_BLOCKS:
       prio = -2;
       break;
     case PROCESS_TRAILING_UPDATE:
