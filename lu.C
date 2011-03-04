@@ -830,6 +830,8 @@ inline void LUBlk::multicastRecvL() {
     oneRow.ckSectionDelegate(mcastMgr);
     DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
     mgr->setPrio(LUmsg, MULT_RECV_L);
+    envelope *env = UsrToEnv(LUmsg);
+    _SET_USED(env, 0);
     takeRef(LUmsg);
     CkSetRefNum(LUmsg, internalStep);
     oneRow.recvL(LUmsg);
