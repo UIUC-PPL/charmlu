@@ -794,6 +794,7 @@ void LUBlk::multicastRequestedBlock(int prio) {
   CkAssert(ref <= 2 && ref > 0);
 
   if (ref == 2) {
+    CmiNetworkProgress();
     CkEntryOptions opts;
     thisProxy(thisIndex).multicastRequestedBlock(prio, &mgr->setPrio(SEND_BLOCKS, opts));
     return;
