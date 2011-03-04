@@ -73,7 +73,7 @@ mainmodule lu {
     entry void performUpdate(int);
     entry void blockUsed(int);
     entry void getBlock(int pe);
-    entry void sendBlocks(int);
+    entry void multicastRequestedBlock(int prio);
 
     entry void belowPivot(int targetCol) {
       // Wait for the replacement row from the diagonal chare so that you have the updated block

@@ -66,6 +66,8 @@ extern "C" {
 #include "mapping.h"
 #include "messages.h"
 
+#include "converse.h"
+
 /* readonly: */
 CProxy_Main mainProxy;
 int traceTrailingUpdate;
@@ -646,7 +648,6 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler b
   // are safe to use here.
 
   LUmsg = createABlkMsg();
-  takeRef(LUmsg);
   LU = LUmsg->data;
 
   internalStep = 0;
@@ -785,11 +786,20 @@ void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
 #endif
 }
 
-void LUBlk::multicastRequestedBlock(PrioType prio) {
+void LUBlk::multicastRequestedBlock(int prio) {
   if (requestingPEs.size() == 0)
     return;
 
-  mgr->setPrio(LUmsg, prio);
+  int ref = REFFIELD(UsrToEnv(LUmsg));
+  CkAssert(ref <= 2 && ref > 0);
+
+  if (ref == 2) {
+    CkEntryOptions opts;
+    thisProxy(thisIndex).multicastRequestedBlock(prio, &mgr->setPrio(SEND_BLOCKS, opts));
+    return;
+  }
+
+  mgr->setPrio(LUmsg, (PrioType)prio);
 
   CProxySection_BlockScheduler requesters =
     CProxySection_BlockScheduler::ckNew(CkArrayID(scheduler),
@@ -830,8 +840,6 @@ inline void LUBlk::multicastRecvL() {
     oneRow.ckSectionDelegate(mcastMgr);
     DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
     mgr->setPrio(LUmsg, MULT_RECV_L);
-    envelope *env = UsrToEnv(LUmsg);
-    _SET_USED(env, 0);
     takeRef(LUmsg);
     CkSetRefNum(LUmsg, internalStep);
     oneRow.recvL(LUmsg);
@@ -846,21 +854,13 @@ inline void LUBlk::multicastRecvL() {
   }
 }
 
-void LUBlk::sendBlocks(int) {
-  multicastRequestedBlock(MULT_RECV_L);
-}
-
 void LUBlk::getBlock(int pe) {
-  if (factored) {
-    requestingPEs.push_back(CkArrayIndex1D(pe));
-    if (requestingPEs.size() == 1) {
-      CkEntryOptions opts;
-      thisProxy(thisIndex.x, thisIndex.y).
-        sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
-    }
-  } else {
-    DEBUG_PRINT("Queueing remote block for pe %d", pe);
-    requestingPEs.push_back(CkArrayIndex1D(pe));
+  DEBUG_PRINT("Queueing remote block for pe %d", pe);
+  requestingPEs.push_back(CkArrayIndex1D(pe));
+  if (factored && requestingPEs.size() == 1) {
+    CkEntryOptions opts;
+    thisProxy(thisIndex.x, thisIndex.y).
+      multicastRequestedBlock(MULT_RECV_L, &mgr->setPrio(SEND_BLOCKS, opts));
   }
 }
 double* LUBlk::getBlock() {
