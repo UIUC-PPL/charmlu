@@ -89,6 +89,8 @@ public:
   void updateDone(intptr_t update_ptr);
   void factorizationDone(CkIndex2D index);
   void deliverBlock(blkMsg *m);
+  void startedActivePanel(int x, int y);
+  void finishedActivePanel(int x, int y);
 
 private:
   LUMgr *mgr;
@@ -100,6 +102,8 @@ private:
   CProxy_LUBlk luArr;
   int blockLimit;
   bool inProgress;
+  int numActive;
+  int totalActive;
 
   struct wantedBlock {
     std::list<Update *> refs;

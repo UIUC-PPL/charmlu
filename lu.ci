@@ -217,6 +217,7 @@ mainmodule lu {
       // Below diagonal
       else {
         atomic {
+            localScheduler->startedActivePanel(thisIndex.x, thisIndex.y);
             // Find the pivot candidate for just the first column in the block
             pivotCandidate = findLocVal(0, 0);
             pendingUmsg = NULL;
@@ -224,6 +225,9 @@ mainmodule lu {
         // Work in the active column of the chare array proceeds column-by-column through the matrix
         for (activeCol = 0; activeCol < BLKSIZE; activeCol++) {
           atomic "below_find_pivot" {
+            if (activeCol == BLKSIZE - 1) {
+              localScheduler->finishedActivePanel(thisIndex.x, thisIndex.y);
+            }
             // Contribute to a reduction along the active panel to identify the pivot row
             mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
 	    thisProxy(thisIndex.x, thisIndex.y).performUpdate(0);
@@ -300,6 +304,7 @@ mainmodule lu {
 
     entry void processLU() {
       atomic {
+        localScheduler->startedActivePanel(thisIndex.x, thisIndex.y);
         CkAssert(pivotBatchTag == thisIndex.x*BLKSIZE);
         pivotRecords.clear();
         numRowsSinceLastPivotSend = 0;
@@ -368,6 +373,7 @@ mainmodule lu {
       }
 
       atomic "diag_multicast_L" {
+        localScheduler->finishedActivePanel(thisIndex.x, thisIndex.y);
         // All diagonal chares except the last must continue the factorization
         if (thisIndex.x < numBlks-1 && thisIndex.y < numBlks-1) {
           DEBUG_PRINT("is top,left block this step, multicast L");

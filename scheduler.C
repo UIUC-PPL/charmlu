@@ -16,11 +16,32 @@ pair<int, int> make_pair(CkIndex2D index) {
 }
 
 BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_)
-  : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false) {
+  : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false), numActive(0) {
   blockLimit = config.memThreshold * 1024 * 1024 /
     (config.blockSize * (config.blockSize + 1) * sizeof(double) + sizeof(LUBlk) + sdagOverheadPerBlock);
 
   contribute(CkCallback(CkIndex_LUBlk::schedulerReady(NULL), luArr));
+}
+
+void BlockScheduler::startedActivePanel(int x, int y) {
+  ++numActive;
+  if (numActive == 1) {
+    totalActive = 0;
+    // Count number of blocks in current active panel to know when to
+    // stop trailing updates
+    for (StateList::iterator iter = localBlocks.begin();
+         iter != localBlocks.end(); ++iter) {
+      if (iter->iy == y) totalActive++;
+    }
+  }
+}
+
+void BlockScheduler::finishedActivePanel(int x, int y) {
+  --numActive;
+  if (numActive == 0) {
+    totalActive = 0;
+    progress();
+  }
 }
 
 void BlockScheduler::printBlockLimit() {
@@ -252,7 +273,7 @@ void BlockScheduler::progress() {
       }
     }
 
-    if (plannedUpdates.size() > 0) {
+    if (plannedUpdates.size() > 0 && (numActive == 0 || numActive != totalActive)) {
       for (std::list<Update>::iterator update = plannedUpdates.begin();
 	   update != plannedUpdates.end(); ++update) {
 	if (update->ready()) {
