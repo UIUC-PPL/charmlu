@@ -75,7 +75,7 @@ const int sdagOverheadPerBlock = 3760;
 
 class BlockScheduler : public CBase_BlockScheduler {
 public:
-  BlockScheduler(CProxy_LUBlk luArr_, LUConfig config);
+  BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_);
   BlockScheduler(CkMigrateMessage *m) { }
 
   void registerBlock(CkIndex2D index);
@@ -91,6 +91,7 @@ public:
   void deliverBlock(blkMsg *m);
 
 private:
+  LUMgr *mgr;
   StateList localBlocks, eligibleBlocks, doneBlocks;
 
   std::map<int, Panel> panels;

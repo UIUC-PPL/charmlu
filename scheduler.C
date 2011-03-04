@@ -15,8 +15,8 @@ pair<int, int> make_pair(CkIndex2D index) {
   return make_pair(index.x, index.y);
 }
 
-BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config)
-  : luArr(luArr_), inProgress(false) {
+BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_)
+  : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false) {
   blockLimit = config.memThreshold * 1024 * 1024 /
     (config.blockSize * (config.blockSize + 1) * sizeof(double) + sizeof(LUBlk) + sdagOverheadPerBlock);
 

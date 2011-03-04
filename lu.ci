@@ -511,7 +511,7 @@ mainmodule lu {
   };
 
   array [1D] BlockScheduler {
-    entry BlockScheduler(CProxy_LUBlk luArr, LUConfig config);
+    entry BlockScheduler(CProxy_LUBlk luArr, LUConfig config, CProxy_LUMgr mgr_);
     entry void deliverBlock(blkMsg *m);
     entry void printBlockLimit();
     entry void allRegistered(CkReductionMsg *m);

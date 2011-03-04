@@ -330,7 +330,7 @@ public:
 
       CkArrayOptions bsOpts(CkNumPes());
       bsOpts.setMap(CProxy_OnePerPE::ckNew());
-      bs = CProxy_BlockScheduler::ckNew(luArrProxy, luCfg, bsOpts);
+      bs = CProxy_BlockScheduler::ckNew(luArrProxy, luCfg, mgr, bsOpts);
 
       LUcomplete = true;
 
