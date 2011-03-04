@@ -92,7 +92,7 @@ public:
 
 private:
   LUMgr *mgr;
-  StateList localBlocks, eligibleBlocks, doneBlocks;
+  StateList localBlocks, doneBlocks;
 
   std::map<int, Panel> panels;
 
