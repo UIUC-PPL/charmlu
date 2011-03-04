@@ -119,7 +119,9 @@ void BlockScheduler::getBlock(int srcx, int srcy, double *&data,
   if (block.refs.size() == 1) {
     // First reference to this block, so ask for it
     DEBUG_SCHED("requesting getBlock from (%d, %d)", srcx, srcy);
-    luArr(src.first, src.second).getBlock(CkMyPe());
+    CkEntryOptions opts;
+    luArr(src.first, src.second).
+      getBlock(CkMyPe(), &(mgr->setPrio(GET_BLOCK, opts)));
   }
 
   if (block.m) {
@@ -163,7 +165,11 @@ void BlockScheduler::runUpdate(std::list<Update>::iterator iter) {
   int tx = update.target->ix, ty = update.target->iy;
   update.triggered = true;
 
-  luArr(tx, ty).ckLocal()->processTrailingUpdate(update.t, (intptr_t)&update);
+  CkEntryOptions opts;
+  int t = update.t;
+  intptr_t update_ptr = (intptr_t)&update;
+  luArr(tx, ty).processTrailingUpdate(t, update_ptr,
+                                      &(mgr->setPrio(PROCESS_TRAILING_UPDATE, opts, ty)));
 }
 
 void BlockScheduler::updateDone(intptr_t update_ptr) {
