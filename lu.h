@@ -74,6 +74,7 @@ private:
 
   /// Variables used during factorization
   double *LU;
+  blkMsg *LUmsg;
 
   int BLKSIZE, numBlks;
   blkMsg *L, *U;

@@ -645,12 +645,9 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler b
   // propagated soon enough. I'm assuming they
   // are safe to use here.
 
-#if USE_MEMALIGN
-  LU = (double*) memalign(128, BLKSIZE * BLKSIZE * sizeof(double));
-  CkAssert(LU != NULL);
-#else
-  LU = new double [BLKSIZE*BLKSIZE];
-#endif
+  LUmsg = createABlkMsg();
+  takeRef(LUmsg);
+  LU = LUmsg->data;
 
   internalStep = 0;
 
@@ -792,14 +789,14 @@ void LUBlk::multicastRequestedBlock(PrioType prio) {
   if (requestingPEs.size() == 0)
     return;
 
-  blkMsg *m = createABlkMsg();
-  mgr->setPrio(m, prio);
+  mgr->setPrio(LUmsg, prio);
 
   CProxySection_BlockScheduler requesters =
     CProxySection_BlockScheduler::ckNew(CkArrayID(scheduler),
 					&requestingPEs[0], requestingPEs.size());
   requesters.ckSectionDelegate(mcastMgr);
-  requesters.deliverBlock(m);
+  takeRef(LUmsg);
+  requesters.deliverBlock(LUmsg);
 
   requestingPEs.clear();
 }
@@ -827,9 +824,10 @@ inline void LUBlk::multicastRecvL() {
     CProxySection_LUBlk oneRow = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, thisIndex.x, 1, thisIndex.y+1, numBlks-1, 1);
     oneRow.ckSectionDelegate(mcastMgr);
     DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
-    blkMsg *givenL = createABlkMsg();
-    mgr->setPrio(givenL, MULT_RECV_L);
-    oneRow.recvL(givenL);
+    mgr->setPrio(LUmsg, MULT_RECV_L);
+    takeRef(LUmsg);
+    CkSetRefNum(LUmsg, internalStep);
+    oneRow.recvL(LUmsg);
   } else {
     DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
 
@@ -1260,7 +1258,7 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
 inline blkMsg* LUBlk::createABlkMsg() {
   blkMsg *msg = mgr->createBlockMessage(thisIndex.x, thisIndex.y,
                                         internalStep, sizeof(int)*8);
-  msg->setMsgData(LU, internalStep, BLKSIZE, thisIndex);
+  msg->setMsgData(internalStep, thisIndex);
   return msg;
 }
 
