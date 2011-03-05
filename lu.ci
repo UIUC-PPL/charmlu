@@ -209,9 +209,7 @@ mainmodule lu {
         when recvL[internalStep](blkMsg *mL) atomic "beforeL_schedule_computeU" {
           takeRef(mL);
           L = mL;
-          CkEntryOptions opts;
-          thisProxy(thisIndex.x, thisIndex.y).processComputeU(0,
-            &(mgr->setPrio(RECVL, opts, thisIndex.y)));
+          localScheduler->incomingComputeU(thisIndex, internalStep);
         }
       }
       // Below diagonal

@@ -71,6 +71,12 @@ struct Panel {
   Panel() : updatesLeftToPlan(0) { }
 };
 
+struct ComputeU {
+  int x, y, t;
+  ComputeU(int x_, int y_, int t_) :
+    x(x_), y(y_), t(t_) {}
+};
+
 const int sdagOverheadPerBlock = 3760;
 
 class BlockScheduler : public CBase_BlockScheduler {
@@ -83,19 +89,19 @@ public:
     delete m;
     progress();
   }
+  void incomingComputeU(CkIndex2D index, int t);
   void printBlockLimit();
   void pivotsDone(CkIndex2D index);
 //  void dataReady(CkIndex2D index, BlockReadyMsg *m);
   void updateDone(intptr_t update_ptr);
   void factorizationDone(CkIndex2D index);
   void deliverBlock(blkMsg *m);
-  void startedActivePanel(int x, int y);
-  void finishedActivePanel(int x, int y);
 
 private:
   LUMgr *mgr;
   StateList localBlocks, doneBlocks;
   std::map<int, int> activePanels;
+  std::list<ComputeU> pendingComputeU;
 
   std::map<int, Panel> panels;
 
