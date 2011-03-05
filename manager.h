@@ -81,13 +81,13 @@ struct PrioLU : public LUMgr
       prio = -1;
       break;
     case PIVOT_RIGHT_SEC:
-      prio = 0;
+      prio = y * BLKSIZE;
       break;
     case PIVOT_LEFT_SEC:
       prio = BLKSIZE * numBlks + 1;
       break;
     case PIVOT_CRITICAL:
-      prio = 0;
+      prio = (y - 1) * BLKSIZE;
       break;
     case PIVOT_NOT_CRITICAL:
       prio = numBlks * BLKSIZE;
