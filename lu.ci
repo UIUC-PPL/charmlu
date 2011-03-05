@@ -224,9 +224,6 @@ mainmodule lu {
         // Work in the active column of the chare array proceeds column-by-column through the matrix
         for (activeCol = 0; activeCol < BLKSIZE; activeCol++) {
           atomic "below_find_pivot" {
-            if (activeCol == BLKSIZE - 1) {
-              localScheduler->finishedActivePanel(thisIndex.x, thisIndex.y);
-            }
             // Contribute to a reduction along the active panel to identify the pivot row
             mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
 	    thisProxy(thisIndex.x, thisIndex.y).performUpdate(0);
@@ -258,6 +255,7 @@ mainmodule lu {
 	  multicastRecvL();
 	  factored = true;
 	  localScheduler->factorizationDone(thisIndex);
+          localScheduler->finishedActivePanel(thisIndex.x, thisIndex.y);
           pivotBatchTag += BLKSIZE;
         }
 
@@ -315,9 +313,6 @@ mainmodule lu {
       // Process matrix column-by-column
       for (activeCol = 0; activeCol < BLKSIZE; ++activeCol) {
         atomic "diag_find_colmax" {
-          if (activeCol == BLKSIZE - 1) {
-            localScheduler->finishedActivePanel(thisIndex.x, thisIndex.y);
-          }
           VERBOSE_PROGRESS(" ..col%d ", thisIndex.x*BLKSIZE + activeCol);
           // Contribute to a redn along the pivot section to identify the pivot row
           mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
@@ -386,6 +381,7 @@ mainmodule lu {
           // Multicast the local block of L rightwards to the blocks in the same row
           multicastRecvL();
         }
+        localScheduler->finishedActivePanel(thisIndex.x, thisIndex.y);
         // Contribute to a reduction indicating that this chare is done with its factorization work
 	DEBUG_PRINT("contributing");
         contribute(CkCallback(CkIndex_Main::startNextStep(), mainProxy));
