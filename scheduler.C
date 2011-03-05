@@ -266,14 +266,16 @@ void BlockScheduler::progress() {
       for (std::list<Update>::iterator update = plannedUpdates.begin();
 	   update != plannedUpdates.end(); ++update) {
 	if (update->ready()) {
-          std::map<int, int>::iterator apanel = activePanels.find(update->target->iy-1);
-          if (apanel != activePanels.end() && apanel->second > 0) {
+          std::map<int, int>::iterator apanel = activePanels.find(update->t + 1);
+          if (apanel != activePanels.end() && apanel->second > 0 &&
+              update->target->iy != update->t + 1) {
             /*CkPrintf("%d: (%d, %d) delaying, t = %d, count = %d\n",
                      CkMyPe(), update->target->ix, update->target->iy,
                      update->t, apanel->second);*/
             continue;
           }
-          /*CkPrintf("%d: scheduling trailing update\n", CkMyPe());*/
+          /*CkPrintf("%d: scheduling trailing update for (%d, %d)\n",
+            CkMyPe(), update->target->ix, update->target->iy);*/
 	  runUpdate(update);
 	  stateModified = true;
 	  break;
