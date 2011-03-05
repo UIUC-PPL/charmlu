@@ -23,31 +23,6 @@ BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMg
   contribute(CkCallback(CkIndex_LUBlk::schedulerReady(NULL), luArr));
 }
 
-void BlockScheduler::startedActivePanel(int x, int y) {
-  ++numActive;
-  if (numActive == 1) {
-    totalActive = 0;
-    // Count number of blocks in current active panel to know when to
-    // stop trailing updates
-    for (StateList::iterator iter = localBlocks.begin();
-         iter != localBlocks.end(); ++iter) {
-      if (iter->iy == y && iter->ix >= y) totalActive++;
-    }
-    for (StateList::iterator iter = doneBlocks.begin();
-         iter != doneBlocks.end(); ++iter) {
-      if (iter->iy == y && iter->ix >= y) totalActive++;
-    }
-  }
-}
-
-void BlockScheduler::finishedActivePanel(int x, int y) {
-  --numActive;
-  --totalActive;
-  if (numActive == 0) {
-    progress();
-  }
-}
-
 void BlockScheduler::printBlockLimit() {
   CkPrintf("%d: block limit = %d\n", CkMyPe(), blockLimit);
 }
@@ -60,6 +35,9 @@ void BlockScheduler::registerBlock(CkIndex2D index) {
       panels[i].updatesLeftToPlan++;
     }
   }
+
+  if (index.x > index.y)
+    activePanels[index.y]++;
 
   if (blockLimit< 2)
     CkAbort("Too little space to plan even one trailing update");
@@ -218,6 +196,13 @@ void BlockScheduler::updateDone(intptr_t update_ptr) {
 
 void BlockScheduler::factorizationDone(CkIndex2D index) {
   DEBUG_SCHED("factorizationDone on (%d,%d)", index.x, index.y);
+
+  if (index.x >= index.y) {
+    /*CkPrintf("%d: decrementing panel (%d, %d), val = %d\n",
+      CkMyPe(), index.x, index.y, activePanels[index.y]-1);*/
+    activePanels[index.y]--;
+  }
+
   std::map<std::pair<int, int>, std::list<Update*> >::iterator wanters =
     localWantedBlocks.find(make_pair(index.x, index.y));
   if (wanters != localWantedBlocks.end()) {
@@ -281,6 +266,14 @@ void BlockScheduler::progress() {
       for (std::list<Update>::iterator update = plannedUpdates.begin();
 	   update != plannedUpdates.end(); ++update) {
 	if (update->ready()) {
+          std::map<int, int>::iterator apanel = activePanels.find(update->target->iy-1);
+          if (apanel != activePanels.end() && apanel->second > 0) {
+            /*CkPrintf("%d: (%d, %d) delaying, t = %d, count = %d\n",
+                     CkMyPe(), update->target->ix, update->target->iy,
+                     update->t, apanel->second);*/
+            continue;
+          }
+          /*CkPrintf("%d: scheduling trailing update\n", CkMyPe());*/
 	  runUpdate(update);
 	  stateModified = true;
 	  break;
