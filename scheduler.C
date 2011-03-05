@@ -31,7 +31,11 @@ void BlockScheduler::startedActivePanel(int x, int y) {
     // stop trailing updates
     for (StateList::iterator iter = localBlocks.begin();
          iter != localBlocks.end(); ++iter) {
-      if (iter->iy == y) totalActive++;
+      if (iter->iy == y && iter->ix >= y) totalActive++;
+    }
+    for (StateList::iterator iter = doneBlocks.begin();
+         iter != doneBlocks.end(); ++iter) {
+      if (iter->iy == y && iter->ix >= y) totalActive++;
     }
   }
 }
@@ -204,7 +208,7 @@ void BlockScheduler::updateDone(intptr_t update_ptr) {
   update.target->updatesCompleted++;
   if (update.target->updatesCompleted == min(update.target->ix, update.target->iy)) {
     // Last update on this block
-    doneBlocks.erase(std::find(doneBlocks.begin(), doneBlocks.end(), *update.target));
+    //doneBlocks.erase(std::find(doneBlocks.begin(), doneBlocks.end(), *update.target));
   }
 
   plannedUpdates.erase(std::find(plannedUpdates.begin(), plannedUpdates.end(), update));
@@ -273,7 +277,7 @@ void BlockScheduler::progress() {
       }
     }
 
-    if (plannedUpdates.size() > 0 && (numActive == 0 || numActive != totalActive)) {
+    if (numActive == 0 || numActive != totalActive) {
       for (std::list<Update>::iterator update = plannedUpdates.begin();
 	   update != plannedUpdates.end(); ++update) {
 	if (update->ready()) {

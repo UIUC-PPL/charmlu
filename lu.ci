@@ -315,6 +315,9 @@ mainmodule lu {
       // Process matrix column-by-column
       for (activeCol = 0; activeCol < BLKSIZE; ++activeCol) {
         atomic "diag_find_colmax" {
+          if (activeCol == BLKSIZE - 1) {
+            localScheduler->finishedActivePanel(thisIndex.x, thisIndex.y);
+          }
           VERBOSE_PROGRESS(" ..col%d ", thisIndex.x*BLKSIZE + activeCol);
           // Contribute to a redn along the pivot section to identify the pivot row
           mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
@@ -377,7 +380,6 @@ mainmodule lu {
       }
 
       atomic "diag_multicast_L" {
-        localScheduler->finishedActivePanel(thisIndex.x, thisIndex.y);
         // All diagonal chares except the last must continue the factorization
         if (thisIndex.x < numBlks-1 && thisIndex.y < numBlks-1) {
           DEBUG_PRINT("is top,left block this step, multicast L");
