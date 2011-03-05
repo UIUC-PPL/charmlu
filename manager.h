@@ -58,7 +58,7 @@ struct PrioLU : public LUMgr
       prio = -1;
       break;
     case RECVL:
-      prio = (y - 2) * BLKSIZE;
+      prio = -1;
       break;
     case GET_BLOCK:
       prio = -3;
