@@ -798,7 +798,10 @@ void LUBlk::multicastRequestedBlock(PrioType prio) {
   CProxySection_BlockScheduler requesters =
     CProxySection_BlockScheduler::ckNew(CkArrayID(scheduler),
 					&requestingPEs[0], requestingPEs.size());
-  requesters.ckSectionDelegate(mcastMgr);
+
+  if (requestingPEs.size() > 4)
+    requesters.ckSectionDelegate(mcastMgr);
+
   requesters.deliverBlock(m);
 
   requestingPEs.clear();
