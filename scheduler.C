@@ -42,8 +42,8 @@ void BlockScheduler::startedActivePanel(int x, int y) {
 
 void BlockScheduler::finishedActivePanel(int x, int y) {
   --numActive;
+  --totalActive;
   if (numActive == 0) {
-    totalActive = 0;
     progress();
   }
 }
