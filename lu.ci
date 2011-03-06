@@ -67,7 +67,7 @@ mainmodule lu {
 
     entry void colMax(CkReductionMsg *m);
     entry void sendPivotData(int rowIndex, int pivotRow, int size, double data[size], double b);
-    entry void applyPivots(pivotSequencesMsg *msg);
+    entry [nokeep] void applyPivots(pivotSequencesMsg *msg);
     entry void acceptPivotData(pivotRowsMsg *msg);
     entry [nokeep] void sendUSegment(UMsg* msg);
     entry void performUpdate(int);
@@ -132,7 +132,6 @@ mainmodule lu {
                   // Increment the batch tag to the next expected
                   atomic {
                       pivotBatchTag += msg->numRowsProcessed;
-                      delete msg;
                   }
               }
           }
@@ -201,7 +200,6 @@ mainmodule lu {
               // Increment the batch tag to the next expected
               atomic {
                   pivotBatchTag += msg->numRowsProcessed;
-                  delete msg;
               }
           }
         }
@@ -282,7 +280,6 @@ mainmodule lu {
                   // Increment the batch tag to the next expected
                   atomic {
                       pivotBatchTag += msg->numRowsProcessed;
-                      delete msg;
                   }
               }
           }
