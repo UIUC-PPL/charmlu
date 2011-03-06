@@ -277,7 +277,7 @@ class PE2DTilingMap: public LUMap {
 
         int procNum(int arrayHdl, const CkArrayIndex &idx) {
             int *coor = (int*) idx.data();
-            int XwithinPEtile = coor[0] % peRows;
+            int XwithinPEtile = (coor[0] + coor[1]) % peRows;
             int YwithinPEtile = coor[1] % peCols;
             int peNum = YwithinPEtile * peRows + XwithinPEtile;
             CkAssert(peNum < CkNumPes());
