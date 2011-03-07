@@ -592,7 +592,6 @@ void LUBlk::calcResiduals() {
 }
 
 void LUBlk::flushLogs() {
-  flushTraceLog();
   contribute(CkCallback(CkIndex_Main::continueIter(), mainProxy));
 }
 
