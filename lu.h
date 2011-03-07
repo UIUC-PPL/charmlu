@@ -99,6 +99,9 @@ private:
   int seed_A;
   int seed_b;
 
+  // Timer for each block
+  double startTime;
+
   //Variables for pivoting SDAG code
 
   int row1Index, row2Index, localRow1, localRow2,
