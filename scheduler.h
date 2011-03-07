@@ -85,10 +85,7 @@ public:
   BlockScheduler(CkMigrateMessage *m) { }
 
   void registerBlock(CkIndex2D index);
-  void allRegistered(CkReductionMsg *m) {
-    delete m;
-    progress();
-  }
+  void allRegistered(CkReductionMsg *m);
   void incomingComputeU(CkIndex2D index, int t);
   void printBlockLimit();
   void pivotsDone(CkIndex2D index);

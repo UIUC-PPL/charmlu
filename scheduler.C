@@ -59,6 +59,11 @@ void BlockScheduler::registerBlock(CkIndex2D index) {
     CkAbort("Too little space to plan even one trailing update");
 }
 
+void BlockScheduler::allRegistered(CkReductionMsg *m) {
+  delete m;
+  progress();
+}
+
 void BlockScheduler::repositionBlock(StateList::iterator block) {
   StateList::iterator pos = block->pendingDependencies == 0 ?
     localBlocks.begin() : localBlocks.end();
