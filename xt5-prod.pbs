@@ -1,0 +1,13 @@
+#!/bin/bash
+#PBS -N lu-prod-20-6
+#PBS -j oe
+#PBS -l walltime=01:00:00,size=120
+#PBS -A  TG-ASC050039N
+
+export MPICH_UNEX_BUFFER_SIZE=150M
+export MPICH_MAX_SHORT_MSG_SIZE=1k
+export MPICH_PTL_UNEX_EVENTS=50000
+
+cd $PBS_O_WORKDIR
+
+aprun -n 120 -N 12 ./lu.prod 115000 500 1000 50 3 20 6 +setcpuaffinity

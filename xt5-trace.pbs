@@ -1,0 +1,16 @@
+#!/bin/bash
+#PBS -N lu-trace
+#PBS -j oe
+#PBS -l walltime=00:08:00,size=120
+#PBS -A TG-ASC050039N
+
+export MPICH_UNEX_BUFFER_SIZE=150M
+export MPICH_MAX_SHORT_MSG_SIZE=1k
+export MPICH_PTL_UNEX_EVENTS=50000
+
+cd $PBS_O_WORKDIR
+
+TRACES_DIR=kraken46
+
+mkdir $TRACES_DIR
+aprun -n 120 -N 12 ./lu 120000 500 1000 50 3 24 5 +setcpuaffinity +traceroot $TRACES_DIR +gz-trace +logsize 10000
