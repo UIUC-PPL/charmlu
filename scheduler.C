@@ -218,11 +218,8 @@ void BlockScheduler::updateDone(intptr_t update_ptr) {
 void BlockScheduler::factorizationDone(CkIndex2D index) {
   DEBUG_SCHED("factorizationDone on (%d,%d)", index.x, index.y);
 
-  if (index.x >= index.y) {
-    /*CkPrintf("%d: decrementing panel (%d, %d), val = %d\n",
-      CkMyPe(), index.x, index.y, activePanels[index.y]-1);*/
+  if (index.x >= index.y)
     activePanels[index.y]--;
-  }
 
   std::map<std::pair<int, int>, std::list<Update*> >::iterator wanters =
     localWantedBlocks.find(make_pair(index.x, index.y));
@@ -306,13 +303,8 @@ void BlockScheduler::progress() {
           std::map<int, int>::iterator apanel = activePanels.find(update->t + 1);
           if (apanel != activePanels.end() && apanel->second > 0 &&
               update->target->iy != update->t + 1) {
-            /*CkPrintf("%d: (%d, %d) delaying, t = %d, count = %d\n",
-                     CkMyPe(), update->target->ix, update->target->iy,
-                     update->t, apanel->second);*/
             continue;
           }
-          /*CkPrintf("%d: scheduling trailing update for (%d, %d)\n",
-            CkMyPe(), update->target->ix, update->target->iy);*/
 	  runUpdate(update);
 	  stateModified = true;
 	  break;
