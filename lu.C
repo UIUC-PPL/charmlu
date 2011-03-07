@@ -1100,7 +1100,7 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
           <<" pivot sequences in batch "<<pivotBatchTag;
 #endif
 
-  int *pivotSequence = msg->pivotSequence, *idx = msg->seqIndex;
+  const int *pivotSequence = msg->pivotSequence, *idx = msg->seqIndex;
   int numSequences = msg->numSequences;
 
   // Count the number of rows that I send to each chare
@@ -1153,16 +1153,16 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
 #endif
 
       // Find the location of this sequence in the msg buffer
-      int *first      = pivotSequence + idx[i];
-      int *beyondLast = pivotSequence + idx[i+1];
+      const int *first      = pivotSequence + idx[i];
+      const int *beyondLast = pivotSequence + idx[i+1];
       CkAssert(beyondLast - first >= 2);
 
       // Identify a remote row in the pivot sequence as a point at which to
       // start and stop processing the circular pivot sequence
-      int *ringStart = first;
+      const int *ringStart = first;
       while ( (*ringStart / BLKSIZE == thisIndex.x) && (ringStart < beyondLast) )
         ringStart++;
-      int *ringStop = ringStart;
+      const int *ringStop = ringStart;
 
       // If there are no remote rows in the sequence, we *have* to use a tmp buffer
       // The tmp buffer will now complete the circular sequence
@@ -1182,10 +1182,10 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
         }
 
       // Process all the pivot operations in the circular sequence
-      int *to = ringStart;
+      const int *to = ringStart;
       do
         {
-          int *from        = (to+1 == beyondLast) ? first : to + 1;
+          const int *from        = (to+1 == beyondLast) ? first : to + 1;
           int fromChareIdx = *from / BLKSIZE;
           // If the current source row in the pivot sequence belongs to me, send it
           if (fromChareIdx == thisIndex.x)
