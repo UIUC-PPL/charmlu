@@ -113,7 +113,10 @@ mainmodule lu {
               // Wait for msg carrying the next batch of pivot ops
               when applyPivots[pivotBatchTag](pivotSequencesMsg *msg) {
                   // Send out any pivot data owned by this chare
-                  atomic "sendOutgoingPivots_trailingChare" { sendPendingPivots(msg); }
+                  atomic "sendOutgoingPivots_trailingChare" {
+                    sendPendingPivots(msg);
+                    CmiReference(UsrToEnv(msg));
+                  }
                   // Wait for all incoming pivot data from this batch
                   while (pendingIncomingPivots > 0)
                   {
@@ -132,6 +135,7 @@ mainmodule lu {
                   // Increment the batch tag to the next expected
                   atomic {
                       pivotBatchTag += msg->numRowsProcessed;
+                      CmiFree(UsrToEnv(msg));
                   }
               }
           }
@@ -181,7 +185,10 @@ mainmodule lu {
           // Wait for msg carrying the next batch of pivot ops
           when applyPivots[pivotBatchTag](pivotSequencesMsg *msg) {
               // Send out any pivot data owned by this chare
-              atomic "sendOutgoingPivots_activeRowChare" { sendPendingPivots(msg); }
+              atomic "sendOutgoingPivots_activeRowChare" {
+                sendPendingPivots(msg);
+                CmiReference(UsrToEnv(msg));
+              }
               // Wait for all incoming pivot data from this batch
               while (pendingIncomingPivots > 0)
               {
@@ -200,6 +207,7 @@ mainmodule lu {
               // Increment the batch tag to the next expected
               atomic {
                   pivotBatchTag += msg->numRowsProcessed;
+                  CmiFree(UsrToEnv(msg));
               }
           }
         }
@@ -261,7 +269,10 @@ mainmodule lu {
               // Wait for msg carrying the next batch of pivot ops
               when applyPivots[pivotBatchTag](pivotSequencesMsg *msg) {
                   // Send out any pivot data owned by this chare
-                  atomic "sendOutgoingPivots_leftSectionChare" { sendPendingPivots(msg); }
+                  atomic "sendOutgoingPivots_leftSectionChare" {
+                    sendPendingPivots(msg);
+                    CmiReference(UsrToEnv(msg));
+                  }
                   // Wait for all incoming pivot data from this batch
                   while (pendingIncomingPivots > 0)
                   {
@@ -280,6 +291,7 @@ mainmodule lu {
                   // Increment the batch tag to the next expected
                   atomic {
                       pivotBatchTag += msg->numRowsProcessed;
+                      CmiFree(UsrToEnv(msg));
                   }
               }
           }
