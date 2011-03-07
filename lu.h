@@ -41,6 +41,7 @@ extern int traceTrailingUpdate;
 extern int traceComputeU;
 extern int traceComputeL;
 extern int traceSolveLocalLU;
+extern CkGroupID mcastMgrGID;
 
 /// Global that holds the reducer type for locval
 extern CkReduction::reducerType LocValReducer;
@@ -120,8 +121,10 @@ private:
   int pendingIncomingPivots;
   /// The suggested pivot batch size
   int suggestedPivotBatchSize;
-  /// How many blocks to our right have pulled our data and consumed it?
+  /// How many blocks in the trailing submatrix have pulled our data and consumed it?
   int blockPulled;
+  /// How many blocks in the trailing submatrix live on processors that have asked for it?
+  int blocksAfter;
   /// Which PE's schedulers have requested this block?
   std::vector<CkArrayIndex1D> requestingPEs;
 
@@ -140,8 +143,9 @@ private:
   /// The right-of-diagonal section of the chare array for pivoting
   CProxySection_LUBlk pivotRightSection;
 
-  /// The below section for multicastRecvU
-  CProxySection_LUBlk belowMulticastL;
+  /// The optimal section for multicastRequestedBlock
+  CProxySection_BlockScheduler panelAfter;
+  std::set<int> panelAfterPEs;
 
   CProxySection_LUBlk rowBeforeDiag;
   CProxySection_LUBlk rowAfterDiag;
@@ -160,7 +164,9 @@ private:
   LUBlk_SDAG_CODE
 
   public:
-  LUBlk() : factored(false), storedVec(NULL), diagRec(0), msgsRecvd(0), blockPulled(0) {
+  LUBlk()
+    : factored(false), storedVec(NULL), diagRec(0), msgsRecvd(0), blockPulled(0), blocksAfter(0)
+  {
     __sdag_init();
   }
 

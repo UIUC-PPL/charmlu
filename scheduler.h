@@ -96,6 +96,7 @@ public:
   void updateDone(intptr_t update_ptr);
   void factorizationDone(CkIndex2D index);
   void deliverBlock(blkMsg *m);
+  void setupMulticast(rednSetupMsg *msg) { delete msg; }
 
 private:
   LUMgr *mgr;

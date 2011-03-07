@@ -717,11 +717,6 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler b
       if (thisIndex.x == 0) {
         thisProxy.multicastRedns(0);
       }
-    } else if (thisIndex.x < thisIndex.y) {
-    belowMulticastL = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x+1, numBlks-1, 1, thisIndex.y, thisIndex.y, 1);
-    belowMulticastL.ckSectionDelegate(mcastMgr);
-    rednSetupMsg *belowMutlicastLMsg = new rednSetupMsg(mcastMgrGID);
-    belowMulticastL.prepareForMulticastL(belowMutlicastLMsg);
   }
 
   // All chares except members of pivot sections are done with init
@@ -800,15 +795,20 @@ void LUBlk::multicastRequestedBlock(PrioType prio) {
   blkMsg *m = createABlkMsg();
   mgr->setPrio(m, prio);
 
-  CProxySection_BlockScheduler requesters =
-    CProxySection_BlockScheduler::ckNew(CkArrayID(scheduler),
-					&requestingPEs[0], requestingPEs.size());
+  CkAssert(requestingPEs.size() <= panelAfter.ckGetNumElements());
 
-  if (requestingPEs.size() > 4)
-    requesters.ckSectionDelegate(mcastMgr);
+  if (requestingPEs.size() == panelAfter.ckGetNumElements()) {
+    panelAfter.deliverBlock(m);
+  } else {
+    CProxySection_BlockScheduler requesters =
+      CProxySection_BlockScheduler::ckNew(CkArrayID(scheduler),
+                                          &requestingPEs[0], requestingPEs.size());
 
-  requesters.deliverBlock(m);
+    if (requestingPEs.size() > 4)
+      requesters.ckSectionDelegate(mcastMgr);
 
+    requesters.deliverBlock(m);
+  }
   requestingPEs.clear();
 }
 

@@ -50,6 +50,11 @@ void BlockScheduler::registerBlock(CkIndex2D index) {
   if (index.x > index.y)
     activePanels[index.y]++;
 
+  for (int i = 0; i < index.x; i++)
+    luArr(i, index.y).prepareForMulticast(CkMyPe());
+  for (int i = 0; i < index.y; i++)
+    luArr(index.x, i).prepareForMulticast(CkMyPe());
+
   if (blockLimit< 2)
     CkAbort("Too little space to plan even one trailing update");
 }
