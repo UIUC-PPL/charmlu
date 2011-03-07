@@ -546,7 +546,7 @@ mainmodule lu {
   };
 
   group PE2DTilingMap: CkArrayMap {
-    entry PE2DTilingMap(int _peRows, int _peCols);
+    entry PE2DTilingMap(int _peRows, int _peCols, int _peRotate);
   };
 
   group StrongScaling1: CkArrayMap {

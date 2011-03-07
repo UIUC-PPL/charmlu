@@ -210,6 +210,10 @@ public:
                 luCfg.peTileRows = atoi( m->argv[6] );
                 luCfg.peTileCols = atoi( m->argv[7] );
             }
+            if (m->argc < 9)
+              luCfg.peTileRotate = 0;
+            else
+              luCfg.peTileRotate = atoi(m->argv[8]);
             int peTileSize = luCfg.peTileRows * luCfg.peTileCols;
             if ( peTileSize > CkNumPes() )
                 CkAbort("The PE tile dimensions are too big for the num of PEs available!");
@@ -315,7 +319,8 @@ public:
         opts.setMap(CProxy_RealBlockCyclicMap::ckNew(1, luCfg.numBlocks));
         break;
       case 3:
-        opts.setMap(CProxy_PE2DTilingMap::ckNew(luCfg.peTileRows, luCfg.peTileCols));
+        opts.setMap(CProxy_PE2DTilingMap::ckNew(luCfg.peTileRows, luCfg.peTileCols,
+                                                luCfg.peTileRotate));
         break;
       case 4:
         opts.setMap(CProxy_StrongScaling1::ckNew(luCfg.numBlocks));

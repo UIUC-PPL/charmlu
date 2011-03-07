@@ -11,7 +11,7 @@ class LUConfig {
     public:
         LUConfig():
             blockSize(0), numBlocks(0), pivotBatchSize(0),
-            mappingScheme(0), peTileRows(0), peTileCols(0),
+            mappingScheme(0), peTileRows(0), peTileCols(0), peTileRotate(0),
             memThreshold(0)
         {}
 
@@ -25,6 +25,7 @@ class LUConfig {
             p | mappingScheme;
             p | peTileRows;
             p | peTileCols;
+            p | peTileRotate;
 
             p | memThreshold;
         }
@@ -44,6 +45,8 @@ class LUConfig {
         int peTileRows;
         /// The num of rows in the PEtile
         int peTileCols;
+        /// The amount of rotation in the PEtile
+        int peTileRotate;
         /// The max memory (in MB) that the adaptive RTS should limit the app to
         int memThreshold;
 };

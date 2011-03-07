@@ -269,8 +269,8 @@ public:
 // Implement a mapping that tiles a 2D processor tile in the 2D chare array
 class PE2DTilingMap: public LUMap {
     public:
-        PE2DTilingMap(int _peRows, int _peCols):
-            peRows(_peRows), peCols(_peCols)
+        PE2DTilingMap(int _peRows, int _peCols, int _peRotate):
+            peRows(_peRows), peCols(_peCols), peRotate(_peRotate)
         {
             CkAssert(peRows > 0 && peCols > 0);
         }
@@ -278,7 +278,7 @@ class PE2DTilingMap: public LUMap {
         int procNum(int arrayHdl, const CkArrayIndex &idx) {
             int *coor = (int*) idx.data();
             int tileYIndex = coor[1]  / peCols;
-            int XwithinPEtile = coor[0] % peRows;
+            int XwithinPEtile = (coor[0] + tileYIndex * peRotate) % peRows;
             int YwithinPEtile = coor[1] % peCols;
             int peNum = XwithinPEtile * peCols + YwithinPEtile;
             CkAssert(peNum < CkNumPes());
@@ -286,7 +286,7 @@ class PE2DTilingMap: public LUMap {
         }
 
     private:
-        const int peRows, peCols;
+        const int peRows, peCols, peRotate;
 };
 
 #include <utility>
