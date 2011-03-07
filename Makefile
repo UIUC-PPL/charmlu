@@ -15,7 +15,7 @@ INTF      = lu.ci
 
 # Specify the exe name and the arguments to run it with
 NP        = 4
-TARGET    = lu
+TARGET    = lu.prod
 ARGS      = 64 16 500 8 2
 
 # Specify the compilers, run script, flags etc.
@@ -24,7 +24,7 @@ CHARMC    = $(CHARMBIN)/charmc
 OPT       = -g -O3
 CPPFLAGS += -DADAPT_SCHED_MEM $(BLAS_INC)
 CXXFLAGS += -language charm++ $(OPT)
-LDFLAGS  += -module comlib -module CkMulticast -tracemode projections $(BLAS_LD)
+LDFLAGS  += -module comlib -module CkMulticast $(BLAS_LD)
 LDLIBS   += $(BLAS_LIBS)
 EXEC      = ./charmrun
 EXECFLAGS = +p$(NP) ++local
@@ -40,14 +40,21 @@ endif
 
 all: $(TARGET)
 
-$(TARGET): $(OBJ) 
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+#$(TARGET): $(OBJ) 
+#	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+
+lu.prod: $(OBJ)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+
+lu: CXXFLAGS+=-DSTOP_AFTER=10
+lu: $(OBJ)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS) -tracemode projections
 
 clean:
-	$(RM) $(wildcard *.decl.h *.def.h *.d *.di *.o *.stamp) $(TARGET) charmrun
+	$(RM) $(wildcard *.decl.h *.def.h *.d *.di *.o *.stamp) charmrun
 
 realclean: clean
-	$(RM) $(wildcard *.log *.projrc *.sts)
+	$(RM) $(wildcard *.log *.projrc *.sts) lu lu.prod
 
 again: 
 	$(MAKE) clean; $(MAKE)
