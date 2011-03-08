@@ -122,7 +122,6 @@ private:
 
   std::map<std::pair<int, int>, std::list<Update*> > localWantedBlocks;
 
-  void generatePlan();
   void planUpdate(StateList::iterator target);
   void progress();
   // Makes sure that the block referenced by input is allocated
@@ -138,17 +137,6 @@ private:
   // Keep localBlocks partitioned by whether blocks are eligible or not
   // Eligible at the head of localBlocks, all else at the tail
   void repositionBlock(StateList::iterator block);
-
-#if 0
-  StateList::iterator findBlockState(CkIndex2D index);
-  bool advanceInput(BlockState::InputState &input, int srcX, int srcY);
-  void wantBlock(BlockState::InputState &input, int x, int y);
-  void incrementRefs(CkIndex2D index);
-  void releaseBlock(BlockState::InputState &input);
-#endif
-
-  friend class WillUse;
-  friend class TryDeliver;
 };
 
 #endif
