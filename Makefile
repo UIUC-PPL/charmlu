@@ -46,7 +46,7 @@ all: $(TARGET)
 lu.prod: $(OBJ)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
-lu: CXXFLAGS+=-DSTOP_AFTER=10
+lu: CXXFLAGS+="-DSTOP_AFTER=10 -DLU_TRACING"
 lu: $(OBJ)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS) -tracemode projections
 

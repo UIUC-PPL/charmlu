@@ -174,8 +174,8 @@ mainmodule lu {
 
       // On chare array diagonal
       if (thisIndex.x == thisIndex.y) atomic {
+	flushLogs();
         if (STOP_AFTER == thisIndex.x) {
-            flushLogs();
             CkStartQD( CkCallback(CkCallback::ckExit) );
         }
         else {
@@ -229,6 +229,7 @@ mainmodule lu {
       else {
         atomic {
             // Find the pivot candidate for just the first column in the block
+            flushLogs();
             pivotCandidate = findLocVal(0, 0);
             pendingUmsg = NULL;
         }
@@ -540,6 +541,8 @@ mainmodule lu {
 
     entry void flushLogs();
     entry void print();
+
+    entry void finishInit();
   };
 
   group OnePerPE : CkArrayMap {

@@ -176,6 +176,7 @@ private:
   void sumBvec(int size, double* partial_b);
   void calcResiduals();
   void flushLogs();
+  void finishInit();
   void initVec();
   void genBlock();
   void genVec(double *buf);

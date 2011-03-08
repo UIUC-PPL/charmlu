@@ -282,7 +282,7 @@ public:
       luArrProxy.initVec();
       sentVectorData = true;
     } else {
-      luArrProxy.flushLogs();
+      luArrProxy.finishInit();
     }
   }
 
@@ -477,6 +477,10 @@ public:
   }
 };
 
+void LUBlk::finishInit() {
+  contribute(CkCallback(CkIndex_Main::continueIter(), mainProxy));
+}
+
 //VALIDATION
 void LUBlk::startValidation() {
   // Starting state:
@@ -592,7 +596,9 @@ void LUBlk::calcResiduals() {
 }
 
 void LUBlk::flushLogs() {
-  contribute(CkCallback(CkIndex_Main::continueIter(), mainProxy));
+#if defined(LU_TRACING)
+  flushTraceLog();
+#endif
 }
 
 void LUBlk::initVec() {
