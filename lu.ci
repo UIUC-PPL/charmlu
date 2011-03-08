@@ -174,7 +174,6 @@ mainmodule lu {
 
       // On chare array diagonal
       if (thisIndex.x == thisIndex.y) atomic {
-	flushLogs();
         if (STOP_AFTER == thisIndex.x) {
             CkStartQD( CkCallback(CkCallback::ckExit) );
         }
@@ -229,7 +228,6 @@ mainmodule lu {
       else {
         atomic {
             // Find the pivot candidate for just the first column in the block
-            flushLogs();
             pivotCandidate = findLocVal(0, 0);
             pendingUmsg = NULL;
         }
@@ -239,6 +237,9 @@ mainmodule lu {
             // Contribute to a reduction along the active panel to identify the pivot row
             mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
 	    thisProxy(thisIndex.x, thisIndex.y).performUpdate(0);
+            if (activeCol % 20 == 0) {
+              flushLogs();
+            }
           }
 	  when performUpdate(int dummy) atomic "useg_delayed_update" {
 	    // Delayed update using the U segment from the prev activeCol iteration
@@ -327,6 +328,9 @@ mainmodule lu {
           VERBOSE_PROGRESS(" ..col%d ", thisIndex.x*BLKSIZE + activeCol);
           // Contribute to a redn along the pivot section to identify the pivot row
           mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
+          if (activeCol % 20 == 0) {
+            flushLogs();
+          }
         }
 
         // Share the pivot info with the appropriate array section
