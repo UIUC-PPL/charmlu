@@ -168,6 +168,15 @@ private:
     : factored(false), storedVec(NULL), diagRec(0), msgsRecvd(0), blockPulled(0), blocksAfter(0)
   {
     __sdag_init();
+#if defined(LU_TRACING)
+    traceEnd();
+#endif
+  }
+
+  void traceOn() {
+#if defined(LU_TRACING)
+    traceBegin();
+#endif
   }
 
   //VALIDATION
