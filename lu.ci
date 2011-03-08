@@ -60,6 +60,7 @@ mainmodule lu {
     entry [nokeep] void prepareForPivotLR(rednSetupMsg *);
     entry [nokeep] void prepareForRowBeforeDiag(rednSetupMsg *);
     entry [nokeep] void prepareForRowAfterDiag(rednSetupMsg *);
+    entry void setupMulticastFinished(CkReductionMsg *msg);
     entry void prepareForMulticast(int pe);
     entry void multicastRedns(int dummy);
     entry void initVec();
@@ -440,11 +441,18 @@ mainmodule lu {
             pes.push_back(CkArrayIndex1D(*iter));
           panelAfter = CProxySection_BlockScheduler::ckNew(bs, pes.getVec(), pes.size());
           panelAfter.ckSectionDelegate(mcastMgr);
+          CkCallback *cb = new CkCallback(CkIndex_LUBlk::setupMulticastFinished(NULL), thisProxy(thisIndex));
+          mcastMgr->setReductionClient(panelAfter, cb);
           rednSetupMsg *panelAfterMsg = new rednSetupMsg(mcastMgrGID);
           panelAfter.setupMulticast(panelAfterMsg);
-          pes.clear();
-          contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
         }
+        if (panelAfterPEs.size() > 0) {
+          when setupMulticastFinished(CkReductionMsg *msg) atomic {
+            panelAfterPEs.clear();
+            delete msg;
+          }
+        }
+        atomic { contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy)); }
       }
     };
 

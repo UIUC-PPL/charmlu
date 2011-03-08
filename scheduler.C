@@ -64,6 +64,14 @@ void BlockScheduler::allRegistered(CkReductionMsg *m) {
   progress();
 }
 
+void BlockScheduler::setupMulticast(rednSetupMsg *msg) {
+  CkMulticastMgr* mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
+  CkSectionInfo cookie;
+  CkGetSectionInfo(cookie, msg);
+  mcastMgr->contribute(0, NULL, CkReduction::sum_int, cookie);
+  delete msg;
+}
+
 void BlockScheduler::repositionBlock(StateList::iterator block) {
   StateList::iterator pos = block->pendingDependencies == 0 ?
     localBlocks.begin() : localBlocks.end();
