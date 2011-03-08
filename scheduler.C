@@ -86,13 +86,16 @@ void BlockScheduler::updatePanel(std::map<K, Panel> &panels, K index) {
 
   panel.updatesLeftToPlan--;
   if(panel.updatesLeftToPlan == 0) {
-    for (std::list<StateList::iterator>::iterator i = panel.dependents.begin();
-         i != panel.dependents.end(); ++i) {
-      (*i)->pendingDependencies--;
-      repositionBlock(*i);
-    }
-
+    releasePanel(panel);
     panels.erase(iter);
+  }
+}
+
+void BlockScheduler::releasePanel(Panel &panel) {
+  for (std::list<StateList::iterator>::iterator i = panel.dependents.begin();
+       i != panel.dependents.end(); ++i) {
+    (*i)->pendingDependencies--;
+    repositionBlock(*i);
   }
 }
 

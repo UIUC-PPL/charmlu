@@ -133,6 +133,7 @@ private:
 
   template <typename K>
   void updatePanel(std::map<K, Panel> &panels, K index);
+  void releasePanel(Panel &panel);
   template <typename K>
   void addDependence(std::map<K, Panel> &panels, K index, StateList::iterator block);
 
