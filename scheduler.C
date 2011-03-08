@@ -226,8 +226,11 @@ void BlockScheduler::updateDone(intptr_t update_ptr) {
 void BlockScheduler::factorizationDone(CkIndex2D index) {
   DEBUG_SCHED("factorizationDone on (%d,%d)", index.x, index.y);
 
-  if (index.x >= index.y)
+  if (index.x >= index.y) {
     activePanels[index.y]--;
+    if (activePanels[index.y] == 0)
+      activePanels.erase(activePanels.find(index.y));
+  }
 
   std::map<std::pair<int, int>, std::list<Update*> >::iterator wanters =
     localWantedBlocks.find(make_pair(index.x, index.y));
@@ -293,11 +296,9 @@ void BlockScheduler::progress() {
       // TODO: refactor into a foreach?
       for (std::list<ComputeU>::iterator computeU = pendingComputeU.begin();
            computeU != pendingComputeU.end(); ++computeU) {
-        std::map<int, int>::iterator apanel = activePanels.find(computeU->t + 1);
-        if (apanel != activePanels.end() && apanel->second > 0 &&
-            computeU->y != computeU->t + 1) {
+        if (activePanels.size() > 0 && activePanels.begin()->first < computeU->y)
           continue;
-        }
+
         CkEntryOptions opts;
         luArr(computeU->x, computeU->y).
           processComputeU(0, &(mgr->setPrio(RECVL, opts, computeU->y)));
@@ -308,11 +309,9 @@ void BlockScheduler::progress() {
       for (std::list<Update>::iterator update = plannedUpdates.begin();
 	   update != plannedUpdates.end(); ++update) {
 	if (update->ready()) {
-          std::map<int, int>::iterator apanel = activePanels.find(update->t + 1);
-          if (apanel != activePanels.end() && apanel->second > 0 &&
-              update->target->iy != update->t + 1) {
+          if (activePanels.size() > 0 && activePanels.begin()->first < update->target->iy)
             continue;
-          }
+
 	  runUpdate(update);
 	  stateModified = true;
 	  break;
