@@ -81,7 +81,7 @@ const int sdagOverheadPerBlock = 3760;
 
 class BlockScheduler : public CBase_BlockScheduler {
 public:
-  BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_);
+  BlockScheduler(CProxy_LUBlk luArr_, LUConfig config_, CProxy_LUMgr mgr_);
   BlockScheduler(CkMigrateMessage *m) { }
 
   void registerBlock(CkIndex2D index);
@@ -101,7 +101,8 @@ private:
   std::map<int, int> activePanels;
   std::list<ComputeU> pendingComputeU;
 
-  std::map<int, Panel> panels;
+  // Column panels - indexed by column and step
+  std::map<std::pair<int, int>, Panel> Ppanels;
 
   std::list<Update> plannedUpdates;
   CProxy_LUBlk luArr;
@@ -109,6 +110,7 @@ private:
   bool inProgress;
   int numActive;
   int totalActive;
+  LUConfig config;
 
   struct wantedBlock {
     std::list<Update *> refs;

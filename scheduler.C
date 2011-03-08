@@ -15,8 +15,8 @@ pair<int, int> make_pair(CkIndex2D index) {
   return make_pair(index.x, index.y);
 }
 
-BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_)
-  : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false), numActive(0) {
+BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config_, CProxy_LUMgr mgr_)
+  : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false), numActive(0), config(config_) {
   blockLimit = config.memThreshold * 1024 * 1024 /
     (config.blockSize * (config.blockSize + 1) * sizeof(double) + sizeof(LUBlk) + sdagOverheadPerBlock);
 
@@ -42,9 +42,9 @@ void BlockScheduler::registerBlock(CkIndex2D index) {
   blockLimit--;
   if (index.x != 0 && index.y != 0) {
     localBlocks.push_back(BlockState(index));
-    for (int i = 1; i < min(index.x, index.y) + 1; i++) {
-      panels[i].updatesLeftToPlan++;
-    }
+    for (int i = 1; i < min(index.x, index.y) + 1; i++)
+      for (int y = i + 1; y < config.numBlocks; y++)
+        Ppanels[make_pair(y, i)].updatesLeftToPlan++;
   }
 
   if (index.x > index.y)
@@ -118,13 +118,15 @@ void BlockScheduler::planUpdate(StateList::iterator target) {
   getBlock(t, target->iy, update.U, &update);
 
   if (target->updatesPlanned < min(target->ix, target->iy)) {
-    addDependence(panels, t+1, target);
+    addDependence(Ppanels, make_pair(target->iy, t+1), target);
     repositionBlock(target);
   } else {
     doneBlocks.splice(doneBlocks.end(), localBlocks, target);
   }
 
-  updatePanel(panels, t+1);
+  for (int y = t + 2; y < config.numBlocks; y++) {
+    updatePanel(Ppanels, make_pair(y, t+1));
+  }
 }
 
 void BlockScheduler::getBlock(int srcx, int srcy, double *&data,
