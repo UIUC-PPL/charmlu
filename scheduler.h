@@ -101,7 +101,12 @@ private:
   std::map<int, int> activePanels;
   std::list<ComputeU> pendingComputeU;
 
-  // Column panels - indexed by column and step
+  // L inputs - indexed by column
+  std::map<int, Panel> Lpanels;
+  // U inputs - indexed by row and column
+  std::map<std::pair<int, int>, Panel> Ublocks;
+  // Column panels - indexed by column and step for tracking
+  // potentially remote pivot dependencies
   std::map<std::pair<int, int>, Panel> Ppanels;
 
   std::list<Update> plannedUpdates;
