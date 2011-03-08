@@ -23,11 +23,6 @@ void BlockScheduler::registerBlock(CkIndex2D index) {
   blockLimit--;
   if (index.x != 0 && index.y != 0) {
     localBlocks.push_back(BlockState(index));
-    if (index.y > 1)
-      for (int i = 1; i <= min(index.x, index.y) && i < index.y; ++i) {
-        Ppanels[make_pair(index.y, i)].updatesLeftToPlan++;
-      }
-
     for (int i = 1; i <= min(index.x, index.y) && i < index.y + 1; ++i) {
       Ppanels[make_pair(index.y+1, i)].updatesLeftToPlan++;
     }
@@ -95,7 +90,6 @@ void BlockScheduler::planUpdate(StateList::iterator target) {
     addDependence(Lpanels, t+1, target);
     addDependence(Ublocks, make_pair(t+1, target->iy), target);
     addDependence(Ppanels, make_pair(target->iy, t+1), target);
-    addDependence(Ppanels, make_pair(target->iy-1, t+1), target);
     repositionBlock(target);
   } else {
     doneBlocks.splice(doneBlocks.end(), localBlocks, target);
