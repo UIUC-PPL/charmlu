@@ -152,6 +152,9 @@ private:
   CkSectionInfo rowBeforeCookie;
   CkSectionInfo rowAfterCookie;
 
+  /// Count of blocks ready to pivot for U
+  int pivotReady;
+
   /// A pointer to the local branch of the multicast manager group that handles the pivot section comm
   CkMulticastMgr *mcastMgr;
 

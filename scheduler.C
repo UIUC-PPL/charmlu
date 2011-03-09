@@ -86,7 +86,9 @@ void BlockScheduler::repositionBlock(StateList::iterator block) {
 template <typename K>
 void BlockScheduler::updatePanel(std::map<K, Panel> &panels, K index) {
   typename std::map<K, Panel>::iterator iter = panels.find(index);
-  CkAssert(iter != panels.end());
+  if (iter == panels.end())
+    return;
+
   Panel &panel = iter->second;
 
   panel.updatesLeftToPlan--;
@@ -102,6 +104,22 @@ void BlockScheduler::releasePanel(Panel &panel) {
     (*i)->pendingDependencies--;
     repositionBlock(*i);
   }
+}
+
+void BlockScheduler::pivotsDone(pivotsDoneMsg *msg) {
+  CkIndex2D index = msg->index;
+  delete msg;
+  pivotsDone(index);
+}
+
+void BlockScheduler::pivotsDone(CkIndex2D index) {
+  std::map<pair<int, int>, Panel>::iterator iter =
+    Ppanels.find(make_pair(index.y, index.x));
+  if (iter != Ppanels.end()) {
+    releasePanel(iter->second);
+    Ppanels.erase(iter);
+  }
+  progress();
 }
 
 template <typename K>

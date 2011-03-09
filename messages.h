@@ -39,6 +39,11 @@ class UMsg : public CMessage_UMsg, public CkMcastBaseMsg {
         double *data;
 };
 
+struct pivotsDoneMsg : public CMessage_pivotsDoneMsg, public CkMcastBaseMsg {
+  CkIndex2D index;
+  pivotsDoneMsg(CkIndex2D index_) : index(index_) {}
+};
+
 class pivotSequencesMsg: public CMessage_pivotSequencesMsg, public CkMcastBaseMsg
 {
     public:

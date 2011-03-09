@@ -19,6 +19,8 @@ mainmodule lu {
     double data[];
   };
 
+  message pivotsDoneMsg;
+
   message pivotSequencesMsg {
       int seqIndex[];
       int pivotSequence[];
@@ -72,6 +74,7 @@ mainmodule lu {
     entry void sendPivotData(int rowIndex, int pivotRow, int size, double data[size], double b);
     entry [nokeep] void applyPivots(pivotSequencesMsg *msg);
     entry void acceptPivotData(pivotRowsMsg *msg);
+    entry void startedPivots(int step);
     entry [nokeep] void sendUSegment(UMsg* msg);
     entry void performUpdate(int);
     entry void blockUsed(int);
@@ -115,6 +118,9 @@ mainmodule lu {
         pivotBatchTag = 0;
       }
       for (internalStep = 0; internalStep < min(thisIndex.x, thisIndex.y); internalStep++) {
+          atomic {
+            thisProxy(internalStep, thisIndex.y).startedPivots(internalStep);
+          }
           // Receive and process batches of pivot operations sent out by the current active diagonal chare
           while (pivotBatchTag < (internalStep+1)*BLKSIZE) {
               // Wait for msg carrying the next batch of pivot ops
@@ -187,10 +193,14 @@ mainmodule lu {
       }
       // Above diagonal
       else if (thisIndex.x < thisIndex.y) {
-        // Receive and process each pivot selection sent out by the current diagonal block
-        while (pivotBatchTag < (internalStep+1)*BLKSIZE) {
-          // Wait for msg carrying the next batch of pivot ops
-          when applyPivots[pivotBatchTag](pivotSequencesMsg *msg) {
+        overlap {
+          for (pivotReady = thisIndex.x + 1; pivotReady < numBlks; pivotReady++) {
+            when startedPivots[internalStep](int step) { }
+          }
+          // Receive and process each pivot selection sent out by the current diagonal block
+          while (pivotBatchTag < (internalStep+1)*BLKSIZE) {
+            // Wait for msg carrying the next batch of pivot ops
+            when applyPivots[pivotBatchTag](pivotSequencesMsg *msg) {
               // Send out any pivot data owned by this chare
               atomic "sendOutgoingPivots_activeRowChare" {
                 sendPendingPivots(msg);
@@ -198,25 +208,31 @@ mainmodule lu {
               }
               // Wait for all incoming pivot data from this batch
               while (pendingIncomingPivots > 0)
-              {
+                {
                   when acceptPivotData[pivotBatchTag](pivotRowsMsg *aMsg) atomic "acceptIncomingPivots_activeRowChare" {
-                      for (int i = 0; i < aMsg->nRows; i++)
+                    for (int i = 0; i < aMsg->nRows; i++)
                       {
-                          CkAssert(thisIndex.x == aMsg->rowNum[i]/BLKSIZE);
-                          applySwap(aMsg->rowNum[i]%BLKSIZE, 0, &(aMsg->rows[i*BLKSIZE]), aMsg->rhs[i]);
-                          pendingIncomingPivots--;
-                          VERY_VERBOSE_PIVOT_AGGLOM("[%d,%d] received pivot row %d for batch %d. %d pending\n",
+                        CkAssert(thisIndex.x == aMsg->rowNum[i]/BLKSIZE);
+                        applySwap(aMsg->rowNum[i]%BLKSIZE, 0, &(aMsg->rows[i*BLKSIZE]), aMsg->rhs[i]);
+                        pendingIncomingPivots--;
+                        VERY_VERBOSE_PIVOT_AGGLOM("[%d,%d] received pivot row %d for batch %d. %d pending\n",
                               thisIndex.x, thisIndex.y, aMsg->rowNum[i], pivotBatchTag, pendingIncomingPivots);
                       }
-                      delete aMsg;
+                    delete aMsg;
                   }
-              }
+                }
               // Increment the batch tag to the next expected
               atomic {
-                  pivotBatchTag += msg->numRowsProcessed;
-                  CmiFree(UsrToEnv(msg));
+                pivotBatchTag += msg->numRowsProcessed;
+                CmiFree(UsrToEnv(msg));
               }
+            }
           }
+        }
+        atomic {
+          localScheduler->pivotsDone(thisIndex);
+          pivotsDoneMsg *msg = new pivotsDoneMsg(thisIndex);
+          panelAfter.pivotsDone(msg);
         }
         // Once all pivot info is processed, perform the row update
         when recvL[internalStep](blkMsg *mL) atomic "beforeL_schedule_computeU" {
@@ -557,6 +573,7 @@ mainmodule lu {
   array [1D] BlockScheduler {
     entry BlockScheduler(CProxy_LUBlk luArr, LUConfig config, CProxy_LUMgr mgr_);
     entry void deliverBlock(blkMsg *m);
+    entry void pivotsDone(pivotsDoneMsg *msg);
     entry void printBlockLimit();
     entry void allRegistered(CkReductionMsg *m);
     entry void setupMulticast(rednSetupMsg *msg);

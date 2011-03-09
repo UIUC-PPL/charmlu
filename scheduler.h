@@ -89,6 +89,7 @@ public:
   void incomingComputeU(CkIndex2D index, int t);
   void printBlockLimit();
   void pivotsDone(CkIndex2D index);
+  void pivotsDone(pivotsDoneMsg *msg);
 //  void dataReady(CkIndex2D index, BlockReadyMsg *m);
   void updateDone(intptr_t update_ptr);
   void factorizationDone(CkIndex2D index);
