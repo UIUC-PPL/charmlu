@@ -303,7 +303,7 @@ void BlockScheduler::progress() {
   do {
     stateModified = false;
     bool plannedAnything = true;
-    while (wantedBlocks.size() < blockLimit && plannedAnything) {
+    while (wantedBlocks.size() < 1 && plannedAnything) {
       plannedAnything = false;
       if (localBlocks.size() > 0) {
 	DEBUG_SCHED("Local Blocks: ");
@@ -330,7 +330,7 @@ void BlockScheduler::progress() {
         std::map<int, int>::iterator apanel = activePanels.find(computeU->t + 1);
         if (apanel != activePanels.end() && apanel->second > 0 &&
             computeU->y != computeU->t + 1) {
-          continue;
+          //continue;
         }
         CkEntryOptions opts;
         luArr(computeU->x, computeU->y).
@@ -345,7 +345,7 @@ void BlockScheduler::progress() {
           std::map<int, int>::iterator apanel = activePanels.find(update->t + 1);
           if (apanel != activePanels.end() && apanel->second > 0 &&
               update->target->iy != update->t + 1) {
-            continue;
+            //continue;
           }
 	  runUpdate(update);
 	  stateModified = true;
