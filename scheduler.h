@@ -20,14 +20,14 @@ struct BlockState {
   // How many of the dependencies for the next update are not yet planned? [0..3]?
   int pendingDependencies;
   // Count of trailing updates completed and planned
-  int updatesCompleted, updatesPlanned, updatesEligible;
+  int updatesCompleted, updatesPlanned;
   // Have pivots been completed for this step?
   bool pivotsDone;
   // State of the L and U input blocks for the next update
 
   BlockState(CkIndex2D index)
     : ix(index.x), iy(index.y), pendingDependencies(0),
-      updatesCompleted(0), updatesPlanned(0), updatesEligible(0),
+      updatesCompleted(0), updatesPlanned(0),
       pivotsDone(false)
     {}
 
@@ -37,8 +37,6 @@ struct BlockState {
 };
 
 typedef std::list<BlockState> StateList;
-
-//PUPbytes(std::list<Update>::iterator)
 
 struct Update {
   BlockState *target;
@@ -63,45 +61,51 @@ struct Update {
   }
 };
 
-struct Panel {
-  std::list<StateList::iterator> dependents;
-  int updatesLeftToPlan;
-
-  void addDependent(StateList::iterator block) { dependents.push_back(block); }
-  Panel() : updatesLeftToPlan(0) { }
-};
-
 struct ComputeU {
   int x, y, t;
   ComputeU(int x_, int y_, int t_) :
     x(x_), y(y_), t(t_) {}
 };
 
+struct PlanStep {
+  int y, t;
+  PlanStep(int y_, int t_) : y(y_), t(t_) {}
+};
+
 const int sdagOverheadPerBlock = 3760;
+
+struct SchedulerProgress {
+  int progress, step, allowedCols;
+  SchedulerProgress(int step_, int progress_, int allowedCols_)
+    : step(step_), progress(progress_), allowedCols(allowedCols_) {}
+};
+
+void registerProgressReducer();
 
 class BlockScheduler : public CBase_BlockScheduler {
 public:
-  BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_);
+  BlockScheduler(CProxy_LUBlk luArr_, LUConfig config_, CProxy_LUMgr mgr_);
   BlockScheduler(CkMigrateMessage *m) { }
 
+  void contributeProgress(int);
   void registerBlock(CkIndex2D index);
   void allRegistered(CkReductionMsg *m);
   void incomingComputeU(CkIndex2D index, int t);
   void printBlockLimit();
   void pivotsDone(CkIndex2D index);
-//  void dataReady(CkIndex2D index, BlockReadyMsg *m);
   void updateDone(intptr_t update_ptr);
   void factorizationDone(CkIndex2D index);
   void deliverBlock(blkMsg *m);
   void setupMulticast(rednSetupMsg *msg);
+  void newColumn(CkReductionMsg *msg);
 
 private:
   LUMgr *mgr;
   StateList localBlocks, doneBlocks;
-  std::map<int, int> activePanels;
   std::list<ComputeU> pendingComputeU;
 
-  std::map<int, Panel> panels;
+  std::list<PlanStep> stepsToPlan;
+  std::map<int, int> columnUpdatesCommitted;
 
   std::list<Update> plannedUpdates;
   CProxy_LUBlk luArr;
@@ -109,6 +113,10 @@ private:
   bool inProgress;
   int numActive;
   int totalActive;
+  int previousAllowedCols;
+  bool needToContribute;
+  bool ownsFirstDiagonal;
+  LUConfig config;
 
   struct wantedBlock {
     std::list<Update *> refs;
@@ -128,15 +136,6 @@ private:
   void getBlock(int srcx, int srcy, double *&data, Update *update);
   // Potentially pick something from the ready list to update
   void runUpdate(std::list<Update>::iterator update);
-
-  template <typename K>
-  void updatePanel(std::map<K, Panel> &panels, K index);
-  template <typename K>
-  void addDependence(std::map<K, Panel> &panels, K index, StateList::iterator block);
-
-  // Keep localBlocks partitioned by whether blocks are eligible or not
-  // Eligible at the head of localBlocks, all else at the tail
-  void repositionBlock(StateList::iterator block);
 };
 
 #endif

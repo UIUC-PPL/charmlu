@@ -207,6 +207,7 @@ private:
   void sendBlocks(int);
   void getBlock(int pe);
   double *getBlock();
+  int getActivePanelProgress();
   void processComputeU(int ignoredParam);
   void localSolve(double *xvec, double *preVec);
   void localForward(double *xvec);

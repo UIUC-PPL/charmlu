@@ -875,6 +875,11 @@ double* LUBlk::getBlock() {
   return LU;
 }
 
+int LUBlk::getActivePanelProgress() {
+  CkAssert(thisIndex.x == thisIndex.y && internalStep == thisIndex.x);
+  return activeCol;
+}
+
 void LUBlk::processComputeU(int ignoredParam) {
   DEBUG_PRINT("processComputeU() called");
   CkAssert(internalStep==thisIndex.x && L);

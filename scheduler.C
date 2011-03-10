@@ -15,8 +15,9 @@ pair<int, int> make_pair(CkIndex2D index) {
   return make_pair(index.x, index.y);
 }
 
-BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_)
-  : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false), numActive(0) {
+BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config_, CProxy_LUMgr mgr_)
+  : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false), config(config_),
+    numActive(0), ownsFirstDiagonal(false), previousAllowedCols(1), needToContribute(false) {
   blockLimit = config.memThreshold * 1024 * 1024 /
     (config.blockSize * (config.blockSize + 1) * sizeof(double) + sizeof(LUBlk) + sdagOverheadPerBlock);
 
@@ -24,14 +25,14 @@ BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMg
 }
 
 void BlockScheduler::incomingComputeU(CkIndex2D index, int t) {
-  std::map<int, int>::iterator apanel = activePanels.find(t + 1);
-  if (apanel != activePanels.end() && apanel->second > 0 &&
-      index.y != t + 1) {
-    pendingComputeU.push_back(ComputeU(index.x, index.y, t));
-  } else {
-    CkEntryOptions opts;
-    luArr(index).processComputeU(0, &(mgr->setPrio(RECVL, opts, index.y)));
-  }
+  // std::map<int, int>::iterator apanel = activePanels.find(t + 1);
+  // if (apanel != activePanels.end() && apanel->second > 0 &&
+  //     index.y != t + 1) {
+  //   pendingComputeU.push_back(ComputeU(index.x, index.y, t));
+  // } else {
+  //   CkEntryOptions opts;
+  //   luArr(index).processComputeU(0, &(mgr->setPrio(RECVL, opts, index.y)));
+  // }
 }
 
 void BlockScheduler::printBlockLimit() {
@@ -42,13 +43,13 @@ void BlockScheduler::registerBlock(CkIndex2D index) {
   blockLimit--;
   if (index.x != 0 && index.y != 0) {
     localBlocks.push_back(BlockState(index));
-    for (int i = 1; i < min(index.x, index.y) + 1; i++) {
-      panels[i].updatesLeftToPlan++;
-    }
   }
 
-  if (index.x > index.y)
-    activePanels[index.y]++;
+  if (index.x == index.y && index.x == 0)
+    ownsFirstDiagonal = true;
+
+  if (index.y != 0)
+    columnUpdatesCommitted[index.y] = -1;
 
   for (int i = 0; i < index.x; i++)
     luArr(i, index.y).prepareForMulticast(CkMyPe());
@@ -61,7 +62,7 @@ void BlockScheduler::registerBlock(CkIndex2D index) {
 
 void BlockScheduler::allRegistered(CkReductionMsg *m) {
   delete m;
-  progress();
+  contributeProgress(0);
 }
 
 void BlockScheduler::setupMulticast(rednSetupMsg *msg) {
@@ -72,43 +73,7 @@ void BlockScheduler::setupMulticast(rednSetupMsg *msg) {
   delete msg;
 }
 
-void BlockScheduler::repositionBlock(StateList::iterator block) {
-  StateList::iterator pos = block->pendingDependencies == 0 ?
-    localBlocks.begin() : localBlocks.end();
-  localBlocks.splice(pos, localBlocks, block);
-}
-
-template <typename K>
-void BlockScheduler::updatePanel(std::map<K, Panel> &panels, K index) {
-  typename std::map<K, Panel>::iterator iter = panels.find(index);
-  CkAssert(iter != panels.end());
-  Panel &panel = iter->second;
-
-  panel.updatesLeftToPlan--;
-  if(panel.updatesLeftToPlan == 0) {
-    for (std::list<StateList::iterator>::iterator i = panel.dependents.begin();
-         i != panel.dependents.end(); ++i) {
-      (*i)->pendingDependencies--;
-      repositionBlock(*i);
-    }
-
-    panels.erase(iter);
-  }
-}
-
-template <typename K>
-void BlockScheduler::addDependence(std::map<K, Panel> &panels, K index,
-				   StateList::iterator block) {
-  typename std::map<K, Panel>::iterator panel = panels.find(index);
-  if (panel != panels.end()) {
-    block->pendingDependencies++;
-    panel->second.addDependent(block);
-  }
-}
-
 void BlockScheduler::planUpdate(StateList::iterator target) {
-  CkAssert(target->pendingDependencies == 0);
-
   int t = target->updatesPlanned++;
 
   plannedUpdates.push_back(Update(&*target, t));
@@ -117,14 +82,10 @@ void BlockScheduler::planUpdate(StateList::iterator target) {
   getBlock(target->ix, t, update.L, &update);
   getBlock(t, target->iy, update.U, &update);
 
-  if (target->updatesPlanned < min(target->ix, target->iy)) {
-    addDependence(panels, t+1, target);
-    repositionBlock(target);
-  } else {
-    doneBlocks.splice(doneBlocks.end(), localBlocks, target);
-  }
+  CkAssert(target->updatesPlanned <= min(target->ix, target->iy));
 
-  updatePanel(panels, t+1);
+  if (target->updatesPlanned == min(target->ix, target->iy))
+    doneBlocks.splice(doneBlocks.end(), localBlocks, target);
 }
 
 void BlockScheduler::getBlock(int srcx, int srcy, double *&data,
@@ -226,8 +187,10 @@ void BlockScheduler::updateDone(intptr_t update_ptr) {
 void BlockScheduler::factorizationDone(CkIndex2D index) {
   DEBUG_SCHED("factorizationDone on (%d,%d)", index.x, index.y);
 
-  if (index.x >= index.y)
-    activePanels[index.y]--;
+  if (index.x == index.y && needToContribute) {
+    contributeProgress(0);
+    needToContribute = false;
+  }
 
   std::map<std::pair<int, int>, std::list<Update*> >::iterator wanters =
     localWantedBlocks.find(make_pair(index.x, index.y));
@@ -256,6 +219,107 @@ bool eligibilityYOrder(const BlockState& block1, const BlockState& block2) {
   }
 }
 
+const int PIPE_SIZE = 2;
+
+void BlockScheduler::newColumn(CkReductionMsg *msg) {
+  SchedulerProgress sp = *(SchedulerProgress*)msg->getData();
+
+  DEBUG_SCHED("newColumn current active panel = %d, reduction num = %d",
+              sp.step, msg->getRedNo());
+
+  if (sp.step == config.numBlocks - 1) {
+    CkPrintf("Shutting DOWN, redNo = %d\n", msg->getRedNo());
+    return;
+  }
+
+  delete msg;
+
+  std::map<int, int>::iterator iter;
+
+  for (iter = columnUpdatesCommitted.begin();
+       iter != columnUpdatesCommitted.end(); ++iter) {
+    DEBUG_SCHED("Considering column (y = %d, t = %d)", iter->first, iter->second);
+    if (iter->second < sp.step) {
+      DEBUG_SCHED("Determined new column to plan: (y = %d, t = %d)",
+                  iter->first, iter->second + 1);
+      iter->second++;
+      stepsToPlan.push_back(PlanStep(iter->first, iter->second));
+      break;
+    }
+  }
+
+  int allowedCols = 0;
+
+  for (iter = columnUpdatesCommitted.begin();
+       iter != columnUpdatesCommitted.end(); ++iter) {
+    if (iter->second < sp.step) {
+      allowedCols++;
+    }
+  }
+
+  previousAllowedCols = allowedCols;
+
+  if (sp.allowedCols != 0) {
+    contributeProgress(0);
+  } else {
+    if (luArr(sp.step+1, sp.step+1).ckLocal() &&
+        !luArr(sp.step+1, sp.step+1).ckLocal()->factored) {
+      needToContribute = true;
+    } else {
+      contributeProgress(0);
+    }
+  }
+
+  progress();
+}
+
+static CkReductionMsg* progressReducerFn(int count, CkReductionMsg **msgs) {
+  SchedulerProgress sp = *(SchedulerProgress*)msgs[0]->getData();
+  for (int i = 1; i < count; i++) {
+    SchedulerProgress *cur = (SchedulerProgress*)msgs[i]->getData();
+    if (cur->step > sp.step) {
+      sp.step = cur->step;
+      sp.progress = cur->progress;
+    }
+    sp.allowedCols += cur->allowedCols;
+  }
+  DEBUG_SCHED("progressReducerFn returning: step = %d, progress = %d, allowedCols = %d",
+              sp.step, sp.progress, sp.allowedCols);
+  return CkReductionMsg::buildNew(sizeof(SchedulerProgress), &sp);
+}
+
+static CkReduction::reducerType progressReducer;
+
+void registerProgressReducer() {
+  progressReducer = CkReduction::addReducer(progressReducerFn);
+}
+
+void BlockScheduler::contributeProgress(int) {
+  int progress = -1, step = 0;
+  for (StateList::iterator block = doneBlocks.begin();
+       block != doneBlocks.end(); ++block) {
+    if (block->ix == block->iy && block->updatesCompleted == block->ix &&
+        block->updatesCompleted > step) {
+      step = block->updatesCompleted;
+      progress = luArr(block->ix, block->iy).ckLocal()->getActivePanelProgress();
+    }
+  }
+
+  DEBUG_SCHED("contributing scheduler progress: step = %d, progress = %d", step, progress);
+
+  SchedulerProgress schedProgress(step, progress, previousAllowedCols);
+  contribute(sizeof(schedProgress), &schedProgress, progressReducer,
+             CkCallback(CkIndex_BlockScheduler::newColumn(NULL), thisProxy));
+}
+
+struct InChosenColumn {
+  PlanStep step;
+  InChosenColumn(PlanStep step_) : step(step_) {}
+  bool operator()(BlockState &block) {
+    return block.iy == step.y && block.updatesPlanned == step.t;
+  }
+};
+
 void BlockScheduler::progress() {
   DEBUG_SCHED("Called progress, already? %s", inProgress? "true" : "false" );
   // Prevent reentrance
@@ -269,7 +333,7 @@ void BlockScheduler::progress() {
   do {
     stateModified = false;
     bool plannedAnything = true;
-    while (wantedBlocks.size() < blockLimit && plannedAnything) {
+    while (wantedBlocks.size() < blockLimit && stepsToPlan.size() > 0 && plannedAnything) {
       plannedAnything = false;
       if (localBlocks.size() > 0) {
 	DEBUG_SCHED("Local Blocks: ");
@@ -280,43 +344,30 @@ void BlockScheduler::progress() {
 		      block->updatesCompleted, block->updatesPlanned);
 	}
 
-        localBlocks.sort(eligibilityYOrder);
+        PlanStep nextStep = stepsToPlan.front();
 
-	CkAssert(localBlocks.front().pendingDependencies == 0);
-	planUpdate(localBlocks.begin());
-	plannedAnything = true;
+        StateList::iterator block =
+          find_if(localBlocks.begin(), localBlocks.end(), InChosenColumn(nextStep));
+
+        if (block != localBlocks.end()) {
+          DEBUG_SCHED("Planning update (%d, %d) for %d, nextStep: y = %d, t = %d",
+                      block->ix, block->iy, block->updatesPlanned, nextStep.y, nextStep.t);
+          planUpdate(block);
+        } else {
+          stepsToPlan.pop_front();
+          contributeProgress(0);
+        }
+        plannedAnything = true;
       }
     }
 
-    if (numActive == 0 || numActive != totalActive) {
-      // Start processComputeU
-      // TODO: refactor into a foreach?
-      for (std::list<ComputeU>::iterator computeU = pendingComputeU.begin();
-           computeU != pendingComputeU.end(); ++computeU) {
-        std::map<int, int>::iterator apanel = activePanels.find(computeU->t + 1);
-        if (apanel != activePanels.end() && apanel->second > 0 &&
-            computeU->y != computeU->t + 1) {
-          continue;
-        }
-        CkEntryOptions opts;
-        luArr(computeU->x, computeU->y).
-          processComputeU(0, &(mgr->setPrio(RECVL, opts, computeU->y)));
-        computeU = pendingComputeU.erase(computeU);
-      }
-
-      // Start trailing updates
-      for (std::list<Update>::iterator update = plannedUpdates.begin();
-	   update != plannedUpdates.end(); ++update) {
-	if (update->ready()) {
-          std::map<int, int>::iterator apanel = activePanels.find(update->t + 1);
-          if (apanel != activePanels.end() && apanel->second > 0 &&
-              update->target->iy != update->t + 1) {
-            continue;
-          }
-	  runUpdate(update);
-	  stateModified = true;
-	  break;
-	}
+    // Start trailing updates
+    for (std::list<Update>::iterator update = plannedUpdates.begin();
+         update != plannedUpdates.end(); ++update) {
+      if (update->ready()) {
+        runUpdate(update);
+        stateModified = true;
+        break;
       }
     }
   } while (stateModified);

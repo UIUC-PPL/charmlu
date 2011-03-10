@@ -8,6 +8,7 @@ mainmodule lu {
 
   // Register the reducer function that handles reductions of locval
   initnode void registerLocValReducer();
+  initnode void registerProgressReducer();
 
   message BlockReadyMsg;
 
@@ -114,7 +115,7 @@ mainmodule lu {
         startTime = CmiWallTimer();
         pivotBatchTag = 0;
       }
-      for (internalStep = 0; internalStep < min(thisIndex.x, thisIndex.y); internalStep++) {
+      for (internalStep = 0; internalStep < min(thisIndex.x, thisIndex.y); ) {
           // Receive and process batches of pivot operations sent out by the current active diagonal chare
           while (pivotBatchTag < (internalStep+1)*BLKSIZE) {
               // Wait for msg carrying the next batch of pivot ops
@@ -165,6 +166,7 @@ mainmodule lu {
 	      DEBUG_PRINT("doing trailing update");
 	      updateMatrix(update.L, update.U);
 	      thisProxy(thisIndex.x, internalStep).blockUsed(1);
+              internalStep++;
               localScheduler->updateDone(update_ptr);
 	  }
       }
@@ -222,7 +224,8 @@ mainmodule lu {
         when recvL[internalStep](blkMsg *mL) atomic "beforeL_schedule_computeU" {
           takeRef(mL);
           L = mL;
-          localScheduler->incomingComputeU(thisIndex, internalStep);
+          thisProxy(thisIndex).processComputeU(0);
+          //localScheduler->incomingComputeU(thisIndex, internalStep);
         }
       }
       // Below diagonal
@@ -388,6 +391,8 @@ mainmodule lu {
       }
 
       atomic "diag_multicast_L" {
+        factored = true;
+        localScheduler->factorizationDone(thisIndex);
         // All diagonal chares except the last must continue the factorization
         if (thisIndex.x < numBlks-1 && thisIndex.y < numBlks-1) {
           DEBUG_PRINT("is top,left block this step, multicast L");
@@ -560,6 +565,8 @@ mainmodule lu {
     entry void printBlockLimit();
     entry void allRegistered(CkReductionMsg *m);
     entry void setupMulticast(rednSetupMsg *msg);
+    entry void newColumn(CkReductionMsg *msg);
+    entry void contributeProgress(int);
   }
 
   group BlockCyclicMap : CkArrayMap{
