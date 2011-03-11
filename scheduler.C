@@ -17,7 +17,8 @@ pair<int, int> make_pair(CkIndex2D index) {
 
 BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config_, CProxy_LUMgr mgr_)
   : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false), config(config_),
-    numActive(0), ownsFirstDiagonal(false), previousAllowedCols(1), needToContribute(false) {
+    numActive(0), ownsFirstDiagonal(false), previousAllowedCols(1),
+    needToContribute(false), countdownMode(false), lastStep(-1) {
   blockLimit = config.memThreshold * 1024 * 1024 /
     (config.blockSize * (config.blockSize + 1) * sizeof(double) + sizeof(LUBlk) + sdagOverheadPerBlock);
 
@@ -181,6 +182,9 @@ void BlockScheduler::updateDone(intptr_t update_ptr) {
 
   plannedUpdates.erase(std::find(plannedUpdates.begin(), plannedUpdates.end(), update));
 
+  if (countdownMode)
+    contributeProgress(0);
+
   progress();
 }
 
@@ -224,29 +228,31 @@ const int PIPE_SIZE = 2;
 void BlockScheduler::newColumn(CkReductionMsg *msg) {
   SchedulerProgress sp = *(SchedulerProgress*)msg->getData();
 
-  DEBUG_SCHED("newColumn current active panel = %d, reduction num = %d",
-              sp.step, msg->getRedNo());
+  DEBUG_SCHED("newColumn current active panel = %d, reduction num = %d, progress = %d",
+              sp.step, msg->getRedNo(), sp.progress);
 
   if (sp.step == config.numBlocks - 1) {
     CkPrintf("Shutting DOWN, redNo = %d\n", msg->getRedNo());
     return;
   }
 
-  delete msg;
-
   std::map<int, int>::iterator iter;
 
-  for (iter = columnUpdatesCommitted.begin();
-       iter != columnUpdatesCommitted.end(); ++iter) {
-    DEBUG_SCHED("Considering column (y = %d, t = %d)", iter->first, iter->second);
-    if (iter->second < sp.step) {
-      DEBUG_SCHED("Determined new column to plan: (y = %d, t = %d)",
-                  iter->first, iter->second + 1);
-      iter->second++;
-      stepsToPlan.push_back(PlanStep(iter->first, iter->second));
-      break;
+  if (lastStep != sp.step || sp.currentPlanned == 0) {
+    for (iter = columnUpdatesCommitted.begin();
+         iter != columnUpdatesCommitted.end(); ++iter) {
+      DEBUG_SCHED("Considering column (y = %d, t = %d)", iter->first, iter->second);
+      if (iter->second < sp.step) {
+        DEBUG_SCHED("Determined new column to plan: (y = %d, t = %d), reduction num = %d",
+                    iter->first, iter->second + 1, msg->getRedNo());
+        iter->second++;
+        stepsToPlan.push_back(PlanStep(iter->first, iter->second));
+        break;
+      }
     }
   }
+
+  delete msg;
 
   int allowedCols = 0;
 
@@ -259,16 +265,52 @@ void BlockScheduler::newColumn(CkReductionMsg *msg) {
 
   previousAllowedCols = allowedCols;
 
-  if (sp.allowedCols != 0) {
-    contributeProgress(0);
-  } else {
-    if (luArr(sp.step+1, sp.step+1).ckLocal() &&
-        !luArr(sp.step+1, sp.step+1).ckLocal()->factored) {
-      needToContribute = true;
+  DEBUG_SCHED("lastStep = %d, sp.step = %d", lastStep, sp.step);
+#if 0
+  if (lastStep != sp.step) {
+    /*if (lastStep != sp.step) {
+      reductionCounter = 2;
     } else {
+      reductionCounter--;
+      }*/
+    if (sp.allowedCols != 0) {
       contributeProgress(0);
+    } else { 
+      if (luArr(sp.step+1, sp.step+1).ckLocal() &&
+          !luArr(sp.step+1, sp.step+1).ckLocal()->factored) {
+        needToContribute = true;
+      } else {
+        contributeProgress(0);
+      }
+    }
+  } else {
+  }
+#endif
+
+  bool foundTriggered = false;
+  for (std::list<Update>::iterator update = plannedUpdates.begin();
+       update != plannedUpdates.end(); ++update) {
+    if (update->triggered)
+      foundTriggered = true;
+  }
+
+  if (foundTriggered) {
+    countdownMode = true;
+    //needToContribute = true;
+  } else {
+    if (sp.allowedCols != 0) {
+      contributeProgress(0);
+    } else { 
+      if (luArr(sp.step+1, sp.step+1).ckLocal() &&
+          !luArr(sp.step+1, sp.step+1).ckLocal()->factored) {
+        needToContribute = true;
+      } else {
+        contributeProgress(0);
+      }
     }
   }
+
+  lastStep = sp.step;
 
   progress();
 }
@@ -282,6 +324,7 @@ static CkReductionMsg* progressReducerFn(int count, CkReductionMsg **msgs) {
       sp.progress = cur->progress;
     }
     sp.allowedCols += cur->allowedCols;
+    sp.currentPlanned += cur->currentPlanned;
   }
   DEBUG_SCHED("progressReducerFn returning: step = %d, progress = %d, allowedCols = %d",
               sp.step, sp.progress, sp.allowedCols);
@@ -295,19 +338,20 @@ void registerProgressReducer() {
 }
 
 void BlockScheduler::contributeProgress(int) {
-  int progress = -1, step = 0;
+  int progress = 0, step = 0;
   for (StateList::iterator block = doneBlocks.begin();
        block != doneBlocks.end(); ++block) {
     if (block->ix == block->iy && block->updatesCompleted == block->ix &&
         block->updatesCompleted > step) {
       step = block->updatesCompleted;
-      progress = luArr(block->ix, block->iy).ckLocal()->getActivePanelProgress();
+      progress = 0;
+      //progress = luArr(block->ix, block->iy).ckLocal()->getActivePanelProgress();
     }
   }
 
   DEBUG_SCHED("contributing scheduler progress: step = %d, progress = %d", step, progress);
 
-  SchedulerProgress schedProgress(step, progress, previousAllowedCols);
+  SchedulerProgress schedProgress(step, progress, previousAllowedCols, plannedUpdates.size());
   contribute(sizeof(schedProgress), &schedProgress, progressReducer,
              CkCallback(CkIndex_BlockScheduler::newColumn(NULL), thisProxy));
 }
@@ -328,12 +372,16 @@ void BlockScheduler::progress() {
 
   inProgress = true;
 
+  // if (countdownContribute == 0 && countdownMode) {
+  //   contributeProgress(0);
+  // }
+
   bool stateModified;
 
   do {
     stateModified = false;
     bool plannedAnything = true;
-    while (wantedBlocks.size() < blockLimit && stepsToPlan.size() > 0 && plannedAnything) {
+    while (wantedBlocks.size() < 1 && stepsToPlan.size() > 0 && plannedAnything) {
       plannedAnything = false;
       if (localBlocks.size() > 0) {
 	DEBUG_SCHED("Local Blocks: ");
@@ -355,7 +403,7 @@ void BlockScheduler::progress() {
           planUpdate(block);
         } else {
           stepsToPlan.pop_front();
-          contributeProgress(0);
+          //contributeProgress(0);
         }
         plannedAnything = true;
       }

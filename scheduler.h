@@ -75,9 +75,11 @@ struct PlanStep {
 const int sdagOverheadPerBlock = 3760;
 
 struct SchedulerProgress {
-  int progress, step, allowedCols;
-  SchedulerProgress(int step_, int progress_, int allowedCols_)
-    : step(step_), progress(progress_), allowedCols(allowedCols_) {}
+  int progress, step, allowedCols, currentPlanned;
+  SchedulerProgress(int step_, int progress_, int allowedCols_,
+                    int currentPlanned_)
+    : step(step_), progress(progress_), allowedCols(allowedCols_),
+      currentPlanned(currentPlanned_) {}
 };
 
 void registerProgressReducer();
@@ -117,6 +119,9 @@ private:
   bool needToContribute;
   bool ownsFirstDiagonal;
   LUConfig config;
+  bool countdownMode;
+  int lastStep;
+  int reductionCounter;
 
   struct wantedBlock {
     std::list<Update *> refs;
