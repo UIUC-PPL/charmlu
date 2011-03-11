@@ -876,6 +876,10 @@ double* LUBlk::getBlock() {
 }
 
 void LUBlk::processComputeU(int ignoredParam) {
+  if (!localScheduler->shouldExecute()) {
+    localScheduler->incomingComputeU(thisIndex, internalStep);
+    return;
+  }
   DEBUG_PRINT("processComputeU() called");
   CkAssert(internalStep==thisIndex.x && L);
   // We are in the top row of active blocks, and we
