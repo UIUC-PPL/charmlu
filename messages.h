@@ -6,6 +6,8 @@
 
 struct blkMsg: public CkMcastBaseMsg, CMessage_blkMsg {
   double *data;
+  CkArrayIndex1D *pes;
+  int npes, offset;
   CkIndex2D src;
 
   void setMsgData(double *data_, int step, int BLKSIZE, CkIndex2D index) {
@@ -14,6 +16,8 @@ struct blkMsg: public CkMcastBaseMsg, CMessage_blkMsg {
     CkSetRefNum(this, step);
   }
 };
+
+void propagateBlkMsg(blkMsg *msg, CProxy_BlockScheduler bs);
 
 struct BlockReadyMsg : public CkMcastBaseMsg, CMessage_BlockReadyMsg {
   BlockReadyMsg(CkIndex2D idx) : src(idx)

@@ -181,6 +181,15 @@ void BlockScheduler::getBlock(int srcx, int srcy, double *&data,
 
 void BlockScheduler::deliverBlock(blkMsg *m) {
   DEBUG_SCHED("deliverBlock src (%d, %d)", m->src.x, m->src.y);
+
+  CkAssert(m->npes >= 1);
+  CkAssert(CkMyPe() == m->pes[m->offset].data()[0]);
+
+  // This processor is no longer part of the set
+  m->offset++;
+  m->npes--;
+  propagateBlkMsg(m, thisProxy);
+
   wantedBlock &block = wantedBlocks[make_pair(m->src)];
   block.m = m;
 
@@ -192,6 +201,26 @@ void BlockScheduler::deliverBlock(blkMsg *m) {
   }
 
   progress();
+}
+
+void propagateBlkMsg(blkMsg *m, CProxy_BlockScheduler bs) {
+  DEBUG_SCHED("Delivering to processors");
+  for (int i = m->offset; i < m->npes; ++i)
+    DEBUG_SCHED("\t%d", m->pes[i].data()[0]);
+
+  if (m->npes >= 2) {
+    blkMsg *m2 = (blkMsg *)CkCopyMsg((void **)&m);
+    m2->offset += m->npes / 2;
+    m2->npes -= m->npes / 2;
+
+    bs[m2->pes[m2->offset]].deliverBlock(m2);
+
+    m->npes -= m->npes / 2;
+  }
+
+  if (m->npes >= 1) {
+    bs[m->pes[m->offset]].deliverBlock((blkMsg *)CkCopyMsg((void **)&m));
+  }
 }
 
 void BlockScheduler::dropRef(int srcx, int srcy, Update *update) {

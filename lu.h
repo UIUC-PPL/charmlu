@@ -239,7 +239,7 @@ private:
   /// Given a set of pivot ops, send out participating row chunks that you own
   void sendPendingPivots(const pivotSequencesMsg *msg);
   //internal functions for creating messages to encapsulate the priority
-  inline blkMsg* createABlkMsg();
+  inline blkMsg* createABlkMsg(int npes = 0);
   locval findLocVal(int startRow, int col, locval first = locval());
   /// Update the sub-block of this L block starting at specified
   /// offset from the active column

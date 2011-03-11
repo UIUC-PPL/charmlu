@@ -797,21 +797,17 @@ void LUBlk::multicastRequestedBlock(PrioType prio) {
   if (requestingPEs.size() == 0)
     return;
 
-  blkMsg *m = createABlkMsg();
+  blkMsg *m = createABlkMsg(requestingPEs.size());
   mgr->setPrio(m, prio);
 
   CkAssert(requestingPEs.size() <= panelAfter.ckGetNumElements());
 
-  if (requestingPEs.size() == panelAfter.ckGetNumElements()) {
-    panelAfter.deliverBlock(m);
-  } else {
-    CProxySection_BlockScheduler requesters =
-      CProxySection_BlockScheduler::ckNew(CkArrayID(scheduler),
-                                          &requestingPEs[0], requestingPEs.size());
+  m->npes = requestingPEs.size();
+  m->offset = 0;
+  memcpy(m->pes, &requestingPEs[0], sizeof(CkArrayIndex1D)*m->npes);
 
-    requesters.ckSectionDelegate(mcastMgr);
-    requesters.deliverBlock(m);
-  }
+  propagateBlkMsg(m, scheduler);
+
   requestingPEs.clear();
 }
 
@@ -1266,9 +1262,9 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
 
 
 //internal functions for creating messages to encapsulate the priority
-inline blkMsg* LUBlk::createABlkMsg() {
+inline blkMsg* LUBlk::createABlkMsg(int npes) {
   blkMsg *msg = mgr->createBlockMessage(thisIndex.x, thisIndex.y,
-                                        internalStep, sizeof(int)*8);
+                                        internalStep, sizeof(int)*8, npes);
   msg->setMsgData(LU, internalStep, BLKSIZE, thisIndex);
   return msg;
 }
