@@ -13,7 +13,7 @@ mainmodule lu {
 
   message blkMsg {
     double data[];
-    CkArrayIndex1D pes[];
+    int pes[];
   };
 
   message UMsg {

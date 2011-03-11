@@ -804,7 +804,7 @@ void LUBlk::multicastRequestedBlock(PrioType prio) {
 
   m->npes = requestingPEs.size();
   m->offset = 0;
-  memcpy(m->pes, &requestingPEs[0], sizeof(CkArrayIndex1D)*m->npes);
+  memcpy(m->pes, &requestingPEs[0], sizeof(requestingPEs[0])*m->npes);
 
   propagateBlkMsg(m, scheduler);
 
@@ -852,11 +852,11 @@ void LUBlk::sendBlocks(int) {
 
 void LUBlk::getBlock(int pe) {
   if (factored) {
-    requestingPEs.push_back(CkArrayIndex1D(pe));
+    requestingPEs.push_back(pe);
     localScheduler->scheduleSend(thisIndex);
   } else {
     DEBUG_PRINT("Queueing remote block for pe %d", pe);
-    requestingPEs.push_back(CkArrayIndex1D(pe));
+    requestingPEs.push_back(pe);
   }
 }
 double* LUBlk::getBlock() {

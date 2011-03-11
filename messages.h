@@ -6,7 +6,7 @@
 
 struct blkMsg: public CkMcastBaseMsg, CMessage_blkMsg {
   double *data;
-  CkArrayIndex1D *pes;
+  int *pes;
   int npes, offset;
   CkIndex2D src;
 

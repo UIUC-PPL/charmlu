@@ -130,7 +130,7 @@ private:
   /// How many blocks in the trailing submatrix live on processors that have asked for it?
   int blocksAfter;
   /// Which PE's schedulers have requested this block?
-  std::vector<CkArrayIndex1D> requestingPEs;
+  std::vector<int> requestingPEs;
 
   /// The sub-diagonal chare array section that will participate in pivot selection
   /// @note: Only the diagonal chares will create and mcast along this section

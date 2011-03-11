@@ -183,7 +183,7 @@ void BlockScheduler::deliverBlock(blkMsg *m) {
   DEBUG_SCHED("deliverBlock src (%d, %d)", m->src.x, m->src.y);
 
   CkAssert(m->npes >= 1);
-  CkAssert(CkMyPe() == m->pes[m->offset].data()[0]);
+  CkAssert(CkMyPe() == m->pes[m->offset]);
 
   // This processor is no longer part of the set
   m->offset++;
@@ -206,7 +206,7 @@ void BlockScheduler::deliverBlock(blkMsg *m) {
 void propagateBlkMsg(blkMsg *m, CProxy_BlockScheduler bs) {
   DEBUG_SCHED("Delivering to processors");
   for (int i = m->offset; i < m->npes; ++i)
-    DEBUG_SCHED("\t%d", m->pes[i].data()[0]);
+    DEBUG_SCHED("\t%d", m->pes[i]);
 
   if (m->npes >= 2) {
     blkMsg *m2 = (blkMsg *)CkCopyMsg((void **)&m);
