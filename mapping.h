@@ -280,7 +280,7 @@ class PE2DTilingMap: public LUMap {
             int tileYIndex = coor[1]  / peCols;
             int XwithinPEtile = (coor[0] + tileYIndex * peRotate) % peRows;
             int YwithinPEtile = coor[1] % peCols;
-            int peNum = XwithinPEtile * peCols + YwithinPEtile;
+            int peNum = YwithinPEtile * peRows + XwithinPEtile;
             CkAssert(peNum < CkNumPes());
             return peNum;
         }
