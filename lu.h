@@ -165,6 +165,8 @@ private:
   // For genBlock
   CrnStream blockStream, vecStream;
 
+  bool updateExecuted;
+
   LUBlk_SDAG_CODE
 
   public:

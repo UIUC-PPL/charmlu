@@ -159,18 +159,24 @@ mainmodule lu {
           //   }
           // }
 
-	  when processTrailingUpdate[internalStep](int step, intptr_t update_ptr)
-            atomic "trailing_update" {
+          atomic {
+            updateExecuted = false;
+          }
+          while (!updateExecuted) {
+            when processTrailingUpdate[internalStep](int step, intptr_t update_ptr)
+              atomic "trailing_update" {
 	      Update &update = *(Update *)update_ptr;
               if (localScheduler->shouldExecute()) {
                 DEBUG_PRINT("doing trailing update");
                 updateMatrix(update.L, update.U);
                 thisProxy(thisIndex.x, internalStep).blockUsed(1);
                 localScheduler->updateDone(update_ptr);
+                updateExecuted = true;
               } else {
                 update.triggered = false;
               }
-	  }
+            }
+          }
       }
 
       //-----------------------------------------------------------------------
