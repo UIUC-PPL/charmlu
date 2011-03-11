@@ -94,11 +94,12 @@ public:
   void factorizationDone(CkIndex2D index);
   void deliverBlock(blkMsg *m);
   void setupMulticast(rednSetupMsg *msg);
+  void startedActivePanel();
+  bool shouldExecute();
 
 private:
   LUMgr *mgr;
   StateList localBlocks, doneBlocks;
-  std::map<int, int> activePanels;
   std::list<ComputeU> pendingComputeU;
 
   std::map<int, Panel> panels;
@@ -108,7 +109,6 @@ private:
   int blockLimit;
   bool inProgress;
   int numActive;
-  int totalActive;
 
   struct wantedBlock {
     std::list<Update *> refs;

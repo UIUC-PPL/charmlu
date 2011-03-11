@@ -24,9 +24,7 @@ BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMg
 }
 
 void BlockScheduler::incomingComputeU(CkIndex2D index, int t) {
-  std::map<int, int>::iterator apanel = activePanels.find(t + 1);
-  if (apanel != activePanels.end() && apanel->second > 0 &&
-      index.y != t + 1) {
+  if (numActive > 0) {
     pendingComputeU.push_back(ComputeU(index.x, index.y, t));
   } else {
     CkEntryOptions opts;
@@ -47,9 +45,6 @@ void BlockScheduler::registerBlock(CkIndex2D index) {
     }
   }
 
-  if (index.x > index.y)
-    activePanels[index.y]++;
-
   for (int i = 0; i < index.x; i++)
     luArr(i, index.y).prepareForMulticast(CkMyPe());
   for (int i = 0; i < index.y; i++)
@@ -62,6 +57,10 @@ void BlockScheduler::registerBlock(CkIndex2D index) {
 void BlockScheduler::allRegistered(CkReductionMsg *m) {
   delete m;
   progress();
+}
+
+void BlockScheduler::startedActivePanel() {
+  numActive++;
 }
 
 void BlockScheduler::setupMulticast(rednSetupMsg *msg) {
@@ -223,11 +222,15 @@ void BlockScheduler::updateDone(intptr_t update_ptr) {
   progress();
 }
 
+bool BlockScheduler::shouldExecute() {
+  return numActive == 0;
+}
+
 void BlockScheduler::factorizationDone(CkIndex2D index) {
   DEBUG_SCHED("factorizationDone on (%d,%d)", index.x, index.y);
 
   if (index.x >= index.y)
-    activePanels[index.y]--;
+    numActive--;
 
   std::map<std::pair<int, int>, std::list<Update*> >::iterator wanters =
     localWantedBlocks.find(make_pair(index.x, index.y));
@@ -288,16 +291,11 @@ void BlockScheduler::progress() {
       }
     }
 
-    if (numActive == 0 || numActive != totalActive) {
+    if (numActive == 0) {
       // Start processComputeU
       // TODO: refactor into a foreach?
       for (std::list<ComputeU>::iterator computeU = pendingComputeU.begin();
            computeU != pendingComputeU.end(); ++computeU) {
-        std::map<int, int>::iterator apanel = activePanels.find(computeU->t + 1);
-        if (apanel != activePanels.end() && apanel->second > 0 &&
-            computeU->y != computeU->t + 1) {
-          continue;
-        }
         CkEntryOptions opts;
         luArr(computeU->x, computeU->y).
           processComputeU(0, &(mgr->setPrio(RECVL, opts, computeU->y)));
@@ -308,15 +306,10 @@ void BlockScheduler::progress() {
       for (std::list<Update>::iterator update = plannedUpdates.begin();
 	   update != plannedUpdates.end(); ++update) {
 	if (update->ready()) {
-          std::map<int, int>::iterator apanel = activePanels.find(update->t + 1);
-          if (apanel != activePanels.end() && apanel->second > 0 &&
-              update->target->iy != update->t + 1) {
-            continue;
-          }
-	  runUpdate(update);
-	  stateModified = true;
-	  break;
-	}
+          runUpdate(update);
+          stateModified = true;
+          break;
+        }
       }
     }
   } while (stateModified);

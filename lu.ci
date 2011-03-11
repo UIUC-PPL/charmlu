@@ -162,10 +162,14 @@ mainmodule lu {
 	  when processTrailingUpdate[internalStep](int step, intptr_t update_ptr)
             atomic "trailing_update" {
 	      Update &update = *(Update *)update_ptr;
-	      DEBUG_PRINT("doing trailing update");
-	      updateMatrix(update.L, update.U);
-	      thisProxy(thisIndex.x, internalStep).blockUsed(1);
-              localScheduler->updateDone(update_ptr);
+              if (localScheduler->shouldExecute()) {
+                DEBUG_PRINT("doing trailing update");
+                updateMatrix(update.L, update.U);
+                thisProxy(thisIndex.x, internalStep).blockUsed(1);
+                localScheduler->updateDone(update_ptr);
+              } else {
+                update.triggered = false;
+              }
 	  }
       }
 
@@ -253,6 +257,10 @@ mainmodule lu {
 	  }
           // Wait for the post-diagonal U segment from the original owner of the pivot row
           when sendUSegment(UMsg* anUmsg) atomic "below_recv_useg" {
+            if (activeCol == 0) {
+              DEBUG_PRINT("startedActivePanel");
+              localScheduler->startedActivePanel();
+            }
             // Compute multipliers and update just one column to find the next candidate pivot
             pivotCandidate = computeMultipliersAndFindColMax(activeCol, anUmsg->data);
             // Save the Umsg for later use
@@ -337,6 +345,11 @@ mainmodule lu {
         // Share the pivot info with the appropriate array section
         when colMax(CkReductionMsg *m) {
 	  atomic "diag_found_colmax" {
+            if (activeCol == 0) {
+              DEBUG_PRINT("startedActivePanel");
+              localScheduler->startedActivePanel();
+            }
+            DEBUG_PRINT("colMax happened");
 	    pivotCandidate = *(locval *)(m->getData());
             delete m;
 	  }
@@ -388,6 +401,8 @@ mainmodule lu {
       }
 
       atomic "diag_multicast_L" {
+        localScheduler->factorizationDone(thisIndex);
+        factored = true;
         // All diagonal chares except the last must continue the factorization
         if (thisIndex.x < numBlks-1 && thisIndex.y < numBlks-1) {
           DEBUG_PRINT("is top,left block this step, multicast L");
