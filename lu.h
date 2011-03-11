@@ -10,9 +10,15 @@
 #include <vector>
 using std::min;
 
-#ifdef CHARMLU_DEBUG
+#if CHARMLU_DEBUG >= 1
     #define DEBUG_PRINT(FORMAT, ...) CkPrintf("(%d: [%d,%d]@%d) " FORMAT "\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep ,##__VA_ARGS__)
     #define DEBUG_SCHED(FORMAT, ...) CkPrintf("(%d S): " FORMAT "\n", CkMyPe() ,##__VA_ARGS__)
+#else
+    #define DEBUG_PRINT(...)
+    #define DEBUG_SCHED(...)
+#endif
+
+#if CHARMLU_DEBUG >= 2
     #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
     #define VERBOSE_PROGRESS(...) CkPrintf(__VA_ARGS__)
     #define VERY_VERBOSE_PIVOT_AGGLOM(...) CkPrintf(__VA_ARGS__)
@@ -20,8 +26,6 @@ using std::min;
     #define VERBOSE_PIVOT_RECORDING
     #define VERBOSE_PIVOT_AGGLOM
 #else
-    #define DEBUG_PRINT(...)
-    #define DEBUG_SCHED(...)
     #define DEBUG_PIVOT(...)
     #define VERBOSE_PROGRESS(...)
     #define VERY_VERBOSE_PIVOT_AGGLOM(...)
