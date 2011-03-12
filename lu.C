@@ -802,6 +802,8 @@ void LUBlk::multicastRequestedBlock(PrioType prio) {
 
   CkAssert(requestingPEs.size() <= panelAfter.ckGetNumElements());
 
+  std::sort(requestingPEs.begin(), requestingPEs.end());
+
   m->npes = requestingPEs.size();
   m->offset = 0;
   memcpy(m->pes, &requestingPEs[0], sizeof(requestingPEs[0])*m->npes);
