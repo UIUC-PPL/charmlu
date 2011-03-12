@@ -806,8 +806,10 @@ void LUBlk::multicastRequestedBlock(PrioType prio) {
   m->offset = 0;
   memcpy(m->pes, &requestingPEs[0], sizeof(requestingPEs[0])*m->npes);
 
-  if (requestingPEs.size() > 1)
+  if (requestingPEs.size() > 1) {
     propagateBlkMsg(m, scheduler);
+    delete m;
+  }
   else
     scheduler[requestingPEs[0]].deliverBlock(m);
 
