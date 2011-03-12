@@ -42,10 +42,11 @@ void BlockScheduler::scheduleSend(CkIndex2D sender) {
   }
 
   if (!found) {
-    scheduledSends.push_back(make_pair(sender, 0));
     if (pendingTriggered == 0) {
       CkEntryOptions opts;
       luArr[sender].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
+    } else {
+      scheduledSends.push_back(make_pair(sender, 0));
     }
   }
 }
