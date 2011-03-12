@@ -120,7 +120,8 @@ private:
   struct wantedBlock {
     std::list<Update *> refs;
     blkMsg* m;
-    wantedBlock() : m(NULL) {}
+    double *data;
+    wantedBlock() : m(NULL), data(NULL) {}
   };
 
   void runScheduledSends();

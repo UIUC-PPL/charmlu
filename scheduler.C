@@ -176,7 +176,7 @@ void BlockScheduler::getBlock(int srcx, int srcy, double *&data,
 
   if (block.m) {
     DEBUG_SCHED("already ARRIVED from (%d, %d)", srcx, srcy);
-    update->tryDeliver(srcx, srcy, block.m->data);
+    update->tryDeliver(srcx, srcy, block.data);
   }
 }
 
@@ -185,6 +185,7 @@ void BlockScheduler::deliverBlock(blkMsg *m) {
 
   wantedBlock &block = wantedBlocks[make_pair(m->src)];
   block.m = m;
+  block.data = m->data;
 
   for (std::list<Update*>::iterator update = block.refs.begin();
        update != block.refs.end(); ++update) {
