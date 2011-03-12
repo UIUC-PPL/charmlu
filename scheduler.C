@@ -35,14 +35,14 @@ void BlockScheduler::incomingComputeU(CkIndex2D index, int t) {
 
 void BlockScheduler::scheduleSend(CkIndex2D sender) {
   bool found = false;
-  for (std::list<CkIndex2D>::iterator iter = scheduledSends.begin();
+  for (std::list<pair<CkIndex2D, int> >::iterator iter = scheduledSends.begin();
        iter != scheduledSends.end(); ++iter) {
-    if (sender == *iter)
+    if (sender == iter->first)
       found = true;
   }
 
   if (!found) {
-    scheduledSends.push_back(sender);
+    scheduledSends.push_back(make_pair(sender, 0));
     if (pendingTriggered == 0) {
       CkEntryOptions opts;
       luArr[sender].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
@@ -254,9 +254,13 @@ void BlockScheduler::updateUntriggered() {
 
 void BlockScheduler::runScheduledSends() {
   if (scheduledSends.size() > 0) {
-    CkEntryOptions opts;
-    luArr[scheduledSends.front()].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
-    scheduledSends.pop_front();
+    scheduledSends.front().second++;
+    if (pendingTriggered == 0 || (pendingTriggered != 0 &&
+                                  scheduledSends.front().second >= SEND_SKIP)) {
+      CkEntryOptions opts;
+      luArr[scheduledSends.front().first].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
+      scheduledSends.pop_front();
+    }
   }
 }
 

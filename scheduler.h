@@ -8,6 +8,7 @@
 #include <map>
 #include <utility>
 #include <algorithm>
+#include <utility>
 
 // MOVE TO scheduler.C
 enum INPUT_STATE {
@@ -78,6 +79,7 @@ struct ComputeU {
 };
 
 const int sdagOverheadPerBlock = 3760;
+const int SEND_SKIP = 3;
 
 class BlockScheduler : public CBase_BlockScheduler {
 public:
@@ -113,7 +115,7 @@ private:
   int numActive;
   int pendingTriggered;
 
-  std::list<CkIndex2D> scheduledSends;
+  std::list<std::pair<CkIndex2D, int> > scheduledSends;
 
   struct wantedBlock {
     std::list<Update *> refs;
