@@ -174,6 +174,7 @@ mainmodule lu {
                 updateExecuted = true;
               } else {
                 update.triggered = false;
+                localScheduler->updateUntriggered();
               }
             }
           }

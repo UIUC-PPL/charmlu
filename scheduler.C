@@ -16,7 +16,8 @@ pair<int, int> make_pair(CkIndex2D index) {
 }
 
 BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_)
-  : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false), numActive(0) {
+  : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false), numActive(0),
+    pendingTriggered(0) {
   blockLimit = config.memThreshold * 1024 * 1024 /
     (config.blockSize * (config.blockSize + 1) * sizeof(double) + sizeof(LUBlk) + sdagOverheadPerBlock);
 
@@ -29,6 +30,14 @@ void BlockScheduler::incomingComputeU(CkIndex2D index, int t) {
   } else {
     CkEntryOptions opts;
     luArr(index).processComputeU(0, &(mgr->setPrio(RECVL, opts, index.y)));
+  }
+}
+
+void BlockScheduler::scheduleSend(CkIndex2D sender) {
+  scheduledSends[sender]++;
+  if (pendingTriggered == 0) {
+    CkEntryOptions opts;
+    luArr[sender].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
   }
 }
 
@@ -195,6 +204,7 @@ void BlockScheduler::runUpdate(std::list<Update>::iterator iter) {
   CkAssert(update.ready());
   int tx = update.target->ix, ty = update.target->iy;
   update.triggered = true;
+  pendingTriggered++;
 
   CkEntryOptions opts;
   int t = update.t;
@@ -217,9 +227,29 @@ void BlockScheduler::updateDone(intptr_t update_ptr) {
     //doneBlocks.erase(std::find(doneBlocks.begin(), doneBlocks.end(), *update.target));
   }
 
+  pendingTriggered--;
+  CkAssert(pendingTriggered >= 0);
+
   plannedUpdates.erase(std::find(plannedUpdates.begin(), plannedUpdates.end(), update));
 
+  runScheduledSends();
   progress();
+}
+
+void BlockScheduler::updateUntriggered() {
+  pendingTriggered--;
+  if (pendingTriggered == 0) {
+    runScheduledSends();
+  }
+}
+
+void BlockScheduler::runScheduledSends() {
+  std::map<CkIndex2D, int>::iterator sender = scheduledSends.begin();
+  if (sender != scheduledSends.end()) {
+    CkEntryOptions opts;
+    luArr[sender->first].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
+    scheduledSends.erase(sender);
+  }
 }
 
 bool BlockScheduler::shouldExecute() {

@@ -861,11 +861,7 @@ void LUBlk::sendBlocks(int) {
 void LUBlk::getBlock(int pe) {
   if (factored) {
     requestingPEs.push_back(CkArrayIndex1D(pe));
-    if (requestingPEs.size() == 1) {
-      CkEntryOptions opts;
-      thisProxy(thisIndex.x, thisIndex.y).
-        sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
-    }
+    localScheduler->scheduleSend(thisIndex);
   } else {
     DEBUG_PRINT("Queueing remote block for pe %d", pe);
     requestingPEs.push_back(CkArrayIndex1D(pe));

@@ -96,6 +96,8 @@ public:
   void setupMulticast(rednSetupMsg *msg);
   void startedActivePanel();
   bool shouldExecute();
+  void scheduleSend(CkIndex2D sender);
+  void updateUntriggered();
 
 private:
   LUMgr *mgr;
@@ -109,6 +111,9 @@ private:
   int blockLimit;
   bool inProgress;
   int numActive;
+  int pendingTriggered;
+
+  std::map<CkIndex2D, int> scheduledSends;
 
   struct wantedBlock {
     std::list<Update *> refs;
@@ -116,6 +121,7 @@ private:
     wantedBlock() : m(NULL) {}
   };
 
+  void runScheduledSends();
   // Invariant: All of these blocks are allocated and requested
   std::map<std::pair<int, int>, wantedBlock> wantedBlocks;
   void dropRef(int srcx, int srcy, Update *update);
