@@ -279,7 +279,7 @@ mainmodule lu {
           DEBUG_PRINT("done computing L");
           CkEntryOptions opts;
           thisProxy(thisIndex).sendBlocks(-1, &mgr->setPrio(MULT_RECV_L, opts, 0, thisIndex.x));
-	  multicastRecvL();
+	  //multicastRecvL();
 	  factored = true;
 	  localScheduler->factorizationDone(thisIndex);
           pivotBatchTag += BLKSIZE;
