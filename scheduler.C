@@ -213,10 +213,9 @@ void propagateBlkMsg(blkMsg *m, CProxy_BlockScheduler bs) {
     blkMsg *m2 = (blkMsg *)CkCopyMsg((void **)&m);
     m2->offset += m->npes / 2;
     m2->npes -= m->npes / 2;
+    m->npes -= m2->npes;
 
     bs[m2->pes[m2->offset]].deliverBlock(m2);
-
-    m->npes -= m2->npes;
   }
 
   if (m->npes >= 1) {
