@@ -803,6 +803,8 @@ void LUBlk::multicastRequestedBlock(PrioType prio) {
   CkAssert(requestingPEs.size() <= panelAfter.ckGetNumElements());
 
   if (requestingPEs.size() == panelAfter.ckGetNumElements()) {
+    if (requestingPEs.size() < 5)
+      panelAfter.ckUndelegate();
     panelAfter.deliverBlock(m);
   } else {
     CProxySection_BlockScheduler requesters =
@@ -839,12 +841,12 @@ inline void LUBlk::multicastRecvL() {
   if (thisIndex.x == thisIndex.y) {
     DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
     blkMsg *givenL = createABlkMsg();
-    mgr->setPrio(givenL, DIAG_MULT_RECV_L);
+    mgr->setPrio(givenL, MULT_RECV_L);
     rowAfterDiag.recvL(givenL);
   } else {
     DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
 
-    multicastRequestedBlock((PrioType)-1);
+    multicastRequestedBlock(MULT_RECV_L);
 
     // DEBUG_PRINT("Announce block ready to part of row %d", thisIndex.x);
     // BlockReadyMsg *mL = new(8*sizeof(int)) BlockReadyMsg(thisIndex);
@@ -852,8 +854,8 @@ inline void LUBlk::multicastRecvL() {
   }
 }
 
-void LUBlk::sendBlocks(int prio) {
-  multicastRequestedBlock((PrioType)prio);
+void LUBlk::sendBlocks(int) {
+  multicastRequestedBlock(MULT_RECV_L);
 }
 
 void LUBlk::getBlock(int pe) {
@@ -862,7 +864,7 @@ void LUBlk::getBlock(int pe) {
     if (requestingPEs.size() == 1) {
       CkEntryOptions opts;
       thisProxy(thisIndex.x, thisIndex.y).
-        sendBlocks(-1, &mgr->setPrio(SEND_BLOCKS, opts));
+        sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
     }
   } else {
     DEBUG_PRINT("Queueing remote block for pe %d", pe);

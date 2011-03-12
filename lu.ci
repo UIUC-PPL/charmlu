@@ -277,8 +277,6 @@ mainmodule lu {
         atomic "below_send_L" {
           if (pendingUmsg) dropRef(pendingUmsg);
           DEBUG_PRINT("done computing L");
-          CkEntryOptions opts;
-          thisProxy(thisIndex).sendBlocks(-1, &mgr->setPrio(MULT_RECV_L, opts, 0, thisIndex.x));
 	  multicastRecvL();
 	  factored = true;
 	  localScheduler->factorizationDone(thisIndex);
