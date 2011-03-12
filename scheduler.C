@@ -255,11 +255,18 @@ void BlockScheduler::updateUntriggered() {
 void BlockScheduler::runScheduledSends() {
   if (scheduledSends.size() > 0) {
     scheduledSends.front().second++;
-    if (pendingTriggered == 0 || (pendingTriggered != 0 &&
-                                  scheduledSends.front().second >= SEND_SKIP)) {
+    if (pendingTriggered != 0 && scheduledSends.front().second >= SEND_SKIP) {
+
       CkEntryOptions opts;
       luArr[scheduledSends.front().first].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
       scheduledSends.pop_front();
+    } else if (pendingTriggered == 0) {
+      for (std::list<pair<CkIndex2D, int> >::iterator iter = scheduledSends.begin();
+       iter != scheduledSends.end(); ++iter) {
+        CkEntryOptions opts;
+        luArr[iter->first].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
+      }
+      scheduledSends.clear();
     }
   }
 }

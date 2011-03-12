@@ -79,7 +79,7 @@ struct ComputeU {
 };
 
 const int sdagOverheadPerBlock = 3760;
-const int SEND_SKIP = 3;
+const int SEND_SKIP = 10;
 
 class BlockScheduler : public CBase_BlockScheduler {
 public:
