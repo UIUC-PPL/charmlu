@@ -803,17 +803,13 @@ void LUBlk::multicastRequestedBlock(PrioType prio) {
   CkAssert(requestingPEs.size() <= panelAfter.ckGetNumElements());
 
   if (requestingPEs.size() == panelAfter.ckGetNumElements()) {
-    if (requestingPEs.size() < 5)
-      panelAfter.ckUndelegate();
     panelAfter.deliverBlock(m);
   } else {
     CProxySection_BlockScheduler requesters =
       CProxySection_BlockScheduler::ckNew(CkArrayID(scheduler),
                                           &requestingPEs[0], requestingPEs.size());
 
-    if (requestingPEs.size() > 5)
-      requesters.ckSectionDelegate(mcastMgr);
-
+    requesters.ckSectionDelegate(mcastMgr);
     requesters.deliverBlock(m);
   }
   requestingPEs.clear();
