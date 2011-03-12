@@ -67,7 +67,6 @@ mainmodule lu {
     entry void startValidation();
     entry [nokeep] void recvXvec(int size, double xvec[size]);
     entry void sumBvec(int size, double partial_b[size]);
-    entry void multicastRequestedBlock(int);
 
     entry void colMax(CkReductionMsg *m);
     entry void sendPivotData(int rowIndex, int pivotRow, int size, double data[size], double b);

@@ -79,7 +79,6 @@ private:
 
   /// Variables used during factorization
   double *LU;
-  blkMsg *LUmsg;
 
   int BLKSIZE, numBlks;
   blkMsg *L, *U;
@@ -131,7 +130,7 @@ private:
   /// How many blocks in the trailing submatrix live on processors that have asked for it?
   int blocksAfter;
   /// Which PE's schedulers have requested this block?
-  std::list<CkArrayIndex1D> requestingPEs;
+  std::vector<CkArrayIndex1D> requestingPEs;
 
   /// The sub-diagonal chare array section that will participate in pivot selection
   /// @note: Only the diagonal chares will create and mcast along this section
@@ -206,7 +205,7 @@ private:
   void computeL(blkMsg *givenUMsg);
   void updateMatrix(double *incomingL, double *incomingU);
   //broadcast the U downwards to the blocks in the same column
-  void multicastRequestedBlock(int prio);
+  void multicastRequestedBlock(PrioType prio);
   void multicastRecvU();
   void recvU(blkMsg *);
   //broadcast the L rightwards to the blocks in the same row

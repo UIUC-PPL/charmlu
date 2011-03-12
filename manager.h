@@ -64,7 +64,7 @@ struct PrioLU : public LUMgr
       prio = -3;
       break;
     case SEND_BLOCKS:
-      prio = 0;
+      prio = -2;
       break;
     case PROCESS_TRAILING_UPDATE:
       prio = y * BLKSIZE;

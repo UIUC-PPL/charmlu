@@ -655,8 +655,12 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler b
   // propagated soon enough. I'm assuming they
   // are safe to use here.
 
-  LUmsg = createABlkMsg();
-  LU = LUmsg->data;
+#if USE_MEMALIGN
+  LU = (double*) memalign(128, BLKSIZE * BLKSIZE * sizeof(double));
+  CkAssert(LU != NULL);
+#else
+  LU = new double [BLKSIZE*BLKSIZE];
+#endif
 
   internalStep = 0;
 
@@ -789,40 +793,30 @@ void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
 #endif
 }
 
-void LUBlk::multicastRequestedBlock(int prio) {
-  int ref = REFFIELD(UsrToEnv(LUmsg));
-  CkAssert(ref <= 2 && ref > 0);
-
-  if (ref == 2) {
-    CmiNetworkProgress();
-    CkEntryOptions opts;
-    thisProxy(thisIndex).multicastRequestedBlock(prio, &mgr->setPrio(SEND_BLOCKS, opts));
-    return;
-  }
-
+void LUBlk::multicastRequestedBlock(PrioType prio) {
   if (requestingPEs.size() == 0)
     return;
 
-  mgr->setPrio(LUmsg, prio);
+  blkMsg *m = createABlkMsg();
+  mgr->setPrio(m, prio);
 
   CkAssert(requestingPEs.size() <= panelAfter.ckGetNumElements());
 
-  if (0 && requestingPEs.size() == panelAfter.ckGetNumElements()) {
-    CkPrintf("using pre-built\n");
-    panelAfter.deliverBlock(LUmsg);
+  if (requestingPEs.size() == panelAfter.ckGetNumElements()) {
+    if (requestingPEs.size() < 5)
+      panelAfter.ckUndelegate();
+    panelAfter.deliverBlock(m);
   } else {
-    envelope *env = UsrToEnv(LUmsg);
-    _SET_USED(env, 0);
+    CProxySection_BlockScheduler requesters =
+      CProxySection_BlockScheduler::ckNew(CkArrayID(scheduler),
+                                          &requestingPEs[0], requestingPEs.size());
 
-    takeRef(LUmsg);
-    scheduler[requestingPEs.front()].deliverBlock(LUmsg);
-    requestingPEs.pop_front();
-  }
+    if (requestingPEs.size() > 5)
+      requesters.ckSectionDelegate(mcastMgr);
 
-  if (requestingPEs.size() > 0) {
-    CkEntryOptions opts;
-    thisProxy(thisIndex).multicastRequestedBlock(0);
+    requesters.deliverBlock(m);
   }
+  requestingPEs.clear();
 }
 
 //broadcast the U downwards to the blocks in the same column
@@ -846,12 +840,9 @@ inline void LUBlk::multicastRecvL() {
 
   if (thisIndex.x == thisIndex.y) {
     DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
-    mgr->setPrio(LUmsg, MULT_RECV_L);
-    envelope *env = UsrToEnv(LUmsg);
-    _SET_USED(env, 0);
-    takeRef(LUmsg);
-    CkSetRefNum(LUmsg, internalStep);
-    rowAfterDiag.recvL(LUmsg);
+    blkMsg *givenL = createABlkMsg();
+    mgr->setPrio(givenL, MULT_RECV_L);
+    rowAfterDiag.recvL(givenL);
   } else {
     DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
 
@@ -1286,7 +1277,7 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
 inline blkMsg* LUBlk::createABlkMsg() {
   blkMsg *msg = mgr->createBlockMessage(thisIndex.x, thisIndex.y,
                                         internalStep, sizeof(int)*8);
-  msg->setMsgData(internalStep, thisIndex);
+  msg->setMsgData(LU, internalStep, BLKSIZE, thisIndex);
   return msg;
 }
 
