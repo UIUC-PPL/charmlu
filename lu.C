@@ -803,7 +803,7 @@ void LUBlk::multicastRequestedBlock(int prio) {
   if (requestingPEs.size() == 0)
     return;
 
-  mgr->setPrio(LUmsg, prio);
+  mgr->setPrio(LUmsg, (PrioType)prio);
 
   CkAssert(requestingPEs.size() <= panelAfter.ckGetNumElements());
 
@@ -821,7 +821,7 @@ void LUBlk::multicastRequestedBlock(int prio) {
 
   if (requestingPEs.size() > 0) {
     CkEntryOptions opts;
-    thisProxy(thisIndex).multicastRequestedBlock(0);
+    thisProxy(thisIndex).multicastRequestedBlock(prio);
   }
 }
 
