@@ -11,7 +11,7 @@ enum PrioType {
   SEND_PIVOT_DATA, PROCESS_TRAILING_UPDATE, RECVL, DIAG_SEND_PIVOT,
   BELOW_SEND_USEG, DIAG_SEND_USEG, MULT_RECV_U, MULT_RECV_L,
   PIVOT_RIGHT_SEC, PIVOT_LEFT_SEC, PIVOT_CRITICAL, PIVOT_NOT_CRITICAL,
-  GET_BLOCK, SEND_BLOCKS
+  GET_BLOCK, SEND_BLOCKS, DIAG_MULT_RECV_L
 };
 
 class LUMgr : public CBase_LUMgr
@@ -54,6 +54,12 @@ struct PrioLU : public LUMgr
   CkEntryOptions& setPrio(PrioType type, CkEntryOptions& opts, int y = 0, int x = 0) {
     int prio = 0;
     switch (type) {
+    case MULT_RECV_L:
+      prio = x * BLKSIZE;
+      break;
+    case MULT_RECV_U:
+      prio = y * BLKSIZE;
+      break;
     case SEND_PIVOT_DATA: case DIAG_SEND_PIVOT:
       prio = -1;
       break;
@@ -77,7 +83,7 @@ struct PrioLU : public LUMgr
   void setPrio(CkMessage *msg, PrioType type, int refnum = -1, int y = 0, int x = 0) {
     int prio = 0;
     switch (type) {
-    case DIAG_SEND_USEG: case BELOW_SEND_USEG: case MULT_RECV_U: case MULT_RECV_L:
+    case DIAG_SEND_USEG: case DIAG_MULT_RECV_L: case BELOW_SEND_USEG:
       prio = -1;
       break;
     case PIVOT_RIGHT_SEC:

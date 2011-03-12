@@ -28,7 +28,7 @@ void BlockScheduler::incomingComputeU(CkIndex2D index, int t) {
     pendingComputeU.push_back(ComputeU(index.x, index.y, t));
   } else {
     CkEntryOptions opts;
-    luArr(index).processComputeU(0, &(mgr->setPrio(RECVL, opts, index.y)));
+    luArr(index).processComputeU(0, &(mgr->setPrio(MULT_RECV_U, opts, index.y)));
   }
 }
 
@@ -298,7 +298,7 @@ void BlockScheduler::progress() {
            computeU != pendingComputeU.end(); ++computeU) {
         CkEntryOptions opts;
         luArr(computeU->x, computeU->y).
-          processComputeU(0, &(mgr->setPrio(RECVL, opts, computeU->y)));
+          processComputeU(0, &(mgr->setPrio(MULT_RECV_U, opts, computeU->y)));
         computeU = pendingComputeU.erase(computeU);
       }
 
