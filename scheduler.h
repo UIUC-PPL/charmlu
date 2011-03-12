@@ -113,7 +113,7 @@ private:
   int numActive;
   int pendingTriggered;
 
-  std::map<CkIndex2D, int> scheduledSends;
+  std::list<CkIndex2D> scheduledSends;
 
   struct wantedBlock {
     std::list<Update *> refs;
