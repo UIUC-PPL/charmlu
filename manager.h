@@ -58,7 +58,7 @@ struct PrioLU : public LUMgr
       prio = x * BLKSIZE;
       break;
     case MULT_RECV_U:
-      prio = (y - 3) * BLKSIZE;
+      prio = y * BLKSIZE;
       break;
     case SEND_PIVOT_DATA: case DIAG_SEND_PIVOT:
       prio = -1;
