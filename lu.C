@@ -825,7 +825,7 @@ inline void LUBlk::multicastRecvU() {
 
   DEBUG_PRINT("Multicast to part of column %d", thisIndex.y);
 
-  multicastRequestedBlock(MULT_RECV_U);
+  localScheduler->scheduleSend(thisIndex);
 
   // BlockReadyMsg *mU = new(8*sizeof(int)) BlockReadyMsg(thisIndex);
   // mgr->setPrio(mU, MULT_RECV_U);
@@ -871,6 +871,7 @@ double* LUBlk::getBlock() {
 }
 
 void LUBlk::processComputeU(int ignoredParam) {
+  localScheduler->updateUntriggered();
   if (!localScheduler->shouldExecute()) {
     localScheduler->incomingComputeU(thisIndex, internalStep);
     return;

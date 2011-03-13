@@ -30,6 +30,7 @@ void BlockScheduler::incomingComputeU(CkIndex2D index, int t) {
   } else {
     CkEntryOptions opts;
     luArr(index).processComputeU(0, &(mgr->setPrio(RECVL, opts, index.y)));
+    pendingTriggered++;
   }
 }
 
@@ -289,7 +290,6 @@ void BlockScheduler::runScheduledSends() {
   if (scheduledSends.size() > 0) {
     scheduledSends.front().second++;
     if (pendingTriggered != 0 && scheduledSends.front().second >= SEND_SKIP) {
-
       CkEntryOptions opts;
       luArr[scheduledSends.front().first].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
       scheduledSends.pop_front();
@@ -381,6 +381,7 @@ void BlockScheduler::progress() {
         CkEntryOptions opts;
         luArr(computeU->x, computeU->y).
           processComputeU(0, &(mgr->setPrio(RECVL, opts, computeU->y)));
+        pendingTriggered++;
         computeU = pendingComputeU.erase(computeU);
       }
 
