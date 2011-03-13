@@ -282,11 +282,14 @@ void BlockScheduler::updateUntriggered() {
 
 static const int SEND_SKIP = 10;
 
+bool columnOrder(const CkIndex2D &l, const CkIndex2D &r) { return l.y < r.y; }
+
 void BlockScheduler::runScheduledSends() {
   if (scheduledSends.size() > 0) {
     sendDelay++;
     if (pendingTriggered != 0 && sendDelay >= SEND_SKIP) {
       CkEntryOptions opts;
+      scheduledSends.sort(columnOrder);
       luArr[scheduledSends.front()].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
       scheduledSends.pop_front();
       sendDelay = 0;
