@@ -7,6 +7,7 @@ using std::min;
 #include <utility>
 using std::pair;
 using std::make_pair;
+#include <limits>
 
 inline bool operator==(const CkIndex2D &l, const CkIndex2D &r)
 { return l.x == r.x && l.y == r.y; }
@@ -30,6 +31,22 @@ void BlockScheduler::incomingComputeU(CkIndex2D index, int t) {
     CkEntryOptions opts;
     luArr(index).processComputeU(0, &(mgr->setPrio(RECVL, opts, index.y)));
     pendingTriggered++;
+  }
+}
+
+void BlockScheduler::hasPivots(int *rows, int size, int t) {
+  DEBUG_SCHED("wave of hasPivots coming, t = %d\n"t);
+  std::map<int, bool> rowT;
+  for (int i = 0; i < size; i++) {
+    rowT[rows[i]] = true;
+  }
+
+  for (StateList::iterator block = localBlocks.begin();
+       block != localBlocks.end(); ++block) {
+    if (rowT.find(block->ix) != rowT.end() &&
+        block->updatesCompleted < t) {
+      block->hasPivotForT = std::max(t, block->hasPivotForT);
+    }
   }
 }
 
@@ -266,6 +283,12 @@ void BlockScheduler::updateDone(intptr_t update_ptr) {
     //doneBlocks.erase(std::find(doneBlocks.begin(), doneBlocks.end(), *update.target));
   }
 
+  DEBUG_SCHED("updateDone completed = %d, hasPivot = %d\n",
+              update.target->updatesCompleted, update.target->hasPivotForT);
+  if (update.target->updatesCompleted == update.target->hasPivotForT) {
+    update.target->hasPivotForT = 0;
+  }
+
   pendingTriggered--;
   CkAssert(pendingTriggered >= 0);
 
@@ -336,7 +359,15 @@ bool eligibilityYOrder(const BlockState& block1, const BlockState& block2) {
   if (block1.pendingDependencies != block2.pendingDependencies) {
     return block1.pendingDependencies < block2.pendingDependencies;
   } else {
-    return block1.iy < block2.iy;
+    if (!block1.hasPivotForT && !block2.hasPivotForT) {
+      return block1.iy < block2.iy;
+    } else {
+      DEBUG_SCHED("comparing on hasPivotForT", CkMyPe());
+      int maxt = std::numeric_limits<int>::max();
+      int bk1t = !block1.hasPivotForT ? maxt : block1.hasPivotForT;
+      int bk2t = !block2.hasPivotForT ? maxt : block2.hasPivotForT;
+      return bk1t < bk2t;
+    }
   }
 }
 

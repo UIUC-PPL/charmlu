@@ -583,6 +583,7 @@ mainmodule lu {
     entry void printBlockLimit();
     entry void allRegistered(CkReductionMsg *m);
     entry void setupMulticast(rednSetupMsg *msg);
+    entry void hasPivots(int rows[size], int size, int t);
   }
 
   group BlockCyclicMap : CkArrayMap{
