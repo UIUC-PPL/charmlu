@@ -857,10 +857,13 @@ void LUBlk::sendBlocks(int) {
   multicastRequestedBlock(MULT_RECV_L);
 }
 
-void LUBlk::getBlock(int pe) {
+void LUBlk::getBlock(int pe, int rx, int ry) {
   if (factored) {
     requestingPEs.push_back(pe);
-    localScheduler->scheduleSend(thisIndex);
+    if (min(rx, ry) == min(thisIndex.x, thisIndex.y) + 1)
+      multicastRequestedBlock(SEND_BLOCKS);
+    else
+      localScheduler->scheduleSend(thisIndex);
   } else {
     DEBUG_PRINT("Queueing remote block for pe %d", pe);
     requestingPEs.push_back(pe);

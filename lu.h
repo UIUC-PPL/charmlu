@@ -211,7 +211,7 @@ private:
   //broadcast the L rightwards to the blocks in the same row
   void multicastRecvL();
   void sendBlocks(int);
-  void getBlock(int pe);
+  void getBlock(int pe, int rx, int ry);
   double *getBlock();
   void processComputeU(int ignoredParam);
   void localSolve(double *xvec, double *preVec);

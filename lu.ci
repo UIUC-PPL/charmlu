@@ -76,7 +76,7 @@ mainmodule lu {
     entry [nokeep] void sendUSegment(UMsg* msg);
     entry void performUpdate(int);
     entry void blockUsed(int);
-    entry void getBlock(int pe);
+    entry void getBlock(int pe, int rx, int ry);
     entry void sendBlocks(int);
 
     entry void belowPivot(int targetCol) {

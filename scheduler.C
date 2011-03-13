@@ -167,7 +167,8 @@ void BlockScheduler::getBlock(int srcx, int srcy, double *&data,
     DEBUG_SCHED("requesting getBlock from (%d, %d)", srcx, srcy);
     CkEntryOptions opts;
     luArr(src.first, src.second).
-      getBlock(CkMyPe(), &(mgr->setPrio(GET_BLOCK, opts)));
+      getBlock(CkMyPe(), update->target->ix, update->target->iy,
+               &(mgr->setPrio(GET_BLOCK, opts)));
   }
 
   if (block.m) {
