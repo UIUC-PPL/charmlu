@@ -860,7 +860,8 @@ void LUBlk::sendBlocks(int) {
 void LUBlk::getBlock(int pe, int rx, int ry) {
   if (factored) {
     requestingPEs.push_back(pe);
-    if (min(rx, ry) == min(thisIndex.x, thisIndex.y) + 1)
+    if (min(rx, ry) == min(thisIndex.x, thisIndex.y) + 1
+        && thisIndex.x >= thisIndex.y)
       multicastRequestedBlock(SEND_BLOCKS);
     else
       localScheduler->scheduleSend(thisIndex);
