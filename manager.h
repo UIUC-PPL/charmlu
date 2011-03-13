@@ -68,7 +68,7 @@ struct PrioLU : public LUMgr
       prio = -2;
       break;
     case PROCESS_TRAILING_UPDATE:
-      prio = std::min(x, y) * BLKSIZE;
+      prio = std::min(x, y) * std::min(x, y) * BLKSIZE + y;
       break;
     }
     opts.setPriority(prio);
@@ -85,13 +85,13 @@ struct PrioLU : public LUMgr
       prio = -1;
       break;
     case PIVOT_LEFT_SEC:
-      prio = BLKSIZE * numBlks + 1;
+      prio = BLKSIZE * numBlks * numBlks + 1;
       break;
     case PIVOT_CRITICAL:
       prio = -1;
       break;
     case PIVOT_NOT_CRITICAL:
-      prio = numBlks * BLKSIZE;
+      prio = numBlks * numBlks * BLKSIZE;
       break;
     }
     *(int*)CkPriorityPtr(msg) = prio;
