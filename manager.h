@@ -3,6 +3,7 @@
 
 #include "lu.decl.h"
 #include "messages.h"
+#include <algorithm>
 
 // Prefix notation:
 // b: an index into an LUBlk chare array
@@ -67,7 +68,7 @@ struct PrioLU : public LUMgr
       prio = -2;
       break;
     case PROCESS_TRAILING_UPDATE:
-      prio = y * BLKSIZE;
+      prio = std::min(x, y) * BLKSIZE;
       break;
     }
     opts.setPriority(prio);

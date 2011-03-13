@@ -253,7 +253,7 @@ void BlockScheduler::runUpdate(std::list<Update>::iterator iter) {
   int t = update.t;
   intptr_t update_ptr = (intptr_t)&update;
   luArr(tx, ty).processTrailingUpdate(t, update_ptr,
-                                      &(mgr->setPrio(PROCESS_TRAILING_UPDATE, opts, ty)));
+                                      &(mgr->setPrio(PROCESS_TRAILING_UPDATE, opts, ty, tx)));
 }
 
 void BlockScheduler::updateDone(intptr_t update_ptr) {
