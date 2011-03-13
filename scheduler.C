@@ -282,7 +282,7 @@ void BlockScheduler::updateUntriggered() {
   }
 }
 
-static const int SEND_SKIP = 3;
+static const int SEND_SKIP = 10;
 
 void BlockScheduler::runScheduledSends() {
   if (scheduledSends.size() > 0) {
