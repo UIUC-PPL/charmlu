@@ -17,7 +17,7 @@ pair<int, int> make_pair(CkIndex2D index) {
 
 BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_)
   : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false), numActive(0),
-    pendingTriggered(0) {
+    pendingTriggered(0), sendDelay(0) {
   blockLimit = config.memThreshold * 1024 * 1024 /
     (config.blockSize * (config.blockSize + 1) * sizeof(double) + sizeof(LUBlk) + sdagOverheadPerBlock);
 
@@ -35,19 +35,15 @@ void BlockScheduler::incomingComputeU(CkIndex2D index, int t) {
 }
 
 void BlockScheduler::scheduleSend(CkIndex2D sender) {
-  bool found = false;
-  for (std::list<pair<CkIndex2D, int> >::iterator iter = scheduledSends.begin();
-       iter != scheduledSends.end(); ++iter) {
-    if (sender == iter->first)
-      found = true;
-  }
+  std::list<CkIndex2D>::iterator iter = find(scheduledSends.begin(),
+                                             scheduledSends.end(), sender);
 
-  if (!found) {
+  if (iter == scheduledSends.end()) {
     if (pendingTriggered == 0) {
       CkEntryOptions opts;
       luArr[sender].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
     } else {
-      scheduledSends.push_back(make_pair(sender, 0));
+      scheduledSends.push_back(sender);
     }
   }
 }
@@ -290,16 +286,17 @@ static const int SEND_SKIP = 3;
 
 void BlockScheduler::runScheduledSends() {
   if (scheduledSends.size() > 0) {
-    scheduledSends.front().second++;
-    if (pendingTriggered != 0 && scheduledSends.front().second >= SEND_SKIP) {
+    sendDelay++;
+    if (pendingTriggered != 0 && sendDelay >= SEND_SKIP) {
       CkEntryOptions opts;
-      luArr[scheduledSends.front().first].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
+      luArr[scheduledSends.front()].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
       scheduledSends.pop_front();
+      sendDelay = 0;
     } else if (pendingTriggered == 0) {
-      for (std::list<pair<CkIndex2D, int> >::iterator iter = scheduledSends.begin();
+      for (std::list<CkIndex2D>::iterator iter = scheduledSends.begin();
        iter != scheduledSends.end(); ++iter) {
         CkEntryOptions opts;
-        luArr[iter->first].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
+        luArr[*iter].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
       }
       scheduledSends.clear();
     }

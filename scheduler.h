@@ -114,7 +114,8 @@ private:
   int numActive;
   int pendingTriggered;
 
-  std::list<std::pair<CkIndex2D, int> > scheduledSends;
+  int sendDelay;
+  std::list<CkIndex2D> scheduledSends;
 
   struct wantedBlock {
     std::list<Update *> refs;
