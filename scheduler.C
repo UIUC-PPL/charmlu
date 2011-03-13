@@ -3,6 +3,7 @@
 #include "messages.h"
 #include "lu.h"
 #include <algorithm>
+using std::min;
 #include <utility>
 using std::pair;
 using std::make_pair;
@@ -282,14 +283,16 @@ void BlockScheduler::updateUntriggered() {
 
 static const int SEND_SKIP = 10;
 
-bool columnOrder(const CkIndex2D &l, const CkIndex2D &r) { return l.y < r.y; }
+bool stepColumnOrder(const CkIndex2D &l, const CkIndex2D &r) {
+  return min(l.x, l.y) != min(r.x, r.y) ? min(l.x,l.y) < min(r.x, r.y) : l.y < r.y;
+}
 
 void BlockScheduler::runScheduledSends() {
   if (scheduledSends.size() > 0) {
     sendDelay++;
     if (pendingTriggered != 0 && sendDelay >= SEND_SKIP) {
       CkEntryOptions opts;
-      scheduledSends.sort(columnOrder);
+      scheduledSends.sort(stepColumnOrder);
       luArr[scheduledSends.front()].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
       scheduledSends.pop_front();
       sendDelay = 0;
