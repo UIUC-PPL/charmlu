@@ -9,8 +9,6 @@ using std::make_pair;
 
 inline bool operator==(const CkIndex2D &l, const CkIndex2D &r)
 { return l.x == r.x && l.y == r.y; }
-inline bool operator<(const CkIndex2D &l, const CkIndex2D &r)
-{ return l.x < r.x || (l.x == r.x && l.y < r.y); }
 pair<int, int> make_pair(CkIndex2D index) {
   return make_pair(index.x, index.y);
 }
