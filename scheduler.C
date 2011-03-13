@@ -223,6 +223,8 @@ void propagateBlkMsg(blkMsg *m, CProxy_BlockScheduler bs) {
     takeRef(m);
     bs[m->pes[m->offset]].deliverBlock(m);
   }
+
+  traceMemoryUsage();
 }
 
 void BlockScheduler::dropRef(int srcx, int srcy, Update *update) {
