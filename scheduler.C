@@ -285,7 +285,7 @@ void BlockScheduler::updateUntriggered() {
 static const int SEND_SKIP = 10;
 
 bool stepColumnOrder(const CkIndex2D &l, const CkIndex2D &r) {
-  return min(l.x, l.y) != min(r.x, r.y) ? min(l.x,l.y) < min(r.x, r.y) : l.y < r.y;
+  return l.x + 2*l.y < r.x + 2*r.y;
 }
 
 void BlockScheduler::runScheduledSends() {
