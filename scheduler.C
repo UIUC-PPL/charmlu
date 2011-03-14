@@ -359,13 +359,14 @@ bool eligibilityYOrder(const BlockState& block1, const BlockState& block2) {
   if (block1.pendingDependencies != block2.pendingDependencies) {
     return block1.pendingDependencies < block2.pendingDependencies;
   } else {
-    if (block1.iy == block2.iy) {
+    if (!block1.hasPivotForT && !block2.hasPivotForT) {
+      return block1.iy < block2.iy;
+    } else {
+      DEBUG_SCHED("comparing on hasPivotForT", CkMyPe());
       int maxt = std::numeric_limits<int>::max();
       int bk1t = !block1.hasPivotForT ? maxt : block1.hasPivotForT;
       int bk2t = !block2.hasPivotForT ? maxt : block2.hasPivotForT;
-      return bk1t < bk2t;
-    } else {
-      return block1.iy < block2.iy;
+      return bk1t != bk2t ? bk1t < bk2t : block1.iy < block2.iy;
     }
   }
 }
