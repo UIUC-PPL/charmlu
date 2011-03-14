@@ -52,7 +52,7 @@ struct PrioLU : public LUMgr
     return msg;
   }
 
-  CkEntryOptions& setPrio(PrioType type, CkEntryOptions& opts, int y = 0, int x = 0, int t = 0) {
+  CkEntryOptions& setPrio(PrioType type, CkEntryOptions& opts, int y, int x, int t) {
     int prio = 0;
     switch (type) {
     case SEND_PIVOT_DATA: case DIAG_SEND_PIVOT:
@@ -75,7 +75,7 @@ struct PrioLU : public LUMgr
     return opts;
   }
 
-  void setPrio(CkMessage *msg, PrioType type, int refnum = -1, int y = 0, int x = 0) {
+  void setPrio(CkMessage *msg, PrioType type, int refnum, int y, int x) {
     int prio = 0;
     switch (type) {
     case DIAG_SEND_USEG: case BELOW_SEND_USEG: case MULT_RECV_U: case MULT_RECV_L:
