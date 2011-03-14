@@ -68,7 +68,10 @@ struct PrioLU : public LUMgr
       prio = -2;
       break;
     case PROCESS_TRAILING_UPDATE:
-      prio = t * numBlks * BLKSIZE + y * BLKSIZE;
+      if (y == t + 1)
+        prio = 0;
+      else
+        prio = t * numBlks * BLKSIZE + y * BLKSIZE;
       break;
     }
     opts.setPriority(prio);
