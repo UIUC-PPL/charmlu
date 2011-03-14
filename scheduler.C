@@ -284,14 +284,19 @@ void BlockScheduler::updateUntriggered() {
 }
 
 static const int SEND_SKIP = 10;
+static const int SEND_LIMIT = 2;
 
 void BlockScheduler::runScheduledSends() {
   if (scheduledSends.size() > 0) {
     sendDelay++;
     if (pendingTriggered != 0 && sendDelay >= SEND_SKIP) {
-      CkEntryOptions opts;
-      luArr[scheduledSends.front()].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
-      scheduledSends.pop_front();
+      for (int count = 0; count < SEND_LIMIT; ++count) {
+        if (scheduledSends.size() > 0) {
+          CkEntryOptions opts;
+          luArr[scheduledSends.front()].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
+          scheduledSends.pop_front();
+        } else break;
+      }
       sendDelay = 0;
     } else if (pendingTriggered == 0) {
       for (std::list<CkIndex2D>::iterator iter = scheduledSends.begin();
