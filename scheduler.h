@@ -26,12 +26,10 @@ struct BlockState {
   bool pivotsDone;
   // State of the L and U input blocks for the next update
 
-  int hasPivotForT;
-
   BlockState(CkIndex2D index)
     : ix(index.x), iy(index.y), pendingDependencies(0),
       updatesCompleted(0), updatesPlanned(0), updatesEligible(0),
-      pivotsDone(false), hasPivotForT(0)
+      pivotsDone(false)
     {}
 
   bool operator==(const BlockState &rhs) {
@@ -101,7 +99,6 @@ public:
   bool shouldExecute();
   void scheduleSend(CkIndex2D sender);
   void updateUntriggered();
-  void hasPivots(int *rows, int size, int t);
 
 private:
   LUMgr *mgr;

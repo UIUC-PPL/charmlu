@@ -1055,9 +1055,6 @@ void LUBlk::announceAgglomeratedPivots()
   memset(msg->seqIndex,      0, sizeof(int) * numRowsSinceLastPivotSend );
   memset(msg->pivotSequence, 0, sizeof(int) * numRowsSinceLastPivotSend*2 );
 
-  // Record which processors are involved in the pivot
-  std::set<int> involvedBlocks;
-
   /// Parse the pivot operations and construct optimized pivot sequences
   int seqNo =-1, i = 0;
   std::map<int,int>::iterator itr = pivotRecords.begin();
@@ -1069,14 +1066,12 @@ void LUBlk::announceAgglomeratedPivots()
       msg->seqIndex[++seqNo] = i;
       int chainStart = itr->first;
       msg->pivotSequence[i++] = chainStart;
-      involvedBlocks.insert(chainStart / BLKSIZE);
 #ifdef VERBOSE_PIVOT_RECORDING
       pivotLog<<chainStart;
 #endif
       while (itr->second != chainStart)
         {
           msg->pivotSequence[i] = itr->second;
-          involvedBlocks.insert(itr->second / BLKSIZE);
 #ifdef VERBOSE_PIVOT_RECORDING
           pivotLog<<" <-- "<<itr->second;
 #endif
@@ -1093,15 +1088,6 @@ void LUBlk::announceAgglomeratedPivots()
 #if defined(VERBOSE_PIVOT_RECORDING) || defined(VERBOSE_PIVOT_AGGLOM)
   CkPrintf("%s\n", pivotLog.str().c_str());
 #endif
-
-  std::vector<int> serializedBlocks;
-  for (std::set<int>::iterator iter = involvedBlocks.begin();
-       iter != involvedBlocks.end(); ++iter) {
-    serializedBlocks.push_back(*iter);
-  }
-
-  // Broadcast to BlockScheduler that certain blocks will be involved in pivots
-  scheduler.hasPivots(&serializedBlocks[0], serializedBlocks.size(), internalStep);
 
   // Make a copy of the msg for the left section too
   pivotSequencesMsg *leftMsg = (pivotSequencesMsg*) CkCopyMsg((void**)&msg);
