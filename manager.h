@@ -35,7 +35,7 @@ public:
     return new (BLKSIZE*BLKSIZE, npes, priobits) blkMsg;
   }
   virtual CkEntryOptions& setPrio(PrioType type, CkEntryOptions& opts,
-                                  int y = 0 , int x = 0) = 0;
+                                  int y = 0 , int x = 0, int t = 0) = 0;
   virtual void setPrio(CkMessage *msg, PrioType type, int refnum = -1, int y = 0, int x = 0) = 0;
 };
 
@@ -52,7 +52,7 @@ struct PrioLU : public LUMgr
     return msg;
   }
 
-  CkEntryOptions& setPrio(PrioType type, CkEntryOptions& opts, int y = 0, int x = 0) {
+  CkEntryOptions& setPrio(PrioType type, CkEntryOptions& opts, int y = 0, int x = 0, int t = 0) {
     int prio = 0;
     switch (type) {
     case SEND_PIVOT_DATA: case DIAG_SEND_PIVOT:
@@ -68,7 +68,7 @@ struct PrioLU : public LUMgr
       prio = -2;
       break;
     case PROCESS_TRAILING_UPDATE:
-      prio = std::min(x, y) * std::min(x, y) * BLKSIZE + y;
+      prio = t * numBlks * BLKSIZE + y * BLKSIZE;
       break;
     }
     opts.setPriority(prio);
