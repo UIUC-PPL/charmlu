@@ -366,7 +366,7 @@ bool eligibilityYOrder(const BlockState& block1, const BlockState& block2) {
       int maxt = std::numeric_limits<int>::max();
       int bk1t = !block1.hasPivotForT ? maxt : block1.hasPivotForT;
       int bk2t = !block2.hasPivotForT ? maxt : block2.hasPivotForT;
-      return bk1t < bk2t;
+      return bk1t != bk2t ? bk1t < bk2t : block1.iy < block2.iy;
     }
   }
 }
