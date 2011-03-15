@@ -660,12 +660,8 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler b
   // propagated soon enough. I'm assuming they
   // are safe to use here.
 
-#if USE_MEMALIGN
-  LU = (double*) memalign(128, BLKSIZE * BLKSIZE * sizeof(double));
-  CkAssert(LU != NULL);
-#else
-  LU = new double [BLKSIZE*BLKSIZE];
-#endif
+  LUmsg = createABlkMsg();
+  LU = LUmsg->data;
 
   internalStep = 0;
 
@@ -798,27 +794,20 @@ void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
 #endif
 }
 
-void LUBlk::multicastRequestedBlock(PrioType prio) {
-  if (requestingPEs.size() == 0)
-    return;
-
-  blkMsg *m = createABlkMsg();
-  mgr->setPrio(m, prio);
+void LUBlk::setupMsg() {
+  blkMsg *m = LUmsg;
 
   CkAssert(requestingPEs.size() <= panelAfter.ckGetNumElements());
 
   std::sort(requestingPEs.begin(), requestingPEs.end());
 
-  m->npes = requestingPEs.size();
-  m->offset = 0;
-  memcpy(m->pes, &requestingPEs[0], sizeof(requestingPEs[0])*m->npes);
+  DEBUG_PRINT("Preparing block for delivery to %d PEs", requestingPEs.size());
 
-  if (requestingPEs.size() > 1) {
-    propagateBlkMsg(m, scheduler);
-    delete m;
-  }
-  else
-    scheduler[requestingPEs[0]].deliverBlock(m);
+  // Junk value to catch bugs
+  m->npes_sender = -1;
+  m->npes_receiver = requestingPEs.size();
+  m->offset = 0;
+  memcpy(m->pes, &requestingPEs[0], sizeof(requestingPEs[0])*m->npes_receiver);
 
   requestingPEs.clear();
 }
@@ -827,10 +816,11 @@ void LUBlk::multicastRequestedBlock(PrioType prio) {
 inline void LUBlk::multicastRecvU() {
   traceUserSuppliedData(internalStep);
   traceMemoryUsage();
+  mgr->setPrio(LUmsg, MULT_RECV_U);
 
   DEBUG_PRINT("Multicast to part of column %d", thisIndex.y);
 
-  localScheduler->scheduleSend(thisIndex);
+  localScheduler->scheduleSend(LUmsg);
 
   // BlockReadyMsg *mU = new(8*sizeof(int)) BlockReadyMsg(thisIndex);
   // mgr->setPrio(mU, MULT_RECV_U);
@@ -841,16 +831,16 @@ inline void LUBlk::multicastRecvU() {
 inline void LUBlk::multicastRecvL() {
   traceUserSuppliedData(internalStep);
   traceMemoryUsage();
+  mgr->setPrio(LUmsg, MULT_RECV_L);
 
   if (thisIndex.x == thisIndex.y) {
     DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
-    blkMsg *givenL = createABlkMsg();
-    mgr->setPrio(givenL, MULT_RECV_L);
-    rowAfterDiag.recvL(givenL);
+    takeRef(LUmsg);
+    rowAfterDiag.recvL(LUmsg);
   } else {
     DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
 
-    multicastRequestedBlock(MULT_RECV_L);
+    localScheduler->scheduleSend(LUmsg);
 
     // DEBUG_PRINT("Announce block ready to part of row %d", thisIndex.x);
     // BlockReadyMsg *mL = new(8*sizeof(int)) BlockReadyMsg(thisIndex);
@@ -858,18 +848,10 @@ inline void LUBlk::multicastRecvL() {
   }
 }
 
-void LUBlk::sendBlocks(int) {
-  multicastRequestedBlock(MULT_RECV_L);
-}
-
 void LUBlk::getBlock(int pe, int rx, int ry) {
   if (factored) {
     requestingPEs.push_back(pe);
-    if (min(rx, ry) == min(thisIndex.x, thisIndex.y) + 1
-        && thisIndex.x >= thisIndex.y)
-      multicastRequestedBlock(SEND_BLOCKS);
-    else
-      localScheduler->scheduleSend(thisIndex);
+    localScheduler->scheduleSend(LUmsg);
   } else {
     DEBUG_PRINT("Queueing remote block for pe %d", pe);
     requestingPEs.push_back(pe);
@@ -1281,9 +1263,8 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
 inline blkMsg* LUBlk::createABlkMsg() {
   int prioBits = mgr->bitsOfPrio();
   int npes = CProxy_LUMap(cfg.map).ckLocalBranch()->pesInPanel(thisIndex);
-  blkMsg *msg = new (BLKSIZE*BLKSIZE, npes, prioBits) blkMsg;
+  blkMsg *msg = new (BLKSIZE*BLKSIZE, npes, prioBits) blkMsg(thisIndex);
   CkSetQueueing(msg, CK_QUEUEING_IFIFO);
-  msg->setMsgData(LU, internalStep, BLKSIZE, thisIndex);
   return msg;
 }
 

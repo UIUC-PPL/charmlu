@@ -7,6 +7,7 @@ using std::min;
 #include <utility>
 using std::pair;
 using std::make_pair;
+#include "register.h"
 
 inline bool operator==(const CkIndex2D &l, const CkIndex2D &r)
 { return l.x == r.x && l.y == r.y; }
@@ -33,17 +34,71 @@ void BlockScheduler::incomingComputeU(CkIndex2D index, int t) {
   }
 }
 
-void BlockScheduler::scheduleSend(CkIndex2D sender) {
-  std::list<CkIndex2D>::iterator iter = find(scheduledSends.begin(),
-                                             scheduledSends.end(), sender);
-
+void BlockScheduler::scheduleSend(blkMsg *msg) {
+  std::list<blkMsg *>::iterator iter = find(scheduledSends.begin(),
+                                            scheduledSends.end(), msg);
+  DEBUG_SCHED("scheduling a new send (%d, %d)", msg->src.x, msg->src.y);
   if (iter == scheduledSends.end()) {
-    if (pendingTriggered == 0) {
-      CkEntryOptions opts;
-      luArr[sender].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
-    } else {
-      scheduledSends.push_back(sender);
+    scheduledSends.push_back(msg);
+  }
+
+  pumpMessages();
+}
+
+void pumpOnIdle(void *s, double) {
+  BlockScheduler *scheduler = (BlockScheduler *)s;
+  //CkPrintf("Firing pumpMessages on Idle\n");
+  //CcdCallOnCondition(CcdPERIODIC_100ms, pumpOnIdle, s);
+  scheduler->pumpMessages();
+}
+
+static const int SEND_LIMIT = 3;
+
+void BlockScheduler::pumpMessages() {
+  for (std::list<blkMsg*>::iterator iter = sendsInFlight.begin();
+       iter != sendsInFlight.end(); ++iter) {
+    //DEBUG_SCHED("pumpMessages, iter through sendsInFlight %p", *iter);
+    blkMsg *msg = *iter;
+    int ref = REFFIELD(UsrToEnv(msg));
+    CkAssert(ref > 0 && ref <= 2);
+    if (ref == 1) {
+      if (!msg->firstHalfSent) {
+        DEBUG_SCHED("%p calling propagate on second half", *iter);
+        msg->firstHalfSent = true;
+        propagateBlkMsg(msg);
+      } else {
+        bool inWanted = false;
+        for (std::map<std::pair<int, int>, wantedBlock>::iterator wanted =
+               wantedBlocks.begin(); wanted != wantedBlocks.end(); ++wanted) {
+          if (wanted->second.m == *iter) {
+            inWanted = true;
+            break;
+          }
+        }
+        msg->firstHalfSent = false;
+        iter = sendsInFlight.erase(iter);
+        if (!luArr[msg->src].ckLocal() && !inWanted) {
+          delete msg;
+        }
+      }
     }
+  }
+
+  for (std::list<blkMsg*>::iterator iter = scheduledSends.begin();
+       iter != scheduledSends.end() && sendsInFlight.size() < SEND_LIMIT;
+       ++iter) {
+    //DEBUG_SCHED("pumpMessages, iter through scheduledSends %p", *iter);
+    sendsInFlight.push_back(*iter);
+    DEBUG_SCHED("%p calling propagate on first half", *iter);
+    propagateBlkMsg(*iter);
+    iter = scheduledSends.erase(iter);
+  }
+
+  if (sendsInFlight.size() != 0 || scheduledSends.size() != 0) {
+    //CkPrintf("Setting up idle condition; %d messages in flight\n", sendsInFlight.size());
+    CcdCallOnCondition(CcdPROCESSOR_STILL_IDLE, pumpOnIdle, this);
+  } else {
+    DEBUG_SCHED("finished all sends");
   }
 }
 
@@ -180,6 +235,7 @@ void BlockScheduler::getBlock(int srcx, int srcy, double *&data,
 void BlockScheduler::deliverBlock(blkMsg *m) {
   DEBUG_SCHED("deliverBlock src (%d, %d)", m->src.x, m->src.y);
 
+  CkAssert(wantedBlocks.find(make_pair(m->src)) != wantedBlocks.end());
   wantedBlock &block = wantedBlocks[make_pair(m->src)];
   block.m = m;
   block.data = m->data;
@@ -191,34 +247,54 @@ void BlockScheduler::deliverBlock(blkMsg *m) {
     (*update)->tryDeliver(m->src.x, m->src.y, m->data);
   }
 
-  CkAssert(m->npes >= 1);
+  CkAssert(m->npes_receiver >= 1);
   CkAssert(CkMyPe() == m->pes[m->offset]);
 
   // This processor is no longer part of the set
   m->offset++;
-  m->npes--;
-  propagateBlkMsg(m, thisProxy);
+  m->npes_receiver--;
+  m->firstHalfSent = false;
+  if (m->npes_receiver >= 1)
+    scheduleSend(m);
 
   progress();
 }
 
-void propagateBlkMsg(blkMsg *m, CProxy_BlockScheduler bs) {
-  DEBUG_SCHED("Delivering to processors");
-  for (int i = m->offset; i < m->npes; ++i)
-    DEBUG_SCHED("\t%d", m->pes[i]);
-
-  if (m->npes >= 2) {
-    blkMsg *m2 = (blkMsg *)CkCopyMsg((void **)&m);
-    m2->offset += m->npes / 2;
-    m2->npes -= m->npes / 2;
-    m->npes -= m2->npes;
-
-    bs[m2->pes[m2->offset]].deliverBlock(m2);
+void BlockScheduler::propagateBlkMsg(blkMsg *m) {
+  envelope *env = UsrToEnv(m);
+  _SET_USED(env, 0);
+  if (env->isPacked()) {
+    unsigned char msgidx = env->getMsgIdx();
+    if(_msgTable[msgidx]->unpack) {
+      m = (blkMsg*)_msgTable[msgidx]->unpack(m);
+      UsrToEnv(m)->setPacked(0);
+    }
   }
 
-  if (m->npes >= 1) {
+  DEBUG_SCHED("(%d, %d): propagateBlkMsg npes = %p, firstHalfSent = %s",
+              m->src.x, m->src.y, m->pes, m->firstHalfSent ? "true" : "false");
+
+  if (!m->firstHalfSent) {
+    LUBlk *block = luArr[m->src].ckLocal();
+    if (block != NULL)
+      block->setupMsg();
+    m->npes_sender = m->npes_receiver;
+    m->npes_receiver = (m->npes_receiver+1) / 2;
+  } else {
+    int secondHalf = m->npes_sender - m->npes_receiver;
+    CkAssert(secondHalf >= 0);
+    m->offset += m->npes_receiver;
+    m->npes_receiver = secondHalf;
+  }
+
+  DEBUG_SCHED("Delivering to processors, offset = %d, num = %d",
+              m->offset, m->npes_receiver);
+  for (int i = 0; i < m->npes_receiver; ++i)
+    DEBUG_SCHED("\t%d", m->pes[i + m->offset]);
+
+  if (m->npes_receiver >= 1) {
     takeRef(m);
-    bs[m->pes[m->offset]].deliverBlock(m);
+    thisProxy[m->pes[m->offset]].deliverBlock(m);
   }
 
   traceMemoryUsage();
@@ -233,7 +309,12 @@ void BlockScheduler::dropRef(int srcx, int srcy, Update *update) {
 
   input->second.refs.remove(update);
   if (input->second.refs.size() == 0) {
-    delete input->second.m;
+    if (std::find(sendsInFlight.begin(), sendsInFlight.end(),
+                  input->second.m) == sendsInFlight.end() &&
+        std::find(scheduledSends.begin(), scheduledSends.end(),
+                  input->second.m) == scheduledSends.end()) {
+      delete input->second.m;
+    }
     wantedBlocks.erase(input);
   }
 }
@@ -272,40 +353,13 @@ void BlockScheduler::updateDone(intptr_t update_ptr) {
 
   plannedUpdates.erase(std::find(plannedUpdates.begin(), plannedUpdates.end(), update));
 
-  runScheduledSends();
   progress();
 }
 
 void BlockScheduler::updateUntriggered() {
   pendingTriggered--;
   if (pendingTriggered == 0) {
-    runScheduledSends();
-  }
-}
-
-static const int SEND_SKIP = 10;
-static const int SEND_LIMIT = 2;
-
-void BlockScheduler::runScheduledSends() {
-  if (scheduledSends.size() > 0) {
-    sendDelay++;
-    if (pendingTriggered != 0 && sendDelay >= SEND_SKIP) {
-      for (int count = 0; count < SEND_LIMIT; ++count) {
-        if (scheduledSends.size() > 0) {
-          CkEntryOptions opts;
-          luArr[scheduledSends.front()].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
-          scheduledSends.pop_front();
-        } else break;
-      }
-      sendDelay = 0;
-    } else if (pendingTriggered == 0) {
-      for (std::list<CkIndex2D>::iterator iter = scheduledSends.begin();
-       iter != scheduledSends.end(); ++iter) {
-        CkEntryOptions opts;
-        luArr[*iter].sendBlocks(0, &mgr->setPrio(SEND_BLOCKS, opts));
-      }
-      scheduledSends.clear();
-    }
+    pumpMessages();
   }
 }
 
@@ -401,6 +455,8 @@ void BlockScheduler::progress() {
       }
     }
   } while (stateModified);
+
+  pumpMessages();
 
   inProgress = false;
 }

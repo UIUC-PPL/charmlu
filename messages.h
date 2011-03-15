@@ -4,20 +4,24 @@
 #include "lu.decl.h"
 #include <algorithm>
 
+/// A block of the matrix, with ornamentation for setup-free multicast
 struct blkMsg: public CkMcastBaseMsg, CMessage_blkMsg {
+  /// Payload
   double *data;
-  int *pes;
-  int npes, offset;
   CkIndex2D src;
 
-  void setMsgData(double *data_, int step, int BLKSIZE, CkIndex2D index) {
-    memcpy(data, data_, sizeof(double)*BLKSIZE*BLKSIZE);
-    src = index;
-    CkSetRefNum(this, step);
+  /// Destinations
+  int *pes;
+  int npes_sender, npes_receiver, offset;
+  /// Whether the message has gone to the first half of its destination list
+  bool firstHalfSent;
+
+  blkMsg(CkIndex2D index_)
+    : src(index_), npes_sender(0), npes_receiver(0), offset(0),
+      firstHalfSent(false) {
+    CkSetRefNum(this, std::min(src.x, src.y));
   }
 };
-
-void propagateBlkMsg(blkMsg *msg, CProxy_BlockScheduler bs);
 
 struct BlockReadyMsg : public CkMcastBaseMsg, CMessage_BlockReadyMsg {
   BlockReadyMsg(CkIndex2D idx) : src(idx)

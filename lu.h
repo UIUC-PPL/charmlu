@@ -79,6 +79,7 @@ private:
 
   /// Variables used during factorization
   double *LU;
+  blkMsg *LUmsg;
 
   int BLKSIZE, numBlks;
   blkMsg *L, *U;
@@ -205,7 +206,7 @@ private:
   void computeL(blkMsg *givenUMsg);
   void updateMatrix(double *incomingL, double *incomingU);
   //broadcast the U downwards to the blocks in the same column
-  void multicastRequestedBlock(PrioType prio);
+  void setupMsg();
   void multicastRecvU();
   void recvU(blkMsg *);
   //broadcast the L rightwards to the blocks in the same row
