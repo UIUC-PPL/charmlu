@@ -1277,16 +1277,14 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
 #endif
 }
 
-
 //internal functions for creating messages to encapsulate the priority
 inline blkMsg* LUBlk::createABlkMsg(int npes) {
-  blkMsg *msg = mgr->createBlockMessage(thisIndex.x, thisIndex.y,
-                                        internalStep, sizeof(int)*8, npes);
+  int prioBits = mgr->bitsOfPrio();
+  blkMsg *msg = new (BLKSIZE*BLKSIZE, npes, prioBits) blkMsg;
+  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
   msg->setMsgData(LU, internalStep, BLKSIZE, thisIndex);
   return msg;
 }
-
-
 
 locval LUBlk::findLocVal(int startRow, int col, locval first) {
   locval l = first;
@@ -1297,8 +1295,6 @@ locval LUBlk::findLocVal(int startRow, int col, locval first) {
     }
   return l;
 }
-
-
 
 /// Update the sub-block of this L block starting at specified
 /// offset from the active column
