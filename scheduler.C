@@ -88,10 +88,13 @@ void BlockScheduler::pumpMessages() {
        iter != scheduledSends.end() && sendsInFlight.size() < SEND_LIMIT;
        ++iter) {
     //DEBUG_SCHED("pumpMessages, iter through scheduledSends %p", *iter);
-    sendsInFlight.push_back(*iter);
-    DEBUG_SCHED("%p calling propagate on first half", *iter);
-    propagateBlkMsg(*iter);
-    iter = scheduledSends.erase(iter);
+    if (std::find(sendsInFlight.begin(), sendsInFlight.end(), *iter) ==
+        sendsInFlight.end()) {
+      sendsInFlight.push_back(*iter);
+      DEBUG_SCHED("%p calling propagate on first half", *iter);
+      propagateBlkMsg(*iter);
+      iter = scheduledSends.erase(iter);
+    }
   }
 
   if (sendsInFlight.size() != 0 || scheduledSends.size() != 0) {
