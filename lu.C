@@ -802,7 +802,7 @@ void LUBlk::multicastRequestedBlock(PrioType prio) {
   if (requestingPEs.size() == 0)
     return;
 
-  blkMsg *m = createABlkMsg(requestingPEs.size());
+  blkMsg *m = createABlkMsg();
   mgr->setPrio(m, prio);
 
   CkAssert(requestingPEs.size() <= panelAfter.ckGetNumElements());
@@ -1278,8 +1278,9 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
 }
 
 //internal functions for creating messages to encapsulate the priority
-inline blkMsg* LUBlk::createABlkMsg(int npes) {
+inline blkMsg* LUBlk::createABlkMsg() {
   int prioBits = mgr->bitsOfPrio();
+  int npes = CProxy_LUMap(cfg.map).ckLocalBranch()->pesInPanel(thisIndex);
   blkMsg *msg = new (BLKSIZE*BLKSIZE, npes, prioBits) blkMsg;
   CkSetQueueing(msg, CK_QUEUEING_IFIFO);
   msg->setMsgData(LU, internalStep, BLKSIZE, thisIndex);

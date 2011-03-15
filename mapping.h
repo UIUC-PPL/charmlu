@@ -4,9 +4,11 @@
 #include "lu.decl.h"
 #include <string>
 
-class LUMap : public CkArrayMap {
+struct LUMap : public CkArrayMap {
+  LUMap() {}
   virtual std::string desc() { return ""; }
   virtual int pesInPanel(CkIndex2D index) { return CkNumPes(); }
+  int procNum(int arrayHdl, const CkArrayIndex &idx) { return 0; }
 };
 
 

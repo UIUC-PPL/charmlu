@@ -585,31 +585,35 @@ mainmodule lu {
     entry void setupMulticast(rednSetupMsg *msg);
   }
 
-  group BlockCyclicMap : CkArrayMap{
+  group LUMap : CkArrayMap {
+    entry LUMap();
+  };
+
+  group BlockCyclicMap : LUMap {
     entry BlockCyclicMap();
   };
 
-  group RealBlockCyclicMap : CkArrayMap{
+  group RealBlockCyclicMap : LUMap {
       entry RealBlockCyclicMap(int r, int num_blocks);
   };
 
-  group LUSnakeMap : CkArrayMap{
+  group LUSnakeMap : LUMap {
     entry LUSnakeMap(int, int);
   };
 
-  group LUBalancedSnakeMap : CkArrayMap{
+  group LUBalancedSnakeMap : LUMap {
     entry LUBalancedSnakeMap(int, int);
   };
 
-  group LUBalancedSnakeMap2 : CkArrayMap{
+  group LUBalancedSnakeMap2 : LUMap {
     entry LUBalancedSnakeMap2(int, int);
   };
 
-  group PE2DTilingMap: CkArrayMap {
+  group PE2DTilingMap: LUMap {
     entry PE2DTilingMap(int _peRows, int _peCols, int _peRotate);
   };
 
-  group StrongScaling1: CkArrayMap {
+  group StrongScaling1: LUMap {
     entry StrongScaling1(int numBlks_);
   };
 };
