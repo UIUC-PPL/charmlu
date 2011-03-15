@@ -177,6 +177,7 @@ class Main : public CBase_Main {
   bool sentVectorData;
   CProxy_LUBlk luArrProxy;
   CProxy_BlockScheduler bs;
+  int mappingScheme;
 
 public:
     Main(CkArgMsg* m) : solved(false), LUcomplete(false), sentVectorData(false) {
@@ -198,8 +199,8 @@ public:
 
     if (m->argc >= 6)
     {
-        luCfg.mappingScheme = atoi( m->argv[5] );
-        if (luCfg.mappingScheme == 3)
+        mappingScheme = atoi( m->argv[5] );
+        if (mappingScheme == 3)
         {
             if (m->argc < 8) {
                 std::pair<int,int> tileDims = computePETileDimensions();
@@ -223,7 +224,7 @@ public:
         }
     }
     else
-        luCfg.mappingScheme = 1;
+        mappingScheme = 1;
 
     if (sizeof(CMK_REFNUM_TYPE) != sizeof(int)) {
       CkPrintf("Refnum size too small for large matrices."
@@ -252,12 +253,12 @@ public:
              luCfg.numBlocks, luCfg.numBlocks,
              luCfg.pivotBatchSize,
              luCfg.memThreshold,
-             luCfg.mappingScheme,
-             luCfg.mappingScheme == 1 ? "Balanced Snake" :
-               (luCfg.mappingScheme==2 ? "Block Cylic" :
-                 (luCfg.mappingScheme == 3 ? "2D Tiling" : "Strong Scaling"))
+             mappingScheme,
+             mappingScheme == 1 ? "Balanced Snake" :
+               (mappingScheme==2 ? "Block Cylic" :
+                 (mappingScheme == 3 ? "2D Tiling" : "Strong Scaling"))
              );
-    if (luCfg.mappingScheme == 3)
+    if (mappingScheme == 3)
         CkPrintf("\tMapping PE tile size: %d x %d\n", luCfg.peTileRows, luCfg.peTileCols);
 
     // Create a multicast manager group
@@ -308,26 +309,30 @@ public:
       CkArrayOptions opts(luCfg.numBlocks, luCfg.numBlocks);
       opts.setAnytimeMigration(false)
 	  .setStaticInsertion(true);
-      switch (luCfg.mappingScheme) {
+      CkGroupID map;
+      switch (mappingScheme) {
       case 0:
-	opts.setMap(CProxy_BlockCyclicMap::ckNew());
+	map = CProxy_BlockCyclicMap::ckNew();
 	break;
       case 1:
-        opts.setMap(CProxy_LUBalancedSnakeMap::ckNew(luCfg.numBlocks, luCfg.blockSize));
+        map = CProxy_LUBalancedSnakeMap::ckNew(luCfg.numBlocks, luCfg.blockSize);
 	break;
       case 2:
-        opts.setMap(CProxy_RealBlockCyclicMap::ckNew(1, luCfg.numBlocks));
+        map = CProxy_RealBlockCyclicMap::ckNew(1, luCfg.numBlocks);
         break;
       case 3:
-        opts.setMap(CProxy_PE2DTilingMap::ckNew(luCfg.peTileRows, luCfg.peTileCols,
-                                                luCfg.peTileRotate));
+        map = CProxy_PE2DTilingMap::ckNew(luCfg.peTileRows, luCfg.peTileCols,
+                                          luCfg.peTileRotate);
         break;
       case 4:
-        opts.setMap(CProxy_StrongScaling1::ckNew(luCfg.numBlocks));
+        map = CProxy_StrongScaling1::ckNew(luCfg.numBlocks);
         break;
       default:
         CkAbort("Unrecognized mapping scheme specified");
       }
+
+      luCfg.map = map;
+      opts.setMap(map);
 
       CProxy_LUMgr mgr = CProxy_PrioLU::ckNew(luCfg.blockSize, luCfg.matrixSize);
 

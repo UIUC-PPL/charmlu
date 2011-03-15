@@ -2,6 +2,7 @@
 #define LU_CONFIG_H
 
 #include "pup.h"
+#include <charm++.h>
 
 #ifndef STOP_AFTER
     #define STOP_AFTER -1
@@ -11,7 +12,7 @@ class LUConfig {
     public:
         LUConfig():
             blockSize(0), numBlocks(0), pivotBatchSize(0),
-            mappingScheme(0), peTileRows(0), peTileCols(0), peTileRotate(0),
+            peTileRows(0), peTileCols(0), peTileRotate(0),
             memThreshold(0)
         {}
 
@@ -22,7 +23,7 @@ class LUConfig {
             p | numBlocks;
             p | pivotBatchSize;
 
-            p | mappingScheme;
+            p | map;
             p | peTileRows;
             p | peTileCols;
             p | peTileRotate;
@@ -40,7 +41,7 @@ class LUConfig {
         /// The number of pivots to agglomerate into one batch
         int pivotBatchSize;
         /// The mapping logic that has to be used
-        int mappingScheme;
+        CkGroupID map;
         /// The num of PEs in the PEtile
         int peTileRows;
         /// The num of rows in the PEtile
