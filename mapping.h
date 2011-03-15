@@ -5,7 +5,8 @@
 #include <string>
 
 class LUMap : public CkArrayMap {
-    virtual std::string desc() { return ""; }
+  virtual std::string desc() { return ""; }
+  virtual int pesInPanel(CkIndex2D index) { return CkNumPes(); }
 };
 
 
@@ -284,6 +285,13 @@ class PE2DTilingMap: public LUMap {
             CkAssert(peNum < CkNumPes());
             return peNum;
         }
+
+  int pesInPanel(CkIndex2D index) {
+    if (index.x <= index.y)
+      return peCols;
+    else
+      return peRows;
+  }
 
     private:
         const int peRows, peCols, peRotate;
