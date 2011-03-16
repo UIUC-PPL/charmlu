@@ -56,6 +56,8 @@ struct PrioLU : public LUMgr
     case PROCESS_TRAILING_UPDATE:
       if (y == t + 1)
         prio = 0;
+      else if (x == t + 1)
+        prio = 1;
       else
         prio = t * numBlks * BLKSIZE + y * BLKSIZE;
       break;
