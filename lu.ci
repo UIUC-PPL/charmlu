@@ -61,8 +61,6 @@ mainmodule lu {
     entry [nokeep] void prepareForPivotLR(rednSetupMsg *);
     entry [nokeep] void prepareForRowBeforeDiag(rednSetupMsg *);
     entry [nokeep] void prepareForRowAfterDiag(rednSetupMsg *);
-    entry void setupMulticastFinished(CkReductionMsg *msg);
-    entry void prepareForMulticast(int pe);
     entry void multicastRedns(int dummy);
     entry void initVec();
     entry void startValidation();
@@ -461,32 +459,6 @@ mainmodule lu {
         for (ind = 0; ind < thisIndex.x-1; ind++) {
           when prepareForPivotLR(rednSetupMsg *msg) atomic { }
         }
-        while (blocksAfter < numBlks-thisIndex.y-1 + numBlks-thisIndex.x-1) {
-          when prepareForMulticast(int pe) atomic {
-            blocksAfter++;
-            if (pe != CkMyPe()) {
-              panelAfterPEs.insert(pe);
-            }
-          }
-        }
-        atomic {
-          CkVec<CkArrayIndex1D> pes;
-          for (std::set<int>::iterator iter = panelAfterPEs.begin();
-               iter != panelAfterPEs.end(); ++iter)
-            pes.push_back(CkArrayIndex1D(*iter));
-          panelAfter = CProxySection_BlockScheduler::ckNew(bs, pes.getVec(), pes.size());
-          panelAfter.ckSectionDelegate(mcastMgr);
-          CkCallback *cb = new CkCallback(CkIndex_LUBlk::setupMulticastFinished(NULL), thisProxy(thisIndex));
-          mcastMgr->setReductionClient(panelAfter, cb);
-          rednSetupMsg *panelAfterMsg = new rednSetupMsg(mcastMgrGID);
-          panelAfter.setupMulticast(panelAfterMsg);
-        }
-        if (panelAfterPEs.size() > 0) {
-          when setupMulticastFinished(CkReductionMsg *msg) atomic {
-            panelAfterPEs.clear();
-            delete msg;
-          }
-        }
         atomic { contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy)); }
       }
     };
@@ -588,7 +560,6 @@ mainmodule lu {
     entry void deliverBlock(blkMsg *m);
     entry void printBlockLimit();
     entry void allRegistered(CkReductionMsg *m);
-    entry void setupMulticast(rednSetupMsg *msg);
   }
 
   group LUMap : CkArrayMap {

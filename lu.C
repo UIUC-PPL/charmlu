@@ -797,8 +797,6 @@ void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
 void LUBlk::setupMsg() {
   blkMsg *m = LUmsg;
 
-  CkAssert(requestingPEs.size() <= panelAfter.ckGetNumElements());
-
   std::sort(requestingPEs.begin(), requestingPEs.end());
 
   DEBUG_PRINT("Preparing block for delivery to %d PEs", requestingPEs.size());

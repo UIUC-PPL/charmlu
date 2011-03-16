@@ -123,11 +123,6 @@ void BlockScheduler::registerBlock(CkIndex2D index) {
     }
   }
 
-  for (int i = 0; i < index.x; i++)
-    luArr(i, index.y).prepareForMulticast(CkMyPe());
-  for (int i = 0; i < index.y; i++)
-    luArr(index.x, i).prepareForMulticast(CkMyPe());
-
   if (blockLimit< 2)
     CkAbort("Too little space to plan even one trailing update");
 }
@@ -139,14 +134,6 @@ void BlockScheduler::allRegistered(CkReductionMsg *m) {
 
 void BlockScheduler::startedActivePanel() {
   numActive++;
-}
-
-void BlockScheduler::setupMulticast(rednSetupMsg *msg) {
-  CkMulticastMgr* mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
-  CkSectionInfo cookie;
-  CkGetSectionInfo(cookie, msg);
-  mcastMgr->contribute(0, NULL, CkReduction::sum_int, cookie);
-  delete msg;
 }
 
 void BlockScheduler::repositionBlock(StateList::iterator block) {
