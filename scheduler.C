@@ -67,19 +67,15 @@ void BlockScheduler::pumpMessages() {
         msg->firstHalfSent = true;
         propagateBlkMsg(msg);
       } else {
-        bool inWanted = false;
+        msg->firstHalfSent = false;
         for (std::map<std::pair<int, int>, wantedBlock>::iterator wanted =
                wantedBlocks.begin(); wanted != wantedBlocks.end(); ++wanted) {
-          if (wanted->second.m == *iter) {
-            inWanted = true;
-            break;
+          if (wanted->second.m == *iter && wanted->second.refs.size() == 0) {
+            delete msg;
+            wantedBlocks.erase(wanted);
           }
         }
-        msg->firstHalfSent = false;
         iter = sendsInFlight.erase(iter);
-        if (!luArr[msg->src].ckLocal() && !inWanted) {
-          delete msg;
-        }
       }
     }
   }
@@ -317,8 +313,8 @@ void BlockScheduler::dropRef(int srcx, int srcy, Update *update) {
         std::find(scheduledSends.begin(), scheduledSends.end(),
                   input->second.m) == scheduledSends.end()) {
       delete input->second.m;
+      wantedBlocks.erase(input);
     }
-    wantedBlocks.erase(input);
   }
 }
 
