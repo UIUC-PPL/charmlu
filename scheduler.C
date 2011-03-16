@@ -4,10 +4,13 @@
 #include "lu.h"
 #include <algorithm>
 using std::min;
+using std::find;
 #include <utility>
 using std::pair;
 using std::make_pair;
 #include "register.h"
+using std::list;
+using std::map;
 
 inline bool operator==(const CkIndex2D &l, const CkIndex2D &r)
 { return l.x == r.x && l.y == r.y; }
@@ -35,8 +38,8 @@ void BlockScheduler::incomingComputeU(CkIndex2D index, int t) {
 }
 
 void BlockScheduler::scheduleSend(blkMsg *msg) {
-  std::list<blkMsg *>::iterator iter = find(scheduledSends.begin(),
-                                            scheduledSends.end(), msg);
+  list<blkMsg *>::iterator iter = find(scheduledSends.begin(),
+                                       scheduledSends.end(), msg);
   DEBUG_SCHED("scheduling a new send (%d, %d)", msg->src.x, msg->src.y);
   if (iter == scheduledSends.end()) {
     scheduledSends.push_back(msg);
@@ -55,7 +58,7 @@ void pumpOnIdle(void *s, double) {
 static const int SEND_LIMIT = 3;
 
 void BlockScheduler::pumpMessages() {
-  for (std::list<blkMsg*>::iterator iter = sendsInFlight.begin();
+  for (list<blkMsg*>::iterator iter = sendsInFlight.begin();
        iter != sendsInFlight.end(); ++iter) {
     //DEBUG_SCHED("pumpMessages, iter through sendsInFlight %p", *iter);
     blkMsg *msg = *iter;
@@ -67,7 +70,7 @@ void BlockScheduler::pumpMessages() {
         msg->firstHalfSent = true;
         propagateBlkMsg(msg);
       } else {
-        std::map<std::pair<int, int>, wantedBlock>::iterator blockIter =
+        map<pair<int, int>, wantedBlock>::iterator blockIter =
           wantedBlocks.find(make_pair(msg->src));
         if (blockIter != wantedBlocks.end()) {
           wantedBlock &block = blockIter->second;
@@ -86,11 +89,11 @@ void BlockScheduler::pumpMessages() {
     }
   }
 
-  for (std::list<blkMsg*>::iterator iter = scheduledSends.begin();
+  for (list<blkMsg*>::iterator iter = scheduledSends.begin();
        iter != scheduledSends.end() && sendsInFlight.size() < SEND_LIMIT;
        ++iter) {
     //DEBUG_SCHED("pumpMessages, iter through scheduledSends %p", *iter);
-    if (std::find(sendsInFlight.begin(), sendsInFlight.end(), *iter) ==
+    if (find(sendsInFlight.begin(), sendsInFlight.end(), *iter) ==
         sendsInFlight.end()) {
       sendsInFlight.push_back(*iter);
       DEBUG_SCHED("%p calling propagate on first half", *iter);
@@ -153,14 +156,14 @@ void BlockScheduler::repositionBlock(StateList::iterator block) {
 }
 
 template <typename K>
-void BlockScheduler::updatePanel(std::map<K, Panel> &panels, K index) {
-  typename std::map<K, Panel>::iterator iter = panels.find(index);
+void BlockScheduler::updatePanel(map<K, Panel> &panels, K index) {
+  typename map<K, Panel>::iterator iter = panels.find(index);
   CkAssert(iter != panels.end());
   Panel &panel = iter->second;
 
   panel.updatesLeftToPlan--;
   if(panel.updatesLeftToPlan == 0) {
-    for (std::list<StateList::iterator>::iterator i = panel.dependents.begin();
+    for (list<StateList::iterator>::iterator i = panel.dependents.begin();
          i != panel.dependents.end(); ++i) {
       (*i)->pendingDependencies--;
       repositionBlock(*i);
@@ -171,9 +174,9 @@ void BlockScheduler::updatePanel(std::map<K, Panel> &panels, K index) {
 }
 
 template <typename K>
-void BlockScheduler::addDependence(std::map<K, Panel> &panels, K index,
+void BlockScheduler::addDependence(map<K, Panel> &panels, K index,
 				   StateList::iterator block) {
-  typename std::map<K, Panel>::iterator panel = panels.find(index);
+  typename map<K, Panel>::iterator panel = panels.find(index);
   if (panel != panels.end()) {
     block->pendingDependencies++;
     panel->second.addDependent(block);
@@ -245,7 +248,7 @@ void BlockScheduler::deliverBlock(blkMsg *m) {
   block.m = m;
   block.data = m->data;
 
-  for (std::list<Update*>::iterator update = block.refs.begin();
+  for (list<Update*>::iterator update = block.refs.begin();
        update != block.refs.end(); ++update) {
     DEBUG_SCHED("tryDeliver of (%d,%d) to (%d,%d) @ %d", m->src.x, m->src.y,
 		(*update)->target->ix, (*update)->target->iy, (*update)->t);
@@ -308,7 +311,7 @@ void BlockScheduler::propagateBlkMsg(blkMsg *m) {
 }
 
 void BlockScheduler::dropRef(int srcx, int srcy, Update *update) {
-  std::map<std::pair<int, int>, wantedBlock>::iterator input =
+  map<pair<int, int>, wantedBlock>::iterator input =
     wantedBlocks.find(make_pair(srcx, srcy));
 
   // Ignore local blocks used as inputs
@@ -323,7 +326,7 @@ void BlockScheduler::dropRef(int srcx, int srcy, Update *update) {
   }
 }
 
-void BlockScheduler::runUpdate(std::list<Update>::iterator iter) {
+void BlockScheduler::runUpdate(list<Update>::iterator iter) {
   Update &update = *iter;
   CkAssert(update.ready());
   int tx = update.target->ix, ty = update.target->iy;
@@ -349,13 +352,13 @@ void BlockScheduler::updateDone(intptr_t update_ptr) {
   update.target->updatesCompleted++;
   if (update.target->updatesCompleted == min(update.target->ix, update.target->iy)) {
     // Last update on this block
-    //doneBlocks.erase(std::find(doneBlocks.begin(), doneBlocks.end(), *update.target));
+    //doneBlocks.erase(find(doneBlocks.begin(), doneBlocks.end(), *update.target));
   }
 
   pendingTriggered--;
   CkAssert(pendingTriggered >= 0);
 
-  plannedUpdates.erase(std::find(plannedUpdates.begin(), plannedUpdates.end(), update));
+  plannedUpdates.erase(find(plannedUpdates.begin(), plannedUpdates.end(), update));
 
   progress();
 }
@@ -377,13 +380,13 @@ void BlockScheduler::factorizationDone(CkIndex2D index) {
   if (index.x >= index.y)
     numActive--;
 
-  std::map<std::pair<int, int>, std::list<Update*> >::iterator wanters =
+  map<pair<int, int>, list<Update*> >::iterator wanters =
     localWantedBlocks.find(make_pair(index.x, index.y));
   if (wanters != localWantedBlocks.end()) {
-    std::list<Update*> &wantList = wanters->second;
+    list<Update*> &wantList = wanters->second;
     CkAssert(luArr(index).ckLocal());
 
-    for (std::list<Update*>::iterator wanter = wantList.begin();
+    for (list<Update*>::iterator wanter = wantList.begin();
 	 wanter != wantList.end(); ++wanter) {
       DEBUG_SCHED("tryDeliver of (%d,%d) to (%d,%d) @ %d", index.x, index.y,
 		  (*wanter)->target->ix, (*wanter)->target->iy, (*wanter)->t);
@@ -439,7 +442,7 @@ void BlockScheduler::progress() {
     if (numActive == 0) {
       // Start processComputeU
       // TODO: refactor into a foreach?
-      for (std::list<ComputeU>::iterator computeU = pendingComputeU.begin();
+      for (list<ComputeU>::iterator computeU = pendingComputeU.begin();
            computeU != pendingComputeU.end(); ++computeU) {
         CkEntryOptions opts;
         luArr(computeU->x, computeU->y).
@@ -449,7 +452,7 @@ void BlockScheduler::progress() {
       }
 
       // Start trailing updates
-      for (std::list<Update>::iterator update = plannedUpdates.begin();
+      for (list<Update>::iterator update = plannedUpdates.begin();
 	   update != plannedUpdates.end(); ++update) {
 	if (update->ready()) {
           runUpdate(update);
