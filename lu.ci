@@ -70,7 +70,7 @@ mainmodule lu {
     entry void sumBvec(int size, double partial_b[size]);
 
     entry void colMax(CkReductionMsg *m);
-    entry void sendPivotData(int rowIndex, int pivotRow, int size, double data[size], double b);
+    entry void sendPivotData(int rowIndex, int pivotRow, int size, double data[size], double b, bool noop);
     entry [nokeep] void applyPivots(pivotSequencesMsg *msg);
     entry void acceptPivotData(pivotRowsMsg *msg);
     entry [nokeep] void sendUSegment(UMsg* msg);
@@ -80,26 +80,29 @@ mainmodule lu {
 
     entry void belowPivot(int targetCol) {
       // Wait for the replacement row from the diagonal chare so that you have the updated block
-      when sendPivotData[internalStep*BLKSIZE + targetCol](int rowIndex, int pivotRow, int size, double data[size], double b) {
-	atomic "below_send_remote_pivot" {
-	  CkAssert(pivotRow / BLKSIZE == thisIndex.x);
-          CkEntryOptions opts;
-	  thisProxy(thisIndex.y, thisIndex.y)
-	    .sendPivotData(internalStep*BLKSIZE + targetCol, pivotRow, BLKSIZE,
-			   &LU[getIndex(pivotRow % BLKSIZE,0)], bvec[pivotRow % BLKSIZE],
-                           &(mgr->setPrio(SEND_PIVOT_DATA, opts)));
-	}
-	atomic "below_send_useg" {
-	  UMsg *anUmsg = new(BLKSIZE - targetCol, sizeof(int)*8) UMsg(BLKSIZE - targetCol, &LU[getIndex(pivotRow % BLKSIZE,targetCol)]);
-          mgr->setPrio(anUmsg, BELOW_SEND_USEG, internalStep*BLKSIZE + targetCol);
-          CkSetRefNum(anUmsg, internalStep*BLKSIZE + targetCol);
-	  pendingUmsg = (UMsg*)CkCopyMsg((void**)(&anUmsg));
-	  activePanel.sendUSegment(anUmsg);
-	}
-	atomic "below_recv_remote_pivot" {
-	  applySwap(pivotRow % BLKSIZE, 0, data, b);
-	  thisProxy(thisIndex.x, thisIndex.y).sendUSegment(pendingUmsg);
-	}
+      when sendPivotData[internalStep*BLKSIZE + targetCol](int rowIndex, int pivotRow, int size, double data[size],
+                                                           double b, bool noop) {
+        if (!noop) {
+          atomic "below_send_remote_pivot" {
+            CkAssert(pivotRow / BLKSIZE == thisIndex.x);
+            CkEntryOptions opts;
+            thisProxy(thisIndex.y, thisIndex.y)
+              .sendPivotData(internalStep*BLKSIZE + targetCol, pivotRow, BLKSIZE,
+                             &LU[getIndex(pivotRow % BLKSIZE,0)], bvec[pivotRow % BLKSIZE], false,
+                             &(mgr->setPrio(SEND_PIVOT_DATA, opts)));
+          }
+          atomic "below_send_useg" {
+            UMsg *anUmsg = new(BLKSIZE - targetCol, sizeof(int)*8) UMsg(BLKSIZE - targetCol, &LU[getIndex(pivotRow % BLKSIZE,targetCol)]);
+            mgr->setPrio(anUmsg, BELOW_SEND_USEG, internalStep*BLKSIZE + targetCol);
+            CkSetRefNum(anUmsg, internalStep*BLKSIZE + targetCol);
+            pendingUmsg = (UMsg*)CkCopyMsg((void**)(&anUmsg));
+            activePanel.sendUSegment(anUmsg);
+          }
+          atomic "below_recv_remote_pivot" {
+            applySwap(pivotRow % BLKSIZE, 0, data, b);
+            thisProxy(thisIndex.x, thisIndex.y).sendUSegment(pendingUmsg);
+          }
+        }
       }
     };
 
@@ -264,6 +267,9 @@ mainmodule lu {
 	  }
           // Wait for the post-diagonal U segment from the original owner of the pivot row
           when sendUSegment(UMsg* anUmsg) atomic "below_recv_useg" {
+            // Release the sendPivotData trigger to free memory
+            thisProxy(thisIndex).sendPivotData(internalStep*BLKSIZE + activeCol, -1, 0, NULL, -1, true);
+
             if (activeCol == 0) {
               DEBUG_PRINT("startedActivePanel");
               localScheduler->startedActivePanel();
@@ -378,10 +384,11 @@ mainmodule lu {
 	      thisProxy(pivotCandidate.loc / BLKSIZE, thisIndex.y)
 		.sendPivotData(internalStep*BLKSIZE + activeCol, pivotCandidate.loc, BLKSIZE,
 			       &LU[getIndex((activeCol + BLKSIZE * thisIndex.y) % BLKSIZE,0)],
-			       bvec[(activeCol + BLKSIZE * thisIndex.y) % BLKSIZE],
+			       bvec[(activeCol + BLKSIZE * thisIndex.y) % BLKSIZE], false,
                                &(mgr->setPrio(DIAG_SEND_PIVOT, opts)));
 	    }
-	    when sendPivotData[internalStep*BLKSIZE + activeCol](int rowIndex, int pivotRow, int size, double data[size], double b) atomic "diag_receive_remote_pivot" {
+	    when sendPivotData[internalStep*BLKSIZE + activeCol](int rowIndex, int pivotRow, int size, double data[size], double b, bool noop) atomic "diag_receive_remote_pivot" {
+              CkAssert(!noop);
 	      applySwap(activeCol, 0, data, b);
 	    }
 	  }
