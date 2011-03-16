@@ -290,9 +290,9 @@ class PE2DTilingMap: public LUMap {
 
   int pesInPanel(CkIndex2D index) {
     if (index.x <= index.y)
-      return peCols;
-    else
       return peRows;
+    else
+      return peCols;
   }
 
     private:
