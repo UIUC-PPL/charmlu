@@ -67,13 +67,19 @@ void BlockScheduler::pumpMessages() {
         msg->firstHalfSent = true;
         propagateBlkMsg(msg);
       } else {
-        msg->firstHalfSent = false;
-        for (std::map<std::pair<int, int>, wantedBlock>::iterator wanted =
-               wantedBlocks.begin(); wanted != wantedBlocks.end(); ++wanted) {
-          if (wanted->second.m == *iter && wanted->second.refs.size() == 0) {
+        std::map<std::pair<int, int>, wantedBlock>::iterator blockIter =
+          wantedBlocks.find(make_pair(msg->src));
+        if (blockIter != wantedBlocks.end()) {
+          wantedBlock &block = blockIter->second;
+          CkAssert(block.isSending);
+          block.isSending = false;
+          if (block.refs.size() == 0)  {
             delete msg;
-            wantedBlocks.erase(wanted);
+            wantedBlocks.erase(blockIter);
           }
+        } else {
+          // If local, needs to be set back to false, so setupMsg gets called
+          msg->firstHalfSent = false;
         }
         iter = sendsInFlight.erase(iter);
       }
@@ -216,7 +222,7 @@ void BlockScheduler::getBlock(int srcx, int srcy, double *&data,
 
   block.refs.push_back(update);
 
-  if (block.refs.size() == 1) {
+  if (block.refs.size() == 1 && !block.isSending) {
     // First reference to this block, so ask for it
     DEBUG_SCHED("requesting getBlock from (%d, %d)", srcx, srcy);
     CkEntryOptions opts;
@@ -253,8 +259,10 @@ void BlockScheduler::deliverBlock(blkMsg *m) {
   m->offset++;
   m->npes_receiver--;
   m->firstHalfSent = false;
-  if (m->npes_receiver >= 1)
+  if (m->npes_receiver >= 1) {
     scheduleSend(m);
+    block.isSending = true;
+  }
 
   progress();
 }
@@ -303,18 +311,15 @@ void BlockScheduler::dropRef(int srcx, int srcy, Update *update) {
   std::map<std::pair<int, int>, wantedBlock>::iterator input =
     wantedBlocks.find(make_pair(srcx, srcy));
 
+  // Ignore local blocks used as inputs
   if (input == wantedBlocks.end())
     return;
 
-  input->second.refs.remove(update);
-  if (input->second.refs.size() == 0) {
-    if (std::find(sendsInFlight.begin(), sendsInFlight.end(),
-                  input->second.m) == sendsInFlight.end() &&
-        std::find(scheduledSends.begin(), scheduledSends.end(),
-                  input->second.m) == scheduledSends.end()) {
-      delete input->second.m;
-      wantedBlocks.erase(input);
-    }
+  wantedBlock &block = input->second;
+  block.refs.remove(update);
+  if (block.refs.size() == 0 && !block.isSending) {
+    delete block.m;
+    wantedBlocks.erase(input);
   }
 }
 

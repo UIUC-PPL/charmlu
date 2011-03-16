@@ -122,7 +122,8 @@ private:
     std::list<Update *> refs;
     blkMsg* m;
     double *data;
-    wantedBlock() : m(NULL), data(NULL) {}
+    bool isSending;
+    wantedBlock() : m(NULL), data(NULL), isSending(false) {}
   };
 
   void propagateBlkMsg(blkMsg *msg);
