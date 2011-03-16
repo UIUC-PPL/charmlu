@@ -1264,6 +1264,7 @@ inline blkMsg* LUBlk::createABlkMsg() {
   int prioBits = mgr->bitsOfPrio();
   int npes = CProxy_LUMap(cfg.map).ckLocalBranch()->pesInPanel(thisIndex);
   blkMsg *msg = new (BLKSIZE*BLKSIZE, npes, prioBits) blkMsg(thisIndex);
+  memset(msg->pes, -1, npes*sizeof(int));
   CkSetQueueing(msg, CK_QUEUEING_IFIFO);
   return msg;
 }
