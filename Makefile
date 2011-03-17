@@ -1,26 +1,18 @@
 include config.mk
 
-# Point this to your charm installation
-CHARM ?= $(HOME)/charm
-
-# Charm directory structure
-CHARMBIN := $(CHARM)/bin
-CHARMINC := $(CHARM)/include
-
 # The relevant source files for this project
-HDR       =
-SRC       = lu.C scheduler.C
-OBJ       = $(SRC:.C=.o)
+RAWSRC    = lu.C scheduler.C
 INTF      = lu.ci   
 
 # Specify the exe name and the arguments to run it with
 NP        = 4
 TARGET    = lu.prod
+BINS      = lu.prod lu.trace
 ARGS      = 64 16 500 8 2
 
 # Specify the compilers, run script, flags etc.
-CXX       = $(CHARMBIN)/charmc
-CHARMC    = $(CHARMBIN)/charmc
+CHARMC    = $(CHARMPROD)/bin/charmc
+CHARMINC  = $(CHARMPROD)/include
 OPT       = -g -O3
 CPPFLAGS += -DADAPT_SCHED_MEM $(BLAS_INC)
 CXXFLAGS += -language charm++ $(OPT)
@@ -38,23 +30,22 @@ endif
 
 .PHONY: all clean realclean again test bgtest translateInterface
 
-all: $(TARGET)
+all: lu.prod lu.trace
 
-#$(TARGET): $(OBJ) 
-#	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
-
-lu.prod: $(OBJ)
+lu.prod: CXX = $(CHARMPROD)/bin/charmc
+lu.prod: $(RAWSRC:.C=-prod.o)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
-lu: CXXFLAGS+="-DSTOP_AFTER=10 -DLU_TRACING"
-lu: $(OBJ)
+lu.trace: CXX = $(CHARMTRACE)/bin/charmc
+lu.trace: CXXFLAGS += "-DSTOP_AFTER=10 -DLU_TRACING"
+lu.trace: $(RAWSRC:.C=-trace.o)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS) -tracemode projections
 
 clean:
 	$(RM) $(wildcard *.decl.h *.def.h *.d *.di *.o *.stamp) charmrun
 
 realclean: clean
-	$(RM) $(wildcard *.log *.projrc *.sts) lu lu.prod
+	$(RM) $(wildcard *.log *.projrc *.sts) $(BINS)
 
 again: 
 	$(MAKE) clean; $(MAKE)
@@ -74,7 +65,7 @@ regtest: all
 # Rule to generate dependency information for C++ source files
 %.d: %.C
 	$(info Generating dependencies for $<)
-	@g++ -MM -MG $(CPPFLAGS) $(INCDIRS:%=-I%) -I$(CHARMINC) $< | perl $(CHARMBIN)/dep.pl $(CHARMINC) > $@
+	@g++ -MM -MG $(CPPFLAGS) $(INCDIRS:%=-I%) -I$(CHARMINC) $< | perl $(CHARMPROD)/bin/dep.pl $(CHARMINC) > $@
 #	@$(SHELL) -ec 'g++ -MM -MG $(CPPFLAGS) $(INCDIRS:%=-I%) $< \
 #	| sed '\''s/\($*\)\.o[ :]*/\1.o $@ : /g'\'' > $@; \
 #	[ -s $@ ] || rm -f $@'
@@ -92,7 +83,7 @@ regtest: all
 # Include the generated files containing dependency info
 ifneq ($(MAKECMDGOALS),clean)
 ifneq ($(MAKECMDGOALS),realclean)
--include $(SRC:.C=.d)
+-include $(RAWSRC:.C=-prod.d) $(RAWSRC:.C=-trace.d)
 -include $(INTF:.ci=.di)
 endif
 endif
