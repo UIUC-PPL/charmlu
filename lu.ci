@@ -193,7 +193,8 @@ mainmodule lu {
         else {
             ckout<< "--------------------------------------------------------------------"<<endl
                  << "Block " << thisIndex.x << " queueing local LU at internalStep "
-                 << internalStep << ", time = " << CmiWallTimer() - startTime << endl;
+                 << internalStep << ", start time = " << CkTimer() << ", time = "
+                 << CkTimer() - startTime << endl;
             thisProxy(thisIndex.x, thisIndex.y).processLU();
         }
       }
@@ -413,6 +414,9 @@ mainmodule lu {
       }
 
       atomic "diag_multicast_L" {
+        ckout << "Block " << thisIndex.x << " finished local LU at internalStep "
+              << internalStep << ", time = " << CmiWallTimer() - startTime << endl;
+
         localScheduler->factorizationDone(thisIndex);
         factored = true;
         // All diagonal chares except the last must continue the factorization
