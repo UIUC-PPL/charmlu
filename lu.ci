@@ -191,10 +191,6 @@ mainmodule lu {
             CkStartQD( CkCallback(CkCallback::ckExit) );
         }
         else {
-            ckout<< "--------------------------------------------------------------------"<<endl
-                 << "Block " << thisIndex.x << " queueing local LU at internalStep "
-                 << internalStep << ", start time = " << CkTimer() << ", time = "
-                 << CkTimer() - startTime << endl;
             thisProxy(thisIndex.x, thisIndex.y).processLU();
         }
       }
@@ -358,6 +354,10 @@ mainmodule lu {
         when colMax(CkReductionMsg *m) {
 	  atomic "diag_found_colmax" {
             if (activeCol == 0) {
+              ckout << "--------------------------------------------------------------------"<<endl
+                    << "Block " << thisIndex.x << " queueing local LU at internalStep "
+                    << internalStep << ", start time = " << CmiWallTimer() << ", time = "
+                    << CmiWallTimer() - startTime << endl;
               DEBUG_PRINT("startedActivePanel");
               localScheduler->startedActivePanel();
             }
