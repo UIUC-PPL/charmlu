@@ -113,6 +113,7 @@ private:
   bool inProgress;
   int numActive;
   int pendingTriggered;
+  bool reverseSends;
 
   int sendDelay;
   std::list<blkMsg *> scheduledSends, sendsInFlight;

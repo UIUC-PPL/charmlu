@@ -794,10 +794,12 @@ void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
 #endif
 }
 
-void LUBlk::setupMsg() {
+void LUBlk::setupMsg(bool reverse) {
   blkMsg *m = LUmsg;
 
   std::sort(requestingPEs.begin(), requestingPEs.end());
+  if (reverse)
+    std::reverse(requestingPEs.begin(), requestingPEs.end());
 
   DEBUG_PRINT("Preparing block for delivery to %d PEs", requestingPEs.size());
 

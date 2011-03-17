@@ -20,7 +20,7 @@ pair<int, int> make_pair(CkIndex2D index) {
 
 BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_)
   : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false), numActive(0),
-    pendingTriggered(0), sendDelay(0) {
+    pendingTriggered(0), sendDelay(0), reverseSends(CkMyPe() % 2 == 0) {
   blockLimit = config.memThreshold * 1024 * 1024 /
     (config.blockSize * (config.blockSize + 1) * sizeof(double) + sizeof(LUBlk) + sdagOverheadPerBlock);
 
@@ -273,8 +273,10 @@ void BlockScheduler::propagateBlkMsg(blkMsg *m) {
 
   if (!m->firstHalfSent) {
     LUBlk *block = luArr[m->src].ckLocal();
-    if (block != NULL)
-      block->setupMsg();
+    if (block != NULL) {
+      block->setupMsg(reverseSends);
+      reverseSends = !reverseSends;
+    }
     m->npes_sender = m->npes_receiver;
     m->npes_receiver = (m->npes_receiver+1) / 2;
   } else {
