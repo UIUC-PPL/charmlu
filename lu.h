@@ -74,9 +74,6 @@ private:
   /// configuration settings
   LUConfig cfg;
 
-  // The section of chares in the array on and below the current diagonal
-  CProxySection_LUBlk belowLeft, belowRight;
-
   /// Variables used during factorization
   double *LU;
   blkMsg *LUmsg;
@@ -147,10 +144,6 @@ private:
 
   /// The right-of-diagonal section of the chare array for pivoting
   CProxySection_LUBlk pivotRightSection;
-
-  /// The optimal section for multicastRequestedBlock
-  CProxySection_BlockScheduler panelAfter;
-  std::set<int> panelAfterPEs;
 
   CProxySection_LUBlk rowBeforeDiag;
   CProxySection_LUBlk rowAfterDiag;
