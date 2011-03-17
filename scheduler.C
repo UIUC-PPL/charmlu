@@ -55,7 +55,7 @@ void pumpOnIdle(void *s, double) {
   scheduler->pumpMessages();
 }
 
-static const int SEND_LIMIT = 3;
+static const int SEND_LIMIT = 1;
 
 void BlockScheduler::pumpMessages() {
   for (list<blkMsg*>::iterator iter = sendsInFlight.begin();
