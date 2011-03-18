@@ -259,7 +259,8 @@ public:
                  (mappingScheme == 3 ? "2D Tiling" : "Strong Scaling"))
              );
     if (mappingScheme == 3)
-        CkPrintf("\tMapping PE tile size: %d x %d\n", luCfg.peTileRows, luCfg.peTileCols);
+      CkPrintf("\tMapping PE tile size: %d x %d rotate %d \n", luCfg.peTileRows, luCfg.peTileCols,
+               luCfg.peTileRotate);
 
     // Create a multicast manager group
     mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
