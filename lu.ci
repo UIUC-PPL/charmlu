@@ -58,7 +58,6 @@ mainmodule lu {
     entry LUBlk(void);
     entry [nokeep] void prepareForPivotRedn(rednSetupMsg *);
     entry void prepareForActivePanel(rednSetupMsg *);
-    entry [nokeep] void prepareForPivotLR(rednSetupMsg *);
     entry [nokeep] void prepareForRowBeforeDiag(rednSetupMsg *);
     entry [nokeep] void prepareForRowAfterDiag(rednSetupMsg *);
     entry void multicastRedns(int dummy);
@@ -329,6 +328,10 @@ mainmodule lu {
           contribute(CkCallback(CkIndex_Main::startNextStep(), mainProxy));
         }
       }
+      // Swallow excess pivots message broadcast to the entire array
+      while (true) {
+        when applyPivots(pivotSequencesMsg *msg) { }
+      }
     };
 
     entry void processLU() {
@@ -459,9 +462,6 @@ mainmodule lu {
             mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
             CkGetSectionInfo(rowAfterCookie, msg);
           }
-        }
-        for (ind = 0; ind < thisIndex.x-1; ind++) {
-          when prepareForPivotLR(rednSetupMsg *msg) atomic { }
         }
         atomic { contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy)); }
       }

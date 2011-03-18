@@ -139,12 +139,6 @@ private:
   // The panel of blocks below the active diagonal chare
   CProxySection_LUBlk activePanel;
 
-  /// The left-of-diagonal section of the chare array for pivoting
-  CProxySection_LUBlk pivotLeftSection;
-
-  /// The right-of-diagonal section of the chare array for pivoting
-  CProxySection_LUBlk pivotRightSection;
-
   CProxySection_LUBlk rowBeforeDiag;
   CProxySection_LUBlk rowAfterDiag;
   CkSectionInfo rowBeforeCookie;

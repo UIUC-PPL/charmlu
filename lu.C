@@ -695,14 +695,10 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler b
     {
       // Create the pivot section
       pivotSection = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,numBlks-1,1,thisIndex.y,thisIndex.y,1);
-      pivotLeftSection = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, numBlks-1, 1, 0, thisIndex.y-1, 1);
-      pivotRightSection = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x, numBlks-1, 1, thisIndex.y+1, numBlks-1, 1);
       rowBeforeDiag = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,thisIndex.x,1,0,thisIndex.y-1,1);
       rowAfterDiag = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,thisIndex.x,1,thisIndex.y+1,numBlks-1,1);
       // Delegate pivot section to the manager
       pivotSection.ckSectionDelegate(mcastMgr);
-      pivotLeftSection.ckSectionDelegate(mcastMgr);
-      pivotRightSection.ckSectionDelegate(mcastMgr);
       rowBeforeDiag.ckSectionDelegate(mcastMgr);
       rowAfterDiag.ckSectionDelegate(mcastMgr);
       // Set the reduction client for this pivot section
@@ -710,14 +706,10 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler b
 
       // Invoke a dummy mcast so that all the section members know which section to reduce along
       rednSetupMsg *pivotMsg = new rednSetupMsg(mcastMgrGID);
-      rednSetupMsg *pivotLeftMsg = new rednSetupMsg(mcastMgrGID);
-      rednSetupMsg *pivotRightMsg = new rednSetupMsg(mcastMgrGID);
       rednSetupMsg *rowBeforeMsg = new rednSetupMsg(mcastMgrGID);
       rednSetupMsg *rowAfterMsg = new rednSetupMsg(mcastMgrGID);
 
       pivotSection.prepareForPivotRedn(pivotMsg);
-      pivotLeftSection.prepareForPivotLR(pivotLeftMsg);
-      pivotRightSection.prepareForPivotLR(pivotRightMsg);
       rowBeforeDiag.prepareForRowBeforeDiag(rowBeforeMsg);
       rowAfterDiag.prepareForRowAfterDiag(rowAfterMsg);
 
@@ -1077,15 +1069,8 @@ void LUBlk::announceAgglomeratedPivots()
   CkPrintf("%s\n", pivotLog.str().c_str());
 #endif
 
-  // Make a copy of the msg for the left section too
-  pivotSequencesMsg *leftMsg = (pivotSequencesMsg*) CkCopyMsg((void**)&msg);
-
-  // Send the pivot ops to the right section (trailing sub-matrix chares + post-diagonal active row chares)
   mgr->setPrio(msg, PIVOT_RIGHT_SEC, -1, thisIndex.y);
-  pivotRightSection.applyPivots(msg);
-  // Send the pivot ops to the left section (left of activeColumn and below activeRow)
-  mgr->setPrio(leftMsg, PIVOT_LEFT_SEC);
-  pivotLeftSection.applyPivots(leftMsg);
+  thisProxy.applyPivots(msg);
 
   // Prepare for the next batch of agglomeration
   pivotRecords.clear();
