@@ -289,6 +289,9 @@ class PE2DTilingMap: public LUMap {
         }
 
   int pesInPanel(CkIndex2D index) {
+    if (peRotate > 0)
+      return CkNumPes();
+
     if (index.x <= index.y)
       return peRows;
     else
