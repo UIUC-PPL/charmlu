@@ -267,36 +267,62 @@ public:
     }
 };
 
-
+#include <set>
 
 // Implement a mapping that tiles a 2D processor tile in the 2D chare array
 class PE2DTilingMap: public LUMap {
-    public:
-        PE2DTilingMap(int _peRows, int _peCols, int _peRotate):
-            peRows(_peRows), peCols(_peCols), peRotate(_peRotate)
-        {
-            CkAssert(peRows > 0 && peCols > 0);
-        }
-
-        int procNum(int arrayHdl, const CkArrayIndex &idx) {
-            int *coor = (int*) idx.data();
-            int tileYIndex = coor[1]  / peCols;
-            int XwithinPEtile = (coor[0] + tileYIndex * peRotate) % peRows;
-            int YwithinPEtile = coor[1] % peCols;
-            int peNum = XwithinPEtile * peCols + YwithinPEtile;
-            CkAssert(peNum < CkNumPes());
-            return peNum;
-        }
-
-  int pesInPanel(CkIndex2D index) {
-    if (index.x <= index.y)
-      return peRows;
-    else
-      return peCols;
+public:
+  PE2DTilingMap(int _peRows, int _peCols, int _peRotate)
+    : peRows(_peRows), peCols(_peCols), peRotate(_peRotate) {
+    CkAssert(peRows > 0 && peCols > 0);
+    CkAssert(peRotate > 0);
   }
 
-    private:
-        const int peRows, peCols, peRotate;
+  int map(int *coor) {
+    int tileYIndex = coor[1]  / peCols;
+    int XwithinPEtile = (coor[0] + tileYIndex * peRotate) % peRows;
+    int YwithinPEtile = coor[1] % peCols;
+    int peNum = XwithinPEtile * peCols + YwithinPEtile;
+    CkAssert(peNum < CkNumPes() && peNum >= 0);
+    return peNum;
+  }
+
+  int procNum(int arrayHdl, const CkArrayIndex &idx) {
+    int *coor = (int*) idx.data();
+    return map(coor);
+  }
+
+  int registerArray(CkArrayIndexMax& numElements, CkArrayID aid) {
+    CkAssert(numElements.data()[0] == numElements.data()[1]);
+    arrayDim = numElements.data()[0];
+  }
+
+  int pesInPanel(CkIndex2D index) {
+    std::set<int> pes;
+    int coor[2];
+
+    if (index.x <= index.y) {
+      // PEs in column below
+      coor[1] = index.y;
+      for (int i = index.x; i < arrayDim; i++) {
+        coor[0] = i;
+        pes.insert(map(coor));
+      }
+    } else {
+      // PEs in row to right
+      coor[0] = index.x;
+      for (int i = index.y; i < arrayDim; i++) {
+        coor[1] = i;
+        pes.insert(map(coor));
+      }
+    }
+
+    return pes.size();
+  }
+
+private:
+  const int peRows, peCols, peRotate;
+  int arrayDim;
 };
 
 #include <utility>
