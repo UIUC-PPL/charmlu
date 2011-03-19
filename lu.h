@@ -109,7 +109,7 @@ private:
 
   int row1Index, row2Index, localRow1, localRow2,
     otherRowIndex, thisLocalRow, globalThisRow, globalOtherRow;
-  bool remoteSwap;
+  bool remoteSwap, ownedPivotThisStep;
   // Stores the local column max which is a candidate for that column's pivot element
   locval pivotCandidate;
   int pivotBlk;

@@ -81,6 +81,7 @@ mainmodule lu {
                                                            double b, bool noop) {
         if (!noop) {
           atomic "below_send_remote_pivot" {
+	    ownedPivotThisStep = true;
             CkAssert(pivotRow / BLKSIZE == thisIndex.x);
             CkEntryOptions opts;
             thisProxy(thisIndex.y, thisIndex.y)
@@ -257,12 +258,15 @@ mainmodule lu {
 	      dropRef(pendingUmsg);
 	      pendingUmsg = NULL;
 	    }
+	    ownedPivotThisStep = false;
             thisProxy(thisIndex.x, thisIndex.y).belowPivot(activeCol);
 	  }
           // Wait for the post-diagonal U segment from the original owner of the pivot row
           when sendUSegment(UMsg* anUmsg) atomic "below_recv_useg" {
             // Release the sendPivotData trigger to free memory
-            thisProxy(thisIndex).sendPivotData(internalStep*BLKSIZE + activeCol, -1, 0, NULL, -1, true);
+	    if (!ownedPivotThisStep)
+	      thisProxy(thisIndex).
+		sendPivotData(internalStep*BLKSIZE + activeCol, -1, 0, NULL, -1, true);
 
             if (activeCol == 0) {
               DEBUG_PRINT("startedActivePanel");
