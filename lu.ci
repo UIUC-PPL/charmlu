@@ -1,6 +1,4 @@
 mainmodule lu {
-  readonly CProxy_Main mainProxy;
-
   // Register the reducer function that handles reductions of locval
   initnode void registerLocValReducer();
 
@@ -441,10 +439,10 @@ mainmodule lu {
     entry void schedulerReady(CkReductionMsg *m);
 
     entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
-                       LUParams _params) {
+                       CProxy_Main _mainProxy, LUParams _params) {
       when schedulerReady(CkReductionMsg *m) atomic {
 	delete m;
-	init(luCfg, _mgr, bs, _params);
+	init(luCfg, _mgr, bs, _mainProxy, _params);
       }
       when multicastRedns(int dummy) {
         if (thisIndex.x >= thisIndex.y) {

@@ -66,9 +66,6 @@ extern "C" {
 #include "manager.h"
 #include "mapping.h"
 #include "messages.h"
-
-CProxy_Main mainProxy;
-
 #include <cmath>
 
 CkReductionMsg *maxLocVal(int nMsg, CkReductionMsg **msgs)
@@ -261,8 +258,6 @@ public:
     // Create a multicast manager group
     params.mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
 
-    mainProxy = thisProxy;
-
     params.traceTrailingUpdate = traceRegisterUserEvent("Trailing Update");
     params.traceComputeU = traceRegisterUserEvent("Compute U");
     params.traceComputeL = traceRegisterUserEvent("Compute L");
@@ -341,7 +336,7 @@ public:
 
       LUcomplete = true;
 
-      luArrProxy.startup(luCfg, mgr, bs, params);
+      luArrProxy.startup(luCfg, mgr, bs, thisProxy, params);
     }
   }
 
@@ -639,7 +634,8 @@ void LUBlk::genVec(double *buf)
 }
 
 void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
-                 LUParams _params) {
+                 CProxy_Main _mainProxy, LUParams _params) {
+  mainProxy = _mainProxy;
   scheduler = bs;
   localScheduler = scheduler[CkMyPe()].ckLocal();
   CkAssert(localScheduler);
