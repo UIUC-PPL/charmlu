@@ -2,6 +2,7 @@
 #include "messages.h"
 #include "scheduler.h"
 #include "luConfig.h"
+#include "luParams.h"
 #include "lu.decl.h"
 #include <ckmulticast.h>
 #include <limits>
@@ -41,11 +42,6 @@ struct locval {
 
 /* readonly */
 extern CProxy_Main mainProxy;
-extern int traceTrailingUpdate;
-extern int traceComputeU;
-extern int traceComputeL;
-extern int traceSolveLocalLU;
-extern CkGroupID mcastMgrGID;
 
 /// Global that holds the reducer type for locval
 extern CkReduction::reducerType LocValReducer;
@@ -70,6 +66,9 @@ private:
   CProxy_BlockScheduler scheduler;
   BlockScheduler *localScheduler;
   int l_block, u_block;
+
+  /// Internal configuration
+  LUParams params;
 
   /// configuration settings
   LUConfig cfg;
@@ -183,7 +182,8 @@ private:
   void initVec();
   void genBlock();
   void genVec(double *buf);
-  void init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs);
+  void init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
+            const LUParams _params);
   void prepareForActivePanel(rednSetupMsg *msg);
   ~LUBlk();
   LUBlk(CkMigrateMessage* m) {}

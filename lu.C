@@ -62,17 +62,12 @@ extern "C" {
 #include <queueing.h> // for access to memory threshold setting
 
 #include "lu.h"
+#include "luParams.h"
 #include "manager.h"
 #include "mapping.h"
 #include "messages.h"
 
-/* readonly: */
 CProxy_Main mainProxy;
-int traceTrailingUpdate;
-int traceComputeU;
-int traceComputeL;
-int traceSolveLocalLU;
-CkGroupID mcastMgrGID;
 
 #include <cmath>
 
@@ -178,6 +173,7 @@ class Main : public CBase_Main {
   CProxy_LUBlk luArrProxy;
   CProxy_BlockScheduler bs;
   int mappingScheme;
+  LUParams params;
 
 public:
     Main(CkArgMsg* m) : solved(false), LUcomplete(false), sentVectorData(false) {
@@ -263,14 +259,14 @@ public:
                luCfg.peTileRotate);
 
     // Create a multicast manager group
-    mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
+    params.mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
 
     mainProxy = thisProxy;
 
-    traceTrailingUpdate = traceRegisterUserEvent("Trailing Update");
-    traceComputeU = traceRegisterUserEvent("Compute U");
-    traceComputeL = traceRegisterUserEvent("Compute L");
-    traceSolveLocalLU = traceRegisterUserEvent("Solve local LU");
+    params.traceTrailingUpdate = traceRegisterUserEvent("Trailing Update");
+    params.traceComputeU = traceRegisterUserEvent("Compute U");
+    params.traceComputeL = traceRegisterUserEvent("Compute L");
+    params.traceSolveLocalLU = traceRegisterUserEvent("Solve local LU");
 
     traceRegisterUserEvent("Local Multicast Deliveries", 10000);
     traceRegisterUserEvent("Remote Multicast Forwarding - preparing", 10001);
@@ -345,7 +341,7 @@ public:
 
       LUcomplete = true;
 
-      luArrProxy.startup(luCfg, mgr, bs);
+      luArrProxy.startup(luCfg, mgr, bs, params);
     }
   }
 
@@ -642,13 +638,15 @@ void LUBlk::genVec(double *buf)
   rnd.getNRndDoubles(BLKSIZE, buf);
 }
 
-void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs) {
+void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
+                 LUParams _params) {
   scheduler = bs;
   localScheduler = scheduler[CkMyPe()].ckLocal();
   CkAssert(localScheduler);
   localScheduler->registerBlock(thisIndex);
   contribute(CkCallback(CkIndex_BlockScheduler::allRegistered(NULL), bs));
   cfg = _cfg;
+  params = _params;
   BLKSIZE = cfg.blockSize;
   numBlks = cfg.numBlocks;
   mgr = _mgr.ckLocalBranch();
@@ -676,7 +674,7 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler b
 
   this->print("input-generated-LU");
 
-  CkMulticastMgr *mcastMgr = CProxy_CkMulticastMgr(mcastMgrGID).ckLocalBranch();
+  CkMulticastMgr *mcastMgr = CProxy_CkMulticastMgr(params.mcastMgrGID).ckLocalBranch();
 
   /// Chares on the active panels will create sections of their brethren
   if (thisIndex.x >= thisIndex.y) {
@@ -687,7 +685,7 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler b
         activeElems.push_back(CkArrayIndex2D(i, thisIndex.y));
     activePanel = CProxySection_LUBlk::ckNew(thisArrayID, activeElems.getVec(), activeElems.size());
     activePanel.ckSectionDelegate(mcastMgr);
-    rednSetupMsg *activePanelMsg = new rednSetupMsg(mcastMgrGID);
+    rednSetupMsg *activePanelMsg = new rednSetupMsg(params.mcastMgrGID);
     activePanel.prepareForActivePanel(activePanelMsg);
   }
   /// Chares on the array diagonal will now create pivot sections that they will talk to
@@ -705,9 +703,9 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler b
       mcastMgr->setReductionClient( pivotSection, new CkCallback( CkIndex_LUBlk::colMax(0), thisProxy(thisIndex.y, thisIndex.y) ) );
 
       // Invoke a dummy mcast so that all the section members know which section to reduce along
-      rednSetupMsg *pivotMsg = new rednSetupMsg(mcastMgrGID);
-      rednSetupMsg *rowBeforeMsg = new rednSetupMsg(mcastMgrGID);
-      rednSetupMsg *rowAfterMsg = new rednSetupMsg(mcastMgrGID);
+      rednSetupMsg *pivotMsg = new rednSetupMsg(params.mcastMgrGID);
+      rednSetupMsg *rowBeforeMsg = new rednSetupMsg(params.mcastMgrGID);
+      rednSetupMsg *rowAfterMsg = new rednSetupMsg(params.mcastMgrGID);
 
       pivotSection.prepareForPivotRedn(pivotMsg);
       rowBeforeDiag.prepareForRowBeforeDiag(rowBeforeMsg);
@@ -734,7 +732,7 @@ LUBlk::~LUBlk() {
 }
 
 void LUBlk::computeU(blkMsg *givenLMsg) {
-  traceLU t(internalStep, traceComputeU);
+  traceLU t(internalStep, params.traceComputeU);
   double *givenL = givenLMsg->data;
 
 #if 0
@@ -767,7 +765,7 @@ void LUBlk::computeU(blkMsg *givenLMsg) {
 }
 
 void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
-  traceLU t(internalStep, traceTrailingUpdate);
+  traceLU t(internalStep, params.traceTrailingUpdate);
 
 #if USE_ESSL || USE_ACML
   // By switching the order of incomingU and incomingL the transpose

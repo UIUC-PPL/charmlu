@@ -1,10 +1,5 @@
 mainmodule lu {
   readonly CProxy_Main mainProxy;
-  readonly int traceTrailingUpdate;
-  readonly int traceComputeU;
-  readonly int traceComputeL;
-  readonly int traceSolveLocalLU;
-  readonly CkGroupID mcastMgrGID;
 
   // Register the reducer function that handles reductions of locval
   initnode void registerLocValReducer();
@@ -53,6 +48,7 @@ mainmodule lu {
 
   class CProxy_BlockScheduler;
   class LUConfig;
+  class LUParams;
 
   array [2D] LUBlk {
     entry LUBlk(void);
@@ -444,10 +440,11 @@ mainmodule lu {
     entry void recvSolveData(CkReductionMsg *m);
     entry void schedulerReady(CkReductionMsg *m);
 
-    entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs) {
+    entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
+                       LUParams _params) {
       when schedulerReady(CkReductionMsg *m) atomic {
 	delete m;
-	init(luCfg, _mgr, bs);
+	init(luCfg, _mgr, bs, _params);
       }
       when multicastRedns(int dummy) {
         if (thisIndex.x >= thisIndex.y) {
