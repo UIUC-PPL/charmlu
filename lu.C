@@ -162,7 +162,7 @@ struct traceLU {
   }
 };
 
-class Main : public CBase_Main {
+class LUSolver : public CBase_LUSolver {
   LUConfig luCfg;
   double startTime;
   bool solved, LUcomplete;
@@ -171,53 +171,14 @@ class Main : public CBase_Main {
   CProxy_BlockScheduler bs;
   int mappingScheme;
   LUParams params;
+  CkCallback finishedSolve;
 
 public:
-    Main(CkArgMsg* m) : solved(false), LUcomplete(false), sentVectorData(false) {
 
-    if (m->argc<4) {
-      CkPrintf("Usage: %s <matrix size> <block size> <mem threshold> [<pivot batch size> <mapping scheme> [<peTileRows> <peTileCols>] ]\n", m->argv[0]);
-      CkExit();
-    }
-
-    /// Parse the command line and accept user input
-    luCfg.matrixSize     = atoi(m->argv[1]);
-    luCfg.blockSize      = atoi(m->argv[2]);
-    luCfg.memThreshold   = atoi(m->argv[3]);
-
-    if (m->argc >= 5)
-        luCfg.pivotBatchSize = atoi( m->argv[4] );
-    else
-        luCfg.pivotBatchSize = luCfg.blockSize / 4;
-
-    if (m->argc >= 6)
-    {
-        mappingScheme = atoi( m->argv[5] );
-        if (mappingScheme == 3)
-        {
-            if (m->argc < 8) {
-                std::pair<int,int> tileDims = computePETileDimensions();
-                luCfg.peTileRows = tileDims.first;
-                luCfg.peTileCols = tileDims.second;
-            }
-            else {
-                luCfg.peTileRows = atoi( m->argv[6] );
-                luCfg.peTileCols = atoi( m->argv[7] );
-            }
-            if (m->argc < 9)
-              luCfg.peTileRotate = 0;
-            else
-              luCfg.peTileRotate = atoi(m->argv[8]);
-            int peTileSize = luCfg.peTileRows * luCfg.peTileCols;
-            if ( peTileSize > CkNumPes() )
-                CkAbort("The PE tile dimensions are too big for the num of PEs available!");
-            if ( peTileSize < CkNumPes() )
-                CkPrintf("WARNING: Configured to use a PE tile size(%dx%d) (for 2D tile mapping) that does not use all the PEs(%d)\n",
-                         luCfg.peTileRows, luCfg.peTileCols, CkNumPes() );
-        }
-    }
-    else
-        mappingScheme = 1;
+  LUSolver(LUConfig _luCfg, CkCallback _finishedSolve)
+    : solved(false), LUcomplete(false), sentVectorData(false) {
+    luCfg = _luCfg;
+    finishedSolve = _finishedSolve;
 
     if (sizeof(CMK_REFNUM_TYPE) != sizeof(int)) {
       CkPrintf("Refnum size too small for large matrices."
@@ -225,13 +186,13 @@ public:
       CkExit();
     }
 
-    if (luCfg.matrixSize % luCfg.blockSize!=0) {
-      CkPrintf("The matrix size %d should be a multiple of block size %d!\n",
-               luCfg.matrixSize, luCfg.blockSize);
-      CkExit();
+    if (luCfg.peTileRows == 0 || luCfg.peTileCols == 0) {
+      std::pair<int,int> tileDims = computePETileDimensions();
+      luCfg.peTileRows = tileDims.first;
+      luCfg.peTileCols = tileDims.second;
     }
 
-    luCfg.numBlocks = luCfg.matrixSize / luCfg.blockSize;
+    mappingScheme = luCfg.mappingScheme;
 
     CkPrintf("Running LU on %d processors (%d nodes): "
              "\n\tMatrix size: %d X %d "
@@ -470,12 +431,12 @@ public:
 		CkPrintf("=== WARNING: Scaled residual is greater than 16 - OUT OF SPEC ===\n");
 
 	delete msg;
-        CkExit();
+        finishedSolve.send();
   }
 };
 
 void LUBlk::finishInit() {
-  contribute(CkCallback(CkIndex_Main::continueIter(), mainProxy));
+  contribute(CkCallback(CkIndex_LUSolver::continueIter(), mainProxy));
 }
 
 //VALIDATION
@@ -530,7 +491,7 @@ void LUBlk::recvXvec(int size, double* xvec) {
     maxvals[3] = -1;
 
     contribute(sizeof(maxvals), &maxvals, CkReduction::max_double,
-	       CkCallback(CkIndex_Main::calcScaledResidual(NULL), mainProxy));
+	       CkCallback(CkIndex_LUSolver::calcScaledResidual(NULL), mainProxy));
   }
 }
 
@@ -589,7 +550,7 @@ void LUBlk::calcResiduals() {
   maxvals[3] = res_max;
 
   contribute(sizeof(maxvals), &maxvals, CkReduction::max_double,
-	     CkCallback(CkIndex_Main::calcScaledResidual(NULL), mainProxy));
+	     CkCallback(CkIndex_LUSolver::calcScaledResidual(NULL), mainProxy));
 }
 
 void LUBlk::flushLogs() {
@@ -610,7 +571,7 @@ void LUBlk::initVec() {
   }
 #endif
 
-  contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
+  contribute(CkCallback(CkIndex_LUSolver::finishInit(), mainProxy));
 }
 
 CrnStream blockStream, vecStream;
@@ -634,7 +595,7 @@ void LUBlk::genVec(double *buf)
 }
 
 void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
-                 CProxy_Main _mainProxy, LUParams _params) {
+                 CProxy_LUSolver _mainProxy, LUParams _params) {
   mainProxy = _mainProxy;
   scheduler = bs;
   localScheduler = scheduler[CkMyPe()].ckLocal();

@@ -1,0 +1,8 @@
+mainmodule benchmark {
+  extern module lu;
+
+  mainchare Benchmark {
+    entry Benchmark(CkArgMsg* m);
+    entry void finished();
+  }
+}

@@ -1,4 +1,4 @@
-mainmodule lu {
+module lu {
   // Register the reducer function that handles reductions of locval
   initnode void registerLocValReducer();
 
@@ -26,8 +26,14 @@ mainmodule lu {
 
   message rednSetupMsg;
 
-  mainchare Main {
-    entry Main(CkArgMsg *m);
+  include "set";
+
+  class CProxy_BlockScheduler;
+  class LUConfig;
+  class LUParams;
+
+  chare LUSolver {
+    entry LUSolver(LUConfig _luCfg, CkCallback _finishedSolve);
     entry void finishInit();
     entry void continueIter();
     entry void arrayIsCreated();
@@ -41,12 +47,6 @@ mainmodule lu {
   group PrioLU {
     entry PrioLU(int BLKSIZE, int matSize);
   };
-
-  include "set";
-
-  class CProxy_BlockScheduler;
-  class LUConfig;
-  class LUParams;
 
   array [2D] LUBlk {
     entry LUBlk(void);
@@ -323,7 +323,7 @@ mainmodule lu {
       if (thisIndex.x != thisIndex.y) {
         atomic "offdiag_iteration_completed" {
           DEBUG_PRINT("contributing");
-          contribute(CkCallback(CkIndex_Main::startNextStep(), mainProxy));
+          contribute(CkCallback(CkIndex_LUSolver::startNextStep(), mainProxy));
         }
       }
       // Swallow excess pivots message broadcast to the entire array
@@ -428,7 +428,7 @@ mainmodule lu {
         }
         // Contribute to a reduction indicating that this chare is done with its factorization work
 	DEBUG_PRINT("contributing");
-        contribute(CkCallback(CkIndex_Main::startNextStep(), mainProxy));
+        contribute(CkCallback(CkIndex_LUSolver::startNextStep(), mainProxy));
         VERBOSE_PROGRESS("\n");
       }
     };
@@ -439,7 +439,7 @@ mainmodule lu {
     entry void schedulerReady(CkReductionMsg *m);
 
     entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
-                       CProxy_Main _mainProxy, LUParams _params) {
+                       CProxy_LUSolver _mainProxy, LUParams _params) {
       when schedulerReady(CkReductionMsg *m) atomic {
 	delete m;
 	init(luCfg, _mgr, bs, _mainProxy, _params);
@@ -462,7 +462,7 @@ mainmodule lu {
             CkGetSectionInfo(rowAfterCookie, msg);
           }
         }
-        atomic { contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy)); }
+        atomic { contribute(CkCallback(CkIndex_LUSolver::finishInit(), mainProxy)); }
       }
     };
 

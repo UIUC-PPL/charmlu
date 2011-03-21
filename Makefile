@@ -1,8 +1,8 @@
 include config.mk
 
 # The relevant source files for this project
-RAWSRC    = lu.C scheduler.C
-INTF      = lu.ci   
+RAWSRC    = benchmark.C lu.C  scheduler.C
+INTF      = benchmark.ci lu.ci
 
 # Specify the exe name and the arguments to run it with
 NP        = 4
@@ -88,3 +88,5 @@ ifneq ($(MAKECMDGOALS),realclean)
 endif
 endif
 
+benchmark-prod.o: benchmark.C benchmark.decl.h lu.decl.h
+	$(CHARMC) $(CXXFLAGS) $< -o $@

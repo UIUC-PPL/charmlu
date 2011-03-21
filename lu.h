@@ -60,7 +60,7 @@ public:
   int internalStep;
   bool factored;
 private:
-  CProxy_Main mainProxy;
+  CProxy_LUSolver mainProxy;
   CProxy_BlockScheduler scheduler;
   BlockScheduler *localScheduler;
   int l_block, u_block;
@@ -181,7 +181,7 @@ private:
   void genBlock();
   void genVec(double *buf);
   void init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
-            CProxy_Main _mainProxy, LUParams _params);
+            CProxy_LUSolver _mainProxy, LUParams _params);
   void prepareForActivePanel(rednSetupMsg *msg);
   ~LUBlk();
   LUBlk(CkMigrateMessage* m) {}

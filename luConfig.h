@@ -13,7 +13,7 @@ class LUConfig {
         LUConfig():
             blockSize(0), numBlocks(0), pivotBatchSize(0),
             peTileRows(0), peTileCols(0), peTileRotate(0),
-            memThreshold(0)
+            memThreshold(0), mappingScheme(1)
         {}
 
 
@@ -25,6 +25,7 @@ class LUConfig {
             p | pivotBatchSize;
 
             p | map;
+            p | mappingScheme;
             p | peTileRows;
             p | peTileCols;
             p | peTileRotate;
@@ -43,6 +44,8 @@ class LUConfig {
         int pivotBatchSize;
         /// The mapping logic that has to be used
         CkGroupID map;
+        /// The mapping scheme parameter
+        int mappingScheme;
         /// The num of PEs in the PEtile
         int peTileRows;
         /// The num of rows in the PEtile
