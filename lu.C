@@ -75,7 +75,9 @@ int traceSolveLocalLU;
 CkGroupID mcastMgrGID;
 
 // define static variable
-int traceToggler::traceCmdHandlerID;
+#if defined(LU_TRACING)
+    int traceToggler::traceCmdHandlerID;
+#endif
 
 #include <cmath>
 
@@ -307,7 +309,9 @@ public:
       luArrProxy.startValidation();
     } else if (!solved && LUcomplete) {
       luArrProxy.print();
-      traceToggler::stop();
+      #if defined(LU_TRACING)
+        traceToggler::stop();
+      #endif
       luArrProxy(0,0).forwardSolve();
       solved = true;
     } else {

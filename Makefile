@@ -30,14 +30,14 @@ endif
 
 .PHONY: all clean realclean again test bgtest translateInterface
 
-all: lu.prod lu.trace
+all: lu.trace
 
 lu.prod: CXX = $(CHARMPROD)/bin/charmc
 lu.prod: $(RAWSRC:.C=-prod.o)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 lu.trace: CXX = $(CHARMTRACE)/bin/charmc
-lu.trace: CXXFLAGS += "-DLU_TRACING"
+lu.trace: CPPFLAGS += -DLU_TRACING
 lu.trace: $(RAWSRC:.C=-trace.o)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS) -tracemode projections
 
@@ -78,7 +78,7 @@ regtest: all
 # Compilation rule for ci files
 %.ci.stamp: %.ci
 	$(info-ci)
-	$q$(CHARMC) $< && touch $@
+	$q$(CHARMC) $(CPPFLAGS) -E $< && touch $@
 
 # Include the generated files containing dependency info
 ifneq ($(MAKECMDGOALS),clean)

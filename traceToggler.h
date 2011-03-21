@@ -24,12 +24,10 @@ class traceToggler
         friend void traceCmdHandler(void *hdr)
         {
             traceCmd *cmd = (traceCmd*) hdr;
-            #if defined(LU_TRACING)
             if (cmd->isTracingNeeded)
                 traceBegin();
             else
                 traceEnd();
-            #endif
             CmiFree(cmd);
         }
 

@@ -1,6 +1,8 @@
 mainmodule lu {
+#if defined(LU_TRACING)
   include "traceToggler.h";
   initproc void traceToggler::registerHandler();
+#endif
 
   readonly CProxy_Main mainProxy;
   readonly int traceTrailingUpdate;
@@ -349,7 +351,7 @@ mainmodule lu {
         // Find the pivot candidate for just the first column in the block
         pivotCandidate = findLocVal(0, 0);
         // Toggle projections tracing when necessary
-        //#if defined(LU_TRACING)
+        #if defined(LU_TRACING)
             if ( (cfg.numBlocks > cfg.numTimesToTrace * cfg.numStepsToTrace)
                 &&
                  (thisIndex.x % int(cfg.tracePeriodFraction * cfg.numBlocks) == cfg.numStepsToTrace)
@@ -358,7 +360,7 @@ mainmodule lu {
                 traceToggler::stop();
                 DEBUG_PRINT("Suspending projections tracing");
             }
-        //#endif
+        #endif
       }
       // Process matrix column-by-column
       for (activeCol = 0; activeCol < BLKSIZE; ++activeCol) {
@@ -438,13 +440,13 @@ mainmodule lu {
         ckout << "Block " << thisIndex.x << " finished local LU at internalStep "
               << internalStep << ", time = " << CmiWallTimer() - startTime << endl;
         // Toggle projections tracing when necessary
-        //#if defined(LU_TRACING)
+        #if defined(LU_TRACING)
             if ((thisIndex.x + 1) % int(cfg.tracePeriodFraction * cfg.numBlocks) == 0 || (cfg.numBlocks -1 - thisIndex.x) == cfg.numStepsToTrace)
             {
                 traceToggler::start();
                 DEBUG_PRINT("Resuming projections tracing");
             }
-        //#endif
+        #endif
 
         localScheduler->factorizationDone(thisIndex);
         factored = true;
