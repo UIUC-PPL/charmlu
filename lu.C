@@ -4,6 +4,10 @@
 
 #include <algorithm>
 using std::min;
+
+// define static variable
+int traceToggler::traceCmdHandlerID;
+
 #include <cmath>
 #include <limits>
 #include <map>

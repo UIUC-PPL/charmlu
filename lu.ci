@@ -17,6 +17,10 @@ module lu {
    *    |   .             .
    *    v
    */
+
+  include "traceToggler.h";
+  initnode void traceToggler::registerHandler();
+
   array [2D] LUBlk {
     /// Constructor
     entry LUBlk(void);
