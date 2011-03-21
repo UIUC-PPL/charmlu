@@ -350,7 +350,10 @@ mainmodule lu {
         pivotCandidate = findLocVal(0, 0);
         // Toggle projections tracing when necessary
         //#if defined(LU_TRACING)
-            if ( (cfg.numBlocks > 15) && (thisIndex.x % (cfg.numBlocks/4) == 3) )
+            if ( (cfg.numBlocks > cfg.numTimesToTrace * cfg.numStepsToTrace)
+                &&
+                 (thisIndex.x % int(cfg.tracePeriodFraction * cfg.numBlocks) == cfg.numStepsToTrace)
+               )
             {
                 traceToggler::stop();
                 DEBUG_PRINT("Suspending projections tracing");
@@ -436,7 +439,7 @@ mainmodule lu {
               << internalStep << ", time = " << CmiWallTimer() - startTime << endl;
         // Toggle projections tracing when necessary
         //#if defined(LU_TRACING)
-            if ((thisIndex.x + 1) % (cfg.numBlocks/4) == 0 || (cfg.numBlocks -1 - thisIndex.x) == 3)
+            if ((thisIndex.x + 1) % int(cfg.tracePeriodFraction * cfg.numBlocks) == 0 || (cfg.numBlocks -1 - thisIndex.x) == cfg.numStepsToTrace)
             {
                 traceToggler::start();
                 DEBUG_PRINT("Resuming projections tracing");

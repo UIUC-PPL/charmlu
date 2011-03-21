@@ -13,7 +13,9 @@ class LUConfig {
         LUConfig():
             blockSize(0), numBlocks(0), pivotBatchSize(0),
             peTileRows(0), peTileCols(0), peTileRotate(0),
-            memThreshold(0)
+            memThreshold(0),
+            tracePeriodFraction(0.25), numStepsToTrace(3),
+            numTimesToTrace(1 + 1.0/tracePeriodFraction)
         {}
 
 
@@ -29,6 +31,10 @@ class LUConfig {
             p | peTileRotate;
 
             p | memThreshold;
+
+            p | tracePeriodFraction;
+            p | numStepsToTrace;
+            p | numTimesToTrace;
         }
 
 
@@ -50,6 +56,13 @@ class LUConfig {
         int peTileRotate;
         /// The max memory (in MB) that the adaptive RTS should limit the app to
         int memThreshold;
+
+        /// The period (as a fraction of numBlocks) with which to toggle tracing
+        double tracePeriodFraction;
+        /// The number of active panels to trace each time
+        int numStepsToTrace;
+        /// The number of times when tracing will be active (computed from above two)
+        int numTimesToTrace;
 };
 
 #endif // LU_CONFIG_H
