@@ -6,15 +6,16 @@ use warnings;
 my %blockTimingStart;
 my %blockTimingStop;
 
-die "usage: <filename> <x-axis> <y-axis>" if ($#ARGV + 1 < 1);
+die "usage: <filename> <dgemm-milliseconds> <x-axis> <y-axis>" if ($#ARGV + 1 < 2);
 
-my $file = $ARGV[0];
+my ($file, $DGEMM) = @ARGV;
+shift @ARGV;
 shift @ARGV;
 
 my $xaxis = 0;
 my $yaxis = 0;
 
-if ($#ARGV + 1 > 0) {
+if ($#ARGV + 1 > 1) {
     ($xaxis, $yaxis) = @ARGV;
 }
 
@@ -51,7 +52,7 @@ for my $key (sort {$a <=> $b} (keys %blockTimingStart)) {
             $delay = $timeStart - $timeStopPrev;
         }
         if ($diff >= 0 and $delay >= 0) {
-            my $DGEMMsecs = 0.03;
+            my $DGEMMsecs = $DGEMM / 1000;
             my $TUmodel = (($chareArray-$key-1)*($chareArray-$key-1)/$PEs)*$DGEMMsecs;
             print FILE "$key $diff $delay $TUmodel\n";
         }
@@ -63,7 +64,7 @@ close RFILE;
 
 # Now output for gnuplot
 my $plotCmds = <<END;
-set terminal pdf
+set terminal postscript color solid
 END
 
 if ($xaxis == 0) {
@@ -80,8 +81,8 @@ if ($yaxis == 0) {
 
 $plotCmds .= <<END;
 set title '$file'
-set xlabel 'Execution Time (seconds)'
-set ylabel 'LU Step'
+set ylabel 'Execution Time (seconds)'
+set xlabel 'LU Step'
 set pointsize 0.5
 plot 'temp' using 1:2 title 'Active panel time' with points lt 1 pt 5, \\
      'temp' using 1:3 title 'Time outside active panel' with points lt 2 pt 9, \\
