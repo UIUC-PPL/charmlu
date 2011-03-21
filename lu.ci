@@ -348,6 +348,14 @@ mainmodule lu {
         numRowsSinceLastPivotSend = 0;
         // Find the pivot candidate for just the first column in the block
         pivotCandidate = findLocVal(0, 0);
+        // Toggle projections tracing when necessary
+        //#if defined(LU_TRACING)
+            if ( (cfg.numBlocks > 15) && (thisIndex.x % (cfg.numBlocks/4) == 3) )
+            {
+                traceToggler::stop();
+                DEBUG_PRINT("Suspending projections tracing");
+            }
+        //#endif
       }
       // Process matrix column-by-column
       for (activeCol = 0; activeCol < BLKSIZE; ++activeCol) {
@@ -426,6 +434,14 @@ mainmodule lu {
       atomic "diag_multicast_L" {
         ckout << "Block " << thisIndex.x << " finished local LU at internalStep "
               << internalStep << ", time = " << CmiWallTimer() - startTime << endl;
+        // Toggle projections tracing when necessary
+        //#if defined(LU_TRACING)
+            if ((thisIndex.x + 1) % (cfg.numBlocks/4) == 0 || (cfg.numBlocks -1 - thisIndex.x) == 3)
+            {
+                traceToggler::start();
+                DEBUG_PRINT("Resuming projections tracing");
+            }
+        //#endif
 
         localScheduler->factorizationDone(thisIndex);
         factored = true;

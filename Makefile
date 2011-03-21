@@ -37,7 +37,7 @@ lu.prod: $(RAWSRC:.C=-prod.o)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 lu.trace: CXX = $(CHARMTRACE)/bin/charmc
-lu.trace: CXXFLAGS += "-DSTOP_AFTER=10 -DLU_TRACING"
+lu.trace: CXXFLAGS += "-DLU_TRACING"
 lu.trace: $(RAWSRC:.C=-trace.o)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS) -tracemode projections
 

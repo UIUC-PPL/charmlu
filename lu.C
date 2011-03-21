@@ -307,6 +307,7 @@ public:
       luArrProxy.startValidation();
     } else if (!solved && LUcomplete) {
       luArrProxy.print();
+      traceToggler::stop();
       luArrProxy(0,0).forwardSolve();
       solved = true;
     } else {
