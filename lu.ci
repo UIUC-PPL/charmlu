@@ -1,4 +1,7 @@
 mainmodule lu {
+  include "traceToggler.h";
+  initproc void traceToggler::registerHandler();
+
   readonly CProxy_Main mainProxy;
   readonly int traceTrailingUpdate;
   readonly int traceComputeU;
@@ -111,7 +114,7 @@ mainmodule lu {
       // before the diagonal chare on its row / column becomes active in the factorization process
       //-----------------------------------------------------------------------
       atomic {
-	traceOn();
+        traceOn();
         startTime = CmiWallTimer();
         pivotBatchTag = 0;
       }

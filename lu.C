@@ -74,6 +74,9 @@ int traceComputeL;
 int traceSolveLocalLU;
 CkGroupID mcastMgrGID;
 
+// define static variable
+int traceToggler::traceCmdHandlerID;
+
 #include <cmath>
 
 CkReductionMsg *maxLocVal(int nMsg, CkReductionMsg **msgs)
