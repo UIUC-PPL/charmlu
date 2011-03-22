@@ -2,12 +2,15 @@ include config.mk
 
 # The relevant source files for this project
 RAWSRC    = lu.C scheduler.C
-INTF      = lu.ci   
+INTF      = lu.ci
+
+BENCHSRC = dgerBenchmark.C
+BENCHCI = dgerBenchmark.ci
 
 # Specify the exe name and the arguments to run it with
 NP        = 4
 TARGET    = lu.prod
-BINS      = lu.prod lu.trace
+BINS      = lu.prod lu.trace lu_dger
 ARGS      = 64 16 500 8 2
 
 # Specify the compilers, run script, flags etc.
@@ -31,6 +34,10 @@ endif
 .PHONY: all clean realclean again test bgtest translateInterface
 
 all: $(BINS)
+
+lu_dger: CXX = $(CHARMPROD)/bin/charmc
+lu_dger: $(BENCHSRC:.C=.o)
+	$(CHARMC) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 lu.prod: CXX = $(CHARMPROD)/bin/charmc
 lu.prod: $(RAWSRC:.C=-prod.o)
@@ -83,8 +90,8 @@ regtest: all
 # Include the generated files containing dependency info
 ifneq ($(MAKECMDGOALS),clean)
 ifneq ($(MAKECMDGOALS),realclean)
--include $(RAWSRC:.C=-prod.d) $(RAWSRC:.C=-trace.d)
--include $(INTF:.ci=.di)
+-include $(RAWSRC:.C=-prod.d) $(RAWSRC:.C=-trace.d) $(BENCHSRC:.C=.d)
+-include $(INTF:.ci=.di) $(BENCHCI:.ci=.di)
 endif
 endif
 
