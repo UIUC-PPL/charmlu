@@ -20,6 +20,7 @@ if ($#ARGV + 1 > 1) {
 }
 
 my $temp = `mktemp -t extractTimings`;
+chomp $temp;
 
 open FILE, ">", "$temp" or die $!;
 open RFILE, "<", "$file";
@@ -46,6 +47,8 @@ if ($PEs == 0) {
     exit 1;
 }
 
+my $output = 0;
+
 for my $key (sort {$a <=> $b} (keys %blockTimingStart)) {
     if (exists $blockTimingStop{$key} and exists $blockTimingStart{$key}) {
         my $timeStop = $blockTimingStop{$key};
@@ -60,6 +63,7 @@ for my $key (sort {$a <=> $b} (keys %blockTimingStart)) {
         if ($diff >= 0 and $delay >= 0) {
             my $DGEMMsecs = $DGEMM / 1000;
             my $TUmodel = (($chareArray-$key-1)*($chareArray-$key-1)/$PEs)*$DGEMMsecs;
+            $output = 1;
             print FILE "$key $diff $delay $TUmodel\n";
         }
     }
@@ -68,7 +72,7 @@ for my $key (sort {$a <=> $b} (keys %blockTimingStart)) {
 close FILE;
 close RFILE;
 
-if (keys %blockTimingStart == 0) {
+if ($output == 0) {
     exit 1;
 }
 
@@ -94,9 +98,9 @@ set title '$file'
 set ylabel 'Execution Time (seconds)'
 set xlabel 'LU Step'
 set pointsize 0.5
-plot 'temp' using 1:2 title 'Active panel time' with points lt 1 pt 5, \\
-     'temp' using 1:3 title 'Time outside active panel' with points lt 2 pt 9, \\
-     'temp' using 1:4 title 'Trailing update time per step' with lines lw 2
+plot '$temp' using 1:2 title 'Active panel time' with points lt 1 pt 5, \\
+     '$temp' using 1:3 title 'Time outside active panel' with points lt 2 pt 9, \\
+     '$temp' using 1:4 title 'Trailing update time per step' with lines lw 2
 END
 
 print "$plotCmds";
