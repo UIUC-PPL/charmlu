@@ -30,7 +30,7 @@ endif
 
 .PHONY: all clean realclean again test bgtest translateInterface
 
-all: lu.trace
+all: $(BINS)
 
 lu.prod: CXX = $(CHARMPROD)/bin/charmc
 lu.prod: $(RAWSRC:.C=-prod.o)
