@@ -19,11 +19,13 @@ if ($#ARGV + 1 > 1) {
     ($xaxis, $yaxis) = @ARGV;
 }
 
-open FILE, ">", "temp" or die $!;
+my $temp = `mktemp -t extractTimings`;
+
+open FILE, ">", "$temp" or die $!;
 open RFILE, "<", "$file";
 
 my $chareArray;
-my $PEs;
+my $PEs = 0;
 
 for (<RFILE>) {
     if (/Chare Array size: (\d+) X/) {
@@ -38,6 +40,10 @@ for (<RFILE>) {
     if (/^Block (\d+) finished local LU at internalStep \d+, time = (\d+\.\d+)$/) {
         $blockTimingStop{$1} = $2;
     }
+}
+
+if ($PEs == 0) {
+    exit 1;
 }
 
 for my $key (sort {$a <=> $b} (keys %blockTimingStart)) {
@@ -61,6 +67,10 @@ for my $key (sort {$a <=> $b} (keys %blockTimingStart)) {
 
 close FILE;
 close RFILE;
+
+if (keys %blockTimingStart == 0) {
+    exit 1;
+}
 
 # Now output for gnuplot
 my $plotCmds = <<END;
