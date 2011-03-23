@@ -1,5 +1,7 @@
 #include "benchmark.decl.h"
 #include <vector>
+#include <algorithm>
+#include "acml.h"
 
 CProxy_Main mainProxy;
 int blockSize;
@@ -70,9 +72,36 @@ struct dgerTest : public CBase_dgerTest {
       int startingRow = 0;
       int offset = 2;
 
-      for(int j = startingRow; j < blockSize; j++)
-        for(int k = activeCol+offset; k<blockSize; k++)
-          block[getIndex(j,k)] -=  block[getIndex(j,activeCol)] * U[k-activeCol];
+#if 0
+      const int cacheLineWidth = 16;
+      const int innerUnroll = 1;
+      for(int k = activeCol + offset; k < blockSize; k += cacheLineWidth) {
+	int row = startingRow * blockSize;
+	int limit = std::min(blockSize, k + cacheLineWidth);
+	for(int j = startingRow; j < blockSize; j++) {
+	  int kk = k;
+	  double L = block[row + activeCol];
+	  double *bb = block + row + kk;
+	  for (; kk < limit && kk % innerUnroll != 0; ++kk)
+	    *bb++ -=  L * U[kk - activeCol];
+	  for (; kk < limit - innerUnroll + 1; kk += innerUnroll) {
+	    *bb++ -=  L * U[kk - activeCol];
+	    /*block[row + kk + 1] -=  L * U[kk + 1 - activeCol];
+	      block[row + kk + 2] -=  L * U[kk + 2 - activeCol];
+	      block[row + kk + 3] -=  L * U[kk + 3 - activeCol];*/
+	  }
+	  for (; kk < limit; ++kk)
+	    *bb++ -=  L * U[kk - activeCol];
+	  row += blockSize;
+	}
+      }
+#else
+      dger(blockSize-(activeCol+offset), blockSize-startingRow,
+	   -1.0,
+	   U+offset, 1,
+	   &block[getIndex(startingRow,activeCol)], blockSize,
+	   &block[getIndex(startingRow,activeCol+offset)], blockSize);
+#endif
     }
     double totalTestTime = CmiWallTimer() - startTestTime;
     /*CkPrintf("%d: Time taken for %d blocks = %f\n",
