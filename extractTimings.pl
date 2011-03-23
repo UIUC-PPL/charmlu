@@ -19,7 +19,7 @@ if ($#ARGV + 1 > 1) {
     ($xaxis, $yaxis) = @ARGV;
 }
 
-my $temp = `mktemp -t extractTimings`;
+my $temp = `mktemp extractTimings.XXXXXXXXXXXXXX`;
 chomp $temp;
 
 open FILE, ">", "$temp" or die $!;
