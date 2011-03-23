@@ -271,22 +271,22 @@ public:
 
 // Implement a mapping that tiles a 2D processor tile in the 2D chare array
 class PE2DTilingMap: public LUMap {
-    public:
-        PE2DTilingMap(int _peRows, int _peCols, int _peRotate):
-            peRows(_peRows), peCols(_peCols), peRotate(_peRotate)
-        {
-            CkAssert(peRows > 0 && peCols > 0);
-        }
+public:
+  PE2DTilingMap(int _peRows, int _peCols, int _peRotate, int _peStride):
+    peRows(_peRows), peCols(_peCols), peRotate(_peRotate), peStride(_peStride) {
+    CkAssert(peRows > 0 && peCols > 0);
+  }
 
-        int procNum(int arrayHdl, const CkArrayIndex &idx) {
-            int *coor = (int*) idx.data();
-            int tileYIndex = coor[1]  / peCols;
-            int XwithinPEtile = (coor[0] + tileYIndex * peRotate) % peRows;
-            int YwithinPEtile = coor[1] % peCols;
-            int peNum = XwithinPEtile * peCols + YwithinPEtile;
-            CkAssert(peNum < CkNumPes());
-            return peNum;
-        }
+  int procNum(int arrayHdl, const CkArrayIndex &idx) {
+    int *coor = (int*) idx.data();
+    int tileYIndex = coor[1]  / peCols;
+    int XwithinPEtile = (coor[0] + tileYIndex * peRotate) % peRows;
+    int YwithinPEtile = coor[1] % peStride;
+    int subtileY = (coor[1] % peCols) / peStride;
+    int peNum = XwithinPEtile * peStride + YwithinPEtile + peStride * peRows * subtileY;
+    CkAssert(peNum < CkNumPes());
+    return peNum;
+  }
 
   int pesInPanel(CkIndex2D index) {
     if (peRotate > 0)
@@ -298,8 +298,8 @@ class PE2DTilingMap: public LUMap {
       return peCols;
   }
 
-    private:
-        const int peRows, peCols, peRotate;
+private:
+  const int peRows, peCols, peRotate, peStride;
 };
 
 #include <utility>

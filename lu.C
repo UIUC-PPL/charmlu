@@ -188,7 +188,8 @@ public:
     Main(CkArgMsg* m) : solved(false), LUcomplete(false), sentVectorData(false) {
 
     if (m->argc<4) {
-      CkPrintf("Usage: %s <matrix size> <block size> <mem threshold> [<pivot batch size> <mapping scheme> [<peTileRows> <peTileCols>] ]\n", m->argv[0]);
+      CkPrintf("Usage: %s <matrix size> <block size> <mem threshold> [<pivot batch size> <mapping scheme>"
+               " [<peTileRows> <peTileCols> <peRotate> <peStride>] ]\n", m->argv[0]);
       CkExit();
     }
 
@@ -220,6 +221,12 @@ public:
               luCfg.peTileRotate = 0;
             else
               luCfg.peTileRotate = atoi(m->argv[8]);
+
+            if (m->argc < 10)
+              luCfg.peTileStride = luCfg.peTileCols;
+            else
+              luCfg.peTileStride = atoi(m->argv[9]);
+
             int peTileSize = luCfg.peTileRows * luCfg.peTileCols;
             if ( peTileSize > CkNumPes() )
                 CkAbort("The PE tile dimensions are too big for the num of PEs available!");
@@ -264,8 +271,8 @@ public:
                  (mappingScheme == 3 ? "2D Tiling" : "Strong Scaling"))
              );
     if (mappingScheme == 3)
-      CkPrintf("\tMapping PE tile size: %d x %d rotate %d \n", luCfg.peTileRows, luCfg.peTileCols,
-               luCfg.peTileRotate);
+      CkPrintf("\tMapping PE tile size: %d x %d rotate %d stride %d \n", luCfg.peTileRows, luCfg.peTileCols,
+               luCfg.peTileRotate, luCfg.peTileStride);
 
     // Create a multicast manager group
     mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
@@ -331,7 +338,7 @@ public:
         break;
       case 3:
         map = CProxy_PE2DTilingMap::ckNew(luCfg.peTileRows, luCfg.peTileCols,
-                                          luCfg.peTileRotate);
+                                          luCfg.peTileRotate, luCfg.peTileStride);
         break;
       case 4:
         map = CProxy_StrongScaling1::ckNew(luCfg.numBlocks);

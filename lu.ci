@@ -613,7 +613,7 @@ mainmodule lu {
   };
 
   group PE2DTilingMap: LUMap {
-    entry PE2DTilingMap(int _peRows, int _peCols, int _peRotate);
+    entry PE2DTilingMap(int _peRows, int _peCols, int _peRotate, int _peStride);
   };
 
   group StrongScaling1: LUMap {
