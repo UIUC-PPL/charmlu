@@ -10,7 +10,8 @@ BENCHCI = dgerBenchmark.ci
 # Specify the exe name and the arguments to run it with
 NP        = 4
 TARGET    = lu.prod
-BINS      = lu.prod lu.trace lu_dger
+BINS      = lu.prod lu.trace
+BENCH     = lu_dger
 ARGS      = 64 16 500 8 2
 
 # Specify the compilers, run script, flags etc.
@@ -61,7 +62,7 @@ test: all
 	@echo "########################################################################################"
 	$(EXEC) $(EXECFLAGS) $(TARGET) $(ARGS)
 
-regtest: all
+regtest: lu.prod
 	perl $(TEST_SCRIPT) $(EXEC) $(EXECFLAGS) $(TARGET)
 
 # A test program for getting essl working on BG/P
