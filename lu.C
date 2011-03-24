@@ -799,6 +799,8 @@ void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
 void LUBlk::setupMsg(bool reverse) {
   blkMsg *m = LUmsg;
 
+  CkAssert(requestingPEs.size() <= maxRequestingPEs);
+
   std::sort(requestingPEs.begin(), requestingPEs.end());
   if (reverse)
     std::reverse(requestingPEs.begin(), requestingPEs.end());
@@ -1257,9 +1259,9 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
 //internal functions for creating messages to encapsulate the priority
 inline blkMsg* LUBlk::createABlkMsg() {
   int prioBits = mgr->bitsOfPrio();
-  int npes = CProxy_LUMap(cfg.map).ckLocalBranch()->pesInPanel(thisIndex);
-  blkMsg *msg = new (BLKSIZE*BLKSIZE, npes, prioBits) blkMsg(thisIndex);
-  memset(msg->pes, -1, npes*sizeof(int));
+  maxRequestingPEs = CProxy_LUMap(cfg.map).ckLocalBranch()->pesInPanel(thisIndex);
+  blkMsg *msg = new (BLKSIZE*BLKSIZE, maxRequestingPEs, prioBits) blkMsg(thisIndex);
+  memset(msg->pes, -1, maxRequestingPEs*sizeof(int));
   CkSetQueueing(msg, CK_QUEUEING_IFIFO);
   return msg;
 }

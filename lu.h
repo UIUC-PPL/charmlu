@@ -129,6 +129,7 @@ private:
   int blocksAfter;
   /// Which PE's schedulers have requested this block?
   std::vector<int> requestingPEs;
+  int maxRequestingPEs;
 
   /// The sub-diagonal chare array section that will participate in pivot selection
   /// @note: Only the diagonal chares will create and mcast along this section
@@ -159,7 +160,8 @@ private:
 
   public:
   LUBlk()
-    : factored(false), storedVec(NULL), diagRec(0), msgsRecvd(0), blockPulled(0), blocksAfter(0)
+    : factored(false), storedVec(NULL), diagRec(0), msgsRecvd(0),
+      blockPulled(0), blocksAfter(0), maxRequestingPEs(0)
   {
     __sdag_init();
 #if defined(LU_TRACING)
