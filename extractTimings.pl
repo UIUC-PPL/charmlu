@@ -35,11 +35,15 @@ for (<RFILE>) {
     if (/RESULT procs:\s+(\d+)/) {
         $PEs = $1;
     }
-    if (/^Block (\d+) queueing local LU at internalStep \d+, start time = \d+\.\d+, time = (\d+\.\d+)$/) {
-        $blockTimingStart{$1} = $2;
+    if (/^Block (\d+) queueing local LU at internalStep (\d+), start time = \d+\.\d+, time = (\d+\.\d+)$/) {
+        if ($1 eq $2) {
+            $blockTimingStart{$1} = $3;
+        }
     }
-    if (/^Block (\d+) finished local LU at internalStep \d+, time = (\d+\.\d+)$/) {
-        $blockTimingStop{$1} = $2;
+    if (/^Block (\d+) finished local LU at internalStep (\d+), time = (\d+\.\d+)$/) {
+        if ($1 eq $2) {
+            $blockTimingStop{$1} = $3;
+        }
     }
 }
 
