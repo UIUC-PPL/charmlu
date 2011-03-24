@@ -436,7 +436,9 @@ mainmodule lu {
         ckout << "Block " << thisIndex.x << " finished local LU at internalStep "
               << internalStep << ", time = " << CmiWallTimer() - startTime << endl;
         // Toggle projections tracing when necessary
-            if ((thisIndex.x + 1) % int(cfg.tracePeriodFraction * cfg.numBlocks) == 0 || (cfg.numBlocks -1 - thisIndex.x) == cfg.numStepsToTrace)
+            if (cfg.numBlocks < 1 / cfg.tracePeriodFraction ||
+		(thisIndex.x + 1) % int(cfg.tracePeriodFraction * cfg.numBlocks) == 0 ||
+		(cfg.numBlocks - 1 - thisIndex.x) == cfg.numStepsToTrace)
             {
                 traceToggler::start();
                 DEBUG_PRINT("Resuming projections tracing");
