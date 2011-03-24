@@ -17,7 +17,7 @@ ARGS      = 64 16 500 8 2
 # Specify the compilers, run script, flags etc.
 CHARMC    = $(CHARMPROD)/bin/charmc
 CHARMINC  = $(CHARMPROD)/include
-OPT       = -g -O3
+OPT       = -O3
 CPPFLAGS += -DADAPT_SCHED_MEM $(BLAS_INC)
 CXXFLAGS += -language charm++ $(OPT)
 LDFLAGS  += -module comlib -module CkMulticast $(BLAS_LD)
