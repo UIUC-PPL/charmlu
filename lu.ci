@@ -536,8 +536,9 @@ mainmodule lu {
           else {
             // Broadcast upward from diagonal
             CProxySection_LUBlk col = CProxySection_LUBlk::ckNew(thisArrayID,
-                                                    0, thisIndex.x-1, 1,
-                                                    thisIndex.y, thisIndex.y, 1);
+                                                                 0, thisIndex.x-1, 1,
+                                                                 thisIndex.y, thisIndex.y, 1);
+            col.ckSectionDelegate(mcastMgr);
             BVecMsg *m = new (BLKSIZE) BVecMsg(BLKSIZE, bvec, false);
             col.offDiagSolve(m);
           }
