@@ -32,6 +32,20 @@ endif
 
 ########### This stuff should be able take care of itself ############
 
+# The base directory of this project
+base     ?= .
+GIT       = $(shell which git)
+# Compute the revision number (hash) of the build and feed it to the code
+ifeq ($(GIT),)
+  $(warning Cannot find the git binary. Will not compute the revision number)
+else
+  REVNUM  = $(shell $(GIT) --git-dir=$(base)/.git rev-parse HEAD)
+endif
+ifneq ($(REVNUM),)
+  CPPFLAGS += -DLU_REVISION=$(REVNUM)
+endif
+
+
 .PHONY: all clean realclean again test bgtest translateInterface
 
 all: $(BINS)

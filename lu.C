@@ -4,6 +4,13 @@
 
 #include "luConfig.h"
 
+/// The build system should define this macro to be the commit identifier
+#ifndef LU_REVISION
+    #define LU_REVISION Unknown
+#endif
+#define _QUOTEIT(x) #x
+#define INQUOTES(x) _QUOTEIT(x)
+
 #include <string.h>
 #include <iostream>
 #include <sstream>
@@ -252,6 +259,7 @@ public:
 
     luCfg.numBlocks = luCfg.matrixSize / luCfg.blockSize;
 
+    CkPrintf("Running LU compiled from revision: "INQUOTES(LU_REVISION)"\n");
     CkPrintf("Running LU on %d processors (%d nodes): "
              "\n\tMatrix size: %d X %d "
              "\n\tBlock size: %d X %d "
