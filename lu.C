@@ -927,27 +927,15 @@ void LUBlk::localBackward(double *xvec) {
 }
 
 
-void LUBlk::beginForward(int size, double *preVec) {
+void LUBlk::offDiagSolve(int size, double *preVec, bool forward) {
   // Perform local solve and reduce left-of-diagonal row to diagonal
   double *xvec = new double[BLKSIZE];
   localSolve(xvec, preVec);
   CkCallback cb(CkIndex_LUBlk::recvSolveData(0), thisProxy(thisIndex.x, thisIndex.x));
   mcastMgr->contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double,
-		       rowBeforeCookie, cb, thisIndex.x);
+		       forward ? rowBeforeCookie : rowAfterCookie, cb, thisIndex.x);
   delete[] xvec;
 }
-
-
-void LUBlk::beginBackward(int size, double *preVec) {
-  // Perform local solve and reduce right-of-diagonal row to diagonal
-  double *xvec = new double[BLKSIZE];
-  localSolve(xvec, preVec);
-  CkCallback cb(CkIndex_LUBlk::recvSolveData(0), thisProxy(thisIndex.x, thisIndex.x));
-  mcastMgr->contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double,
-		       rowAfterCookie, cb, thisIndex.x);
-  delete[] xvec;
-}
-
 
 void LUBlk::print() {
   this->print("LU-solution");

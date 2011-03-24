@@ -459,8 +459,7 @@ mainmodule lu {
       }
     };
 
-    entry void beginForward(int size, double preVec[size]);
-    entry void beginBackward(int size, double preVec[size]);
+    entry void offDiagSolve(int size, double preVec[size], bool);
     entry void recvSolveData(CkReductionMsg *m);
     entry void schedulerReady(CkReductionMsg *m);
 
@@ -511,7 +510,7 @@ mainmodule lu {
             CProxySection_LUBlk col = CProxySection_LUBlk::ckNew(thisArrayID,
                                                     thisIndex.x+1, numBlks-1, 1,
                                                     thisIndex.y, thisIndex.y, 1);
-            col.beginForward(BLKSIZE, bvec);
+            col.offDiagSolve(BLKSIZE, bvec, true);
             thisProxy(thisIndex.x+1,thisIndex.y+1).forwardSolve();
           }
         }
@@ -537,7 +536,7 @@ mainmodule lu {
             CProxySection_LUBlk col = CProxySection_LUBlk::ckNew(thisArrayID,
                                                     0, thisIndex.x-1, 1,
                                                     thisIndex.y, thisIndex.y, 1);
-            col.beginBackward(BLKSIZE, bvec);
+            col.offDiagSolve(BLKSIZE, bvec, false);
             thisProxy(thisIndex.x-1, thisIndex.y-1).backwardSolve();
           }
         }
