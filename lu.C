@@ -327,7 +327,7 @@ public:
       CkPrintf("starting solve at wall time: %f\n", CmiWallTimer());
       luArrProxy.print();
       #if defined(LU_TRACING)
-        traceToggler::stop();
+      traceToggler::stop();
       #endif
       for (int i = 0; i < luCfg.numBlocks; i++)
         luArrProxy(i, i).forwardSolve();
