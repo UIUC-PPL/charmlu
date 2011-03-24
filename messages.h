@@ -38,6 +38,17 @@ class rednSetupMsg: public CkMcastBaseMsg, public CMessage_rednSetupMsg
         rednSetupMsg(CkGroupID _gid): rednMgrGID(_gid) {}
 };
 
+class BVecMsg : public CMessage_BVecMsg, public CkMcastBaseMsg {
+public:
+  BVecMsg(const int numElements, double *bvec, bool _forward) {
+    memcpy(data, bvec, numElements * sizeof(double));
+    forward = _forward;
+  }
+  /// The post-diagonal portion of the active row
+  double *data;
+  bool forward;
+};
+
 class UMsg : public CMessage_UMsg, public CkMcastBaseMsg {
     public:
         UMsg(const int numElements, double *useg) {

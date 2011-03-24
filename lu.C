@@ -928,13 +928,16 @@ void LUBlk::localBackward(double *xvec) {
 }
 
 
-void LUBlk::offDiagSolve(int size, double *preVec, bool forward) {
+void LUBlk::offDiagSolve(BVecMsg *m) {
+  if (thisIndex.x == thisIndex.y)
+    return;
+
   // Perform local solve and reduce left-of-diagonal row to diagonal
   double *xvec = new double[BLKSIZE];
-  localSolve(xvec, preVec);
+  localSolve(xvec, m->data);
   CkCallback cb(CkIndex_LUBlk::recvSolveData(0), thisProxy(thisIndex.x, thisIndex.x));
   mcastMgr->contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double,
-		       forward ? rowBeforeCookie : rowAfterCookie, cb, thisIndex.x);
+		       m->forward ? rowBeforeCookie : rowAfterCookie, cb, thisIndex.x);
   delete[] xvec;
 }
 

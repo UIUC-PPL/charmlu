@@ -23,6 +23,10 @@ mainmodule lu {
     double data[];
   };
 
+  message BVecMsg {
+    double data[];
+  };
+
   message pivotSequencesMsg {
       int seqIndex[];
       int pivotSequence[];
@@ -459,7 +463,7 @@ mainmodule lu {
       }
     };
 
-    entry void offDiagSolve(int size, double preVec[size], bool);
+    entry [nokeep] void offDiagSolve(BVecMsg *m);
     entry void recvSolveData(CkReductionMsg *m);
     entry void schedulerReady(CkReductionMsg *m);
 
@@ -508,10 +512,8 @@ mainmodule lu {
               thisProxy(i, i).backwardSolve();
           } else {
             // Broadcast downward from diagonal
-            CProxySection_LUBlk col = CProxySection_LUBlk::ckNew(thisArrayID,
-                                                    thisIndex.x+1, numBlks-1, 1,
-                                                    thisIndex.y, thisIndex.y, 1);
-            col.offDiagSolve(BLKSIZE, bvec, true);
+            BVecMsg *m = new (BLKSIZE) BVecMsg(BLKSIZE, bvec, true);
+            activePanel.offDiagSolve(m);
           }
         }
       };
@@ -536,7 +538,8 @@ mainmodule lu {
             CProxySection_LUBlk col = CProxySection_LUBlk::ckNew(thisArrayID,
                                                     0, thisIndex.x-1, 1,
                                                     thisIndex.y, thisIndex.y, 1);
-            col.offDiagSolve(BLKSIZE, bvec, false);
+            BVecMsg *m = new (BLKSIZE) BVecMsg(BLKSIZE, bvec, false);
+            col.offDiagSolve(m);
           }
         }
       };

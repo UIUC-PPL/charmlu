@@ -207,7 +207,7 @@ private:
   void localSolve(double *xvec, double *preVec);
   void localForward(double *xvec);
   void localBackward(double *xvec);
-  void offDiagSolve(int size, double *preVec, bool forward);
+  void offDiagSolve(BVecMsg *m);
   void print();
   void print(const char* step);
 private:
