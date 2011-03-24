@@ -503,15 +503,15 @@ mainmodule lu {
 
         atomic {
           localForward(bvec);
-          if (thisIndex.x == numBlks-1)
-            thisProxy(thisIndex.x, thisIndex.y).backwardSolve();
-          else {
-            // Broadcast downward from diagonal beginForward
+          if (thisIndex.x == numBlks-1) {
+            for (int i = 0; i < numBlks; i++)
+              thisProxy(i, i).backwardSolve();
+          } else {
+            // Broadcast downward from diagonal
             CProxySection_LUBlk col = CProxySection_LUBlk::ckNew(thisArrayID,
                                                     thisIndex.x+1, numBlks-1, 1,
                                                     thisIndex.y, thisIndex.y, 1);
             col.offDiagSolve(BLKSIZE, bvec, true);
-            thisProxy(thisIndex.x+1,thisIndex.y+1).forwardSolve();
           }
         }
       };
@@ -532,12 +532,11 @@ mainmodule lu {
           if (thisIndex.x == 0)
             mainProxy.startNextStep();
           else {
-            // Broadcast upward from diagonal beginBackward
+            // Broadcast upward from diagonal
             CProxySection_LUBlk col = CProxySection_LUBlk::ckNew(thisArrayID,
                                                     0, thisIndex.x-1, 1,
                                                     thisIndex.y, thisIndex.y, 1);
             col.offDiagSolve(BLKSIZE, bvec, false);
-            thisProxy(thisIndex.x-1, thisIndex.y-1).backwardSolve();
           }
         }
       };

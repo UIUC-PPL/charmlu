@@ -327,7 +327,8 @@ public:
       #if defined(LU_TRACING)
         traceToggler::stop();
       #endif
-      luArrProxy(0,0).forwardSolve();
+      for (int i = 0; i < luCfg.numBlocks; i++)
+        luArrProxy(i, i).forwardSolve();
       solved = true;
     } else {
       CkArrayOptions opts(luCfg.numBlocks, luCfg.numBlocks);
