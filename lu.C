@@ -442,23 +442,15 @@ public:
     double duration = endTime-startTime;
 
     double n = luCfg.matrixSize;
-
-    long long flopCount = 0;	 // floating point ops
-    for (int i = 1; i <= n; i++) {
-      for (int j = 1 + i; j <= n; j++) {
-	flopCount += (1 + 2 * n - 2 * i);
-      }
-    }
-
-    double flops = ((double)flopCount)	/ duration; // floating point ops per second
-    double gflops = flops / 1000000000.0; // Giga fp ops per second
-    std::cout << "RESULT procs: \t" << CkNumPes() << "\tblock size:\t" << luCfg.blockSize << "\tGFlops:\t" << gflops << "\tTime(s):\t" << duration << std::endl;
-
     double HPL_flop_count =  (2.0/3.0*n*n*n+3.0/2.0*n*n)/duration ;
     double HPL_gflops =	 HPL_flop_count / 1000000000.0; // Giga fp ops per second
-    std::cout << "HPL flop count gives \t" << HPL_gflops << "\tGFlops" << std::endl;
-
     double gflops_per_core = HPL_gflops / (double)CkNumPes();
+
+    std::cout << "RESULT procs: \t" << CkNumPes()
+              << "\tblock size:\t"  << luCfg.blockSize
+              << "\tTime(s):\t"     << duration
+              << std::endl;
+    std::cout << "HPL flop count gives \t" << HPL_gflops << "\tGFlops" << std::endl;
 
     struct {
       const char *machine;
