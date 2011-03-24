@@ -12,6 +12,12 @@ using std::make_pair;
 using std::list;
 using std::map;
 
+#ifndef SEND_LIM
+#error Please define some value for the macroSEND_LIM appropriate to the machine you are running on
+#endif
+static const int SEND_LIMIT = SEND_LIM;
+
+
 inline bool operator==(const CkIndex2D &l, const CkIndex2D &r)
 { return l.x == r.x && l.y == r.y; }
 pair<int, int> make_pair(CkIndex2D index) {
@@ -21,6 +27,10 @@ pair<int, int> make_pair(CkIndex2D index) {
 BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_)
   : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false), numActive(0),
     pendingTriggered(0), sendDelay(0), reverseSends(CkMyPe() % 2 == 0) {
+
+  if (thisIndex == 0)
+    CkPrintf("SEND_LIMIT=%d\n", SEND_LIMIT);
+
   blockLimit = config.memThreshold * 1024 * 1024 /
     (config.blockSize * (config.blockSize + 1) * sizeof(double) + sizeof(LUBlk) + sdagOverheadPerBlock);
 
@@ -54,8 +64,6 @@ void pumpOnIdle(void *s, double) {
   //CcdCallOnCondition(CcdPERIODIC_100ms, pumpOnIdle, s);
   scheduler->pumpMessages();
 }
-
-static const int SEND_LIMIT = 1;
 
 void BlockScheduler::pumpMessages() {
   for (list<blkMsg*>::iterator iter = sendsInFlight.begin();
