@@ -399,17 +399,9 @@ public:
   }
 
   double testdgemm(unsigned long blocksize) {
-#if USE_MEMALIGN
-    double *m1 = (double*)memalign(128, blocksize*blocksize*sizeof(double));
-    double *m2 = (double*)memalign(128, blocksize*blocksize*sizeof(double));
-    double *m3 = (double*)memalign(128, blocksize*blocksize*sizeof(double));
-    if (m1 == NULL || m2 == NULL || m3 == NULL)
-      return 0.0;
-#else
     double *m1 = new double[blocksize*blocksize];
     double *m2 = new double[blocksize*blocksize];
     double *m3 = new double[blocksize*blocksize];
-#endif
 
     MatGen rnd(0);
 
