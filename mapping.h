@@ -278,7 +278,7 @@ PE2DTilingMap(int _peRows, int _peCols, int _peRotate, int _peStride, int _numBl
     CkAssert(peRows > 0 && peCols > 0);
   }
 
-  int map(int coor[2]) {
+  int map(const int coor[2]) {
     int tileYIndex = coor[1]  / peCols;
     int XwithinPEtile = (coor[0] + tileYIndex * peRotate) % peRows;
     int YwithinPEtile = coor[1] % peStride;
@@ -289,7 +289,7 @@ PE2DTilingMap(int _peRows, int _peCols, int _peRotate, int _peStride, int _numBl
   }
 
   int procNum(int arrayHdl, const CkArrayIndex &idx) {
-    int *coor = (int*) idx.data();
+    const int *coor = idx.data();
     return map(coor);
   }
 
