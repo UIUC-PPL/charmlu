@@ -321,8 +321,10 @@ public:
     if (solved && LUcomplete) {
       outputStats();
       //Perform validation
+      CkPrintf("starting validation at wall time: %f\n", CmiWallTimer());
       luArrProxy.startValidation();
     } else if (!solved && LUcomplete) {
+      CkPrintf("starting solve at wall time: %f\n", CmiWallTimer());
       luArrProxy.print();
       #if defined(LU_TRACING)
         traceToggler::stop();
@@ -497,6 +499,7 @@ public:
 		CkPrintf("=== WARNING: Scaled residual is greater than 16 - OUT OF SPEC ===\n");
 
 	delete msg;
+        CkPrintf("finished validation at wall time: %f\n", CmiWallTimer());
         CkExit();
   }
 };
