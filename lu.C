@@ -338,7 +338,8 @@ public:
         break;
       case 3:
         map = CProxy_PE2DTilingMap::ckNew(luCfg.peTileRows, luCfg.peTileCols,
-                                          luCfg.peTileRotate, luCfg.peTileStride);
+                                          luCfg.peTileRotate, luCfg.peTileStride,
+					  luCfg.numBlocks);
         break;
       case 4:
         map = CProxy_StrongScaling1::ckNew(luCfg.numBlocks);
