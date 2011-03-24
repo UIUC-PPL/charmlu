@@ -692,7 +692,12 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler b
   CkMulticastMgr *mcastMgr = CProxy_CkMulticastMgr(mcastMgrGID).ckLocalBranch();
 
   /// Chares on the active panels will create sections of their brethren
-  if (thisIndex.x >= thisIndex.y) {
+#if defined(CHARMLU_USEG_FROM_BELOW)
+  if (thisIndex.x >= thisIndex.y)
+#else
+  if (thisIndex.x == thisIndex.y)
+#endif
+  {
     // Elements in the active panel, not including this block
     CkVec<CkArrayIndex2D> activeElems;
     for (int i = thisIndex.y+1; i < numBlks; i++)

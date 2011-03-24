@@ -97,15 +97,19 @@ mainmodule lu {
                              &(mgr->setPrio(SEND_PIVOT_DATA, opts)));
           }
           atomic "below_send_useg" {
+#if defined(CHARMLU_USEG_FROM_BELOW)
             UMsg *anUmsg = new(BLKSIZE - targetCol, sizeof(int)*8) UMsg(BLKSIZE - targetCol, &LU[getIndex(pivotRow % BLKSIZE,targetCol)]);
             mgr->setPrio(anUmsg, BELOW_SEND_USEG, internalStep*BLKSIZE + targetCol);
             CkSetRefNum(anUmsg, internalStep*BLKSIZE + targetCol);
             pendingUmsg = (UMsg*)CkCopyMsg((void**)(&anUmsg));
             activePanel.sendUSegment(anUmsg);
+#endif
           }
           atomic "below_recv_remote_pivot" {
             applySwap(pivotRow % BLKSIZE, 0, data, b);
+#if defined(CHARMLU_USEG_FROM_BELOW)
             thisProxy(thisIndex.x, thisIndex.y).sendUSegment(pendingUmsg);
+#endif
           }
         }
       }
@@ -411,6 +415,14 @@ mainmodule lu {
 	    }
 	    when sendPivotData[internalStep*BLKSIZE + activeCol](int rowIndex, int pivotRow, int size, double data[size], double b, bool noop) atomic "diag_receive_remote_pivot" {
               CkAssert(!noop);
+
+#if !defined(CHARMLU_USEG_FROM_BELOW)
+	      UMsg *anUmsg = new(BLKSIZE - activeCol, sizeof(int)*8)
+		UMsg(BLKSIZE - activeCol, data + activeCol);
+              mgr->setPrio(anUmsg, DIAG_SEND_USEG);
+	      activePanel.sendUSegment(anUmsg);
+#endif
+
 	      applySwap(activeCol, 0, data, b);
 	    }
 	  }
