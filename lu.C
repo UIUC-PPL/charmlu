@@ -737,12 +737,8 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler b
 void LUBlk::prepareForActivePanel(rednSetupMsg *msg) { delete msg; }
 
 LUBlk::~LUBlk() {
-  //CkPrintf("freeing LuBlk\n");
-#if USE_MEMALIGN
-  free(LU);
-#else
-  delete [] LU;
-#endif
+  CkPrintf("freeing LUmsg\n");
+  delete LUmsg;
   LU = NULL;
 }
 
