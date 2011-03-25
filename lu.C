@@ -262,6 +262,7 @@ public:
              "\n\tChare Array size: %d X %d"
              "\n\tPivot batch size: %d"
              "\n\tMem Threshold (MB): %d"
+             "\n\tSend Limit: %d"
              "\n\tMapping Scheme: %d (%s)\n",
              CkNumPes(), CmiNumNodes(),
              luCfg.matrixSize, luCfg.matrixSize,
@@ -269,6 +270,7 @@ public:
              luCfg.numBlocks, luCfg.numBlocks,
              luCfg.pivotBatchSize,
              luCfg.memThreshold,
+             SEND_LIM,
              mappingScheme,
              mappingScheme == 1 ? "Balanced Snake" :
                (mappingScheme==2 ? "Block Cylic" :
@@ -277,6 +279,11 @@ public:
     if (mappingScheme == 3)
       CkPrintf("\tMapping PE tile size: %d x %d rotate %d stride %d \n", luCfg.peTileRows, luCfg.peTileCols,
                luCfg.peTileRotate, luCfg.peTileStride);
+#ifdef SCHED_PIVOT_REDN
+    CkPrintf("\tPivot Redn Scheduling: On\n");
+#else
+    CkPrintf("\tPivot Redn Scheduling: Off\n");
+#endif
 
     // Create a multicast manager group
     mcastMgrGID = CProxy_CkMulticastMgr::ckNew();

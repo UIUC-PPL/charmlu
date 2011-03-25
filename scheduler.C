@@ -28,9 +28,6 @@ BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMg
   : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false), numActive(0),
     pendingTriggered(0), sendDelay(0), reverseSends(CkMyPe() % 2 == 0) {
 
-  if (thisIndex == 0)
-    CkPrintf("SEND_LIMIT=%d\n", SEND_LIMIT);
-
   blockLimit = config.memThreshold * 1024 * 1024 /
     (config.blockSize * (config.blockSize + 1) * sizeof(double) + sizeof(LUBlk) + sdagOverheadPerBlock);
 
