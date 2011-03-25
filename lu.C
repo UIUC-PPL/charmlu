@@ -960,7 +960,7 @@ void LUBlk::print(const char* step) {
 }
 
 // Copy received pivot data into its place in this block
-void LUBlk::applySwap(int row, int offset, double *data, double b) {
+void LUBlk::applySwap(int row, int offset, const double *data, double b) {
   DEBUG_PIVOT("(%d, %d): remote pivot inserted at %d\n", thisIndex.x, thisIndex.y, row);
   bvec[row] = b;
   memcpy( &(LU[getIndex(row,offset)]), data, sizeof(double)*(BLKSIZE-offset) );

@@ -212,7 +212,7 @@ private:
   void print(const char* step);
 private:
   // Copy received pivot data into its place in this block
-  void applySwap(int row, int offset, double *data, double b);
+  void applySwap(int row, int offset, const double *data, double b);
   // Exchange local data
   void swapLocal(int row1, int row2, int offset=0);
   void doPivotLocal(int row1, int row2);

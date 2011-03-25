@@ -74,7 +74,7 @@ mainmodule lu {
     entry void sumBvec(int size, double partial_b[size]);
 
     entry void colMax(CkReductionMsg *m);
-    entry void sendPivotData(int rowIndex, int pivotRow, int size, double data[size], double b, bool noop);
+    entry void sendPivotData(int rowIndex, int pivotRow, int size, const double data[size], double b, bool noop);
     entry [nokeep] void applyPivots(pivotSequencesMsg *msg);
     entry void acceptPivotData(pivotRowsMsg *msg);
     entry [nokeep] void sendUSegment(UMsg* msg);
@@ -413,7 +413,7 @@ mainmodule lu {
 			       bvec[(activeCol + BLKSIZE * thisIndex.y) % BLKSIZE], false,
                                &(mgr->setPrio(DIAG_SEND_PIVOT, opts)));
 	    }
-	    when sendPivotData[internalStep*BLKSIZE + activeCol](int rowIndex, int pivotRow, int size, double data[size], double b, bool noop) atomic "diag_receive_remote_pivot" {
+	    when sendPivotData[internalStep*BLKSIZE + activeCol](int rowIndex, int pivotRow, int size, const double data[size], double b, bool noop) atomic "diag_receive_remote_pivot" {
               CkAssert(!noop);
 
 #if !defined(CHARMLU_USEG_FROM_BELOW)
