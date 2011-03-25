@@ -55,10 +55,6 @@ extern "C" {
 #error "No BLAS Header files included!"
 #endif
 
-#ifndef ADAPT_SCHED_MEM
-#error "Adaptive memory-aware scheduling is not enabled!"
-#endif
-
 #if USE_MEMALIGN
 #include <malloc.h>
 #endif
