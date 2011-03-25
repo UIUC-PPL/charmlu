@@ -394,16 +394,24 @@ public:
       return std::make_pair(numPErows, numPEcols);
   }
 
+  /// Returns how long a single dgemm of given block size takes
   double testdgemm(unsigned long blocksize) {
-    double *m1 = new double[blocksize*blocksize];
-    double *m2 = new double[blocksize*blocksize];
-    double *m3 = new double[blocksize*blocksize];
+    double duration = 0;
+    int numTrials = 10;
+
+    /// @note: possible cache warmth/cold issues here bcos we create and initialize just b4 use
+    for (int i=0; i<numTrials; i++) {
 
     MatGen rnd(0);
 
-    rnd.getNRndDoubles(blocksize * blocksize, m1);
-    rnd.getNRndDoubles(blocksize * blocksize, m2);
+    // Touch the output matrix first to avoid keeping it really warm in the cache
+    double *m3 = new double[blocksize*blocksize];
     rnd.getNRndDoubles(blocksize * blocksize, m3);
+
+    double *m1 = new double[blocksize*blocksize];
+    rnd.getNRndDoubles(blocksize * blocksize, m1);
+    double *m2 = new double[blocksize*blocksize];
+    rnd.getNRndDoubles(blocksize * blocksize, m2);
 
     double startTest = CmiWallTimer();
 
@@ -423,17 +431,14 @@ public:
 #endif
 
     double endTest = CmiWallTimer();
-    double duration = endTest-startTest;
-
-    double flopcount = (double)blocksize * (double)blocksize * (double)blocksize * 2.0;
-    double gflopcount = flopcount / 1000000000.0;
-    double gflopPerSec = gflopcount / duration;
+    duration += endTest-startTest;
 
     delete[] m1;
     delete[] m2;
     delete[] m3;
+    }
 
-    return gflopPerSec;
+    return duration/numTrials;
   }
 
   void outputStats() {
@@ -466,10 +471,14 @@ public:
       std::cout << "If ran on " << peaks[i].machine << ", I think you got \t"
 		<< 100.0*fractionOfPeak << "% of peak" << std::endl;
     }
-    double dgemmflops = testdgemm(luCfg.blockSize);
-    CkPrintf("The dgemm %d x %d achieves %g GFlop/sec\n", luCfg.blockSize,
-             luCfg.blockSize, dgemmflops);
-    CkPrintf("Percent of DGEMM is: %g%%\n", gflops_per_core / dgemmflops * 100.0);
+    double dgemmDuration    = testdgemm(luCfg.blockSize);
+    double dgemmFlopCount   = (double)luCfg.blockSize * (double)luCfg.blockSize * (double)luCfg.blockSize * 2.0;
+    double dgemmGFlopCount  = dgemmFlopCount / 1000000000.0;
+    double dgemmGFlopPerSec = dgemmGFlopCount / dgemmDuration;
+
+    CkPrintf("The dgemm %d x %d takes %g ms and achieves %g GFlop/sec\n", luCfg.blockSize,
+             luCfg.blockSize, dgemmDuration*1000, dgemmGFlopPerSec);
+    CkPrintf("Percent of DGEMM is: %g%%\n", gflops_per_core / dgemmGFlopPerSec * 100.0);
   }
 
   void calcScaledResidual(CkReductionMsg *msg) {
