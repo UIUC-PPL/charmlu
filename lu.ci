@@ -570,21 +570,11 @@ mainmodule lu {
     //entry void readyL(BlockReadyMsg *mL);
     //entry void readyU(BlockReadyMsg *mU);
 
-    // These process* entry methods are invoked locally by each block
-    // on itself with varying priorities, to let the scheduler decide
-    // when the work they represent (the bulk of the computation)
-    // should execute.
-    //
-    // When a block computes a trailing update, it no longer needs to
-    // retain the incoming data from the corresponding row and column
-    // updates. The [memcritical] annotation tells the runtime that it
-    // should schedule invocations of this entry method when it is in
-    // a memory critical (i.e. over threshold) condition, so that
-    // retained messages can be freed.
+    // These process* entry methods are invoked locally on each block
+    // by the BlockScheduler with varying priorities, to let the
+    // scheduler decide when the work they represent (the bulk of the
+    // computation) should execute.
     entry void processTrailingUpdate(int step, intptr_t update_ptr);
-    // This frees a buffered message, but don't really reduce
-    // memory pressure, because it generates multicasts along the
-    // way. Hence, it's not marked [memcritical].
     entry void processComputeU(int ignoredParam);
 
     entry void flushLogs();
