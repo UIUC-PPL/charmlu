@@ -19,4 +19,4 @@ print "Starting job $runnum on $N nodes, " . ($mode eq "vn" ? $N * 4 : $N) . " p
 print "inputs: $matrix $BLK $thresh $agglom $mapargs $peRotate $peStride\n";
 
 my $dcmf = 16*1024*1024;
-`qsub --env "BG_MAXALIGNEXP=1000:DCMF_RECFIFO=$dcmf" -A PARTS --mode $mode -n $N -t 25 -o run-$runnum-$N-$BLK.out -e run-$runnum-$N-$BLK.error ./redn.lu.prod $matrix $BLK $thresh $agglom $mapargs $peRotate $peStride +LBOff`;
+`qsub --env "BG_MAXALIGNEXP=1000:DCMF_RECFIFO=$dcmf" -A PARTS --mode $mode -n $N -t 35 -o run-$runnum-$N-$BLK.out -e run-$runnum-$N-$BLK.error ./lu.prod $matrix $BLK $thresh $agglom $mapargs $peRotate $peStride +LBOff`;
