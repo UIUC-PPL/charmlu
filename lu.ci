@@ -526,14 +526,12 @@ mainmodule lu {
 
         atomic {
           localForward(bvec);
-          if (thisIndex.x == numBlks-1) {
-            for (int i = 0; i < numBlks; i++)
-              thisProxy(i, i).backwardSolve();
-          } else {
+          if (thisIndex.x != numBlks-1) {
             // Broadcast downward from diagonal
             BVecMsg *m = new (BLKSIZE) BVecMsg(BLKSIZE, bvec, true);
             activePanel.offDiagSolve(m);
           }
+	  thisProxy(thisIndex).backwardSolve();
         }
       };
 
