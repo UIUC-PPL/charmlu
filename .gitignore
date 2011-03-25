@@ -1,6 +1,8 @@
 charmrun
 lu
 lu-proj
+lu.prod
+lu.trace
 *.log
 *.projrc
 *.sts
