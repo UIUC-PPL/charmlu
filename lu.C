@@ -284,6 +284,11 @@ public:
 #else
     CkPrintf("\tPivot Redn Scheduling: Off\n");
 #endif
+#if defined(CHARMLU_USEG_FROM_BELOW)
+    CkPrintf("\tUseg Multicast from: Below\n");
+#else
+    CkPrintf("\tUseg Multicast from: Diagonal\n");
+#endif
 
     // Create a multicast manager group
     mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
