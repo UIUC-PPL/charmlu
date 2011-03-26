@@ -26,8 +26,8 @@ pair<int, int> make_pair(CkIndex2D index) {
 
 BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_)
   : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false), numActive(0),
-    pendingTriggered(0), sendDelay(0), reverseSends(CkMyPe() % 2 == 0) {
-
+    pendingTriggered(0), sendDelay(0), reverseSends(CkMyPe() % 2 == 0),
+    maxMemory(0), maxMemoryIncreases(0), maxMemoryStep(-1) {
   blockLimit = config.memThreshold * 1024 * 1024 /
     (config.blockSize * (config.blockSize + 1) * sizeof(double) + sizeof(LUBlk) + sdagOverheadPerBlock);
 
@@ -63,6 +63,14 @@ void pumpOnIdle(void *s, double) {
 }
 
 void BlockScheduler::pumpMessages() {
+  size_t curMemory = CmiMemoryUsage();
+  if (curMemory > maxMemory) {
+    maxMemory = curMemory;
+    maxMemoryIncreases++;
+    if (plannedUpdates.size() > 0)
+      maxMemoryStep = plannedUpdates.front().t;
+  }
+
   for (list<blkMsg*>::iterator iter = sendsInFlight.begin();
        iter != sendsInFlight.end(); ++iter) {
     //DEBUG_SCHED("pumpMessages, iter through sendsInFlight %p", *iter);
@@ -132,8 +140,19 @@ void BlockScheduler::registerBlock(CkIndex2D index) {
     CkAbort("Too little space to plan even one trailing update");
 }
 
+void printMemory(void *time, void *msg) {
+  size_t mem = ((int*) ((CkReductionMsg *)msg)->getData())[0];
+  CkPrintf("%s memory usage: %zu bytes\n", time, mem);
+  delete (CkReductionMsg *)msg;
+}
+
 void BlockScheduler::allRegistered(CkReductionMsg *m) {
   delete m;
+
+  baseMemory = CmiMemoryUsage();
+  contribute(sizeof(size_t), &baseMemory, CkReduction::max_int,
+	     CkCallback(&printMemory, const_cast<char*>("Base")));
+
   progress();
 }
 

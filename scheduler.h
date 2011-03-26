@@ -148,6 +148,12 @@ private:
   // Keep localBlocks partitioned by whether blocks are eligible or not
   // Eligible at the head of localBlocks, all else at the tail
   void repositionBlock(StateList::iterator block);
+
+  // Memory usage instrumentation
+  // Memory occupied before factorization starts
+  size_t baseMemory;
+  // Maximum memory usage seen
+  size_t maxMemory, maxMemoryIncreases, maxMemoryStep;
 };
 
 #endif
