@@ -19,7 +19,10 @@ if ($#ARGV + 1 > 1) {
     ($xaxis, $yaxis) = @ARGV;
 }
 
-my $temp = `mktemp extractTimings.XXXXXXXXXXXXXX`;
+my $runName = `basename $file`;
+$runName =~ s/(.*)\.[^\.]*/$1/;
+
+my $temp = "tmp-" . $runName . ".dat";
 chomp $temp;
 
 open FILE, ">", "$temp" or die $!;
@@ -98,7 +101,8 @@ if ($yaxis == 0) {
 }
 
 $plotCmds .= <<END;
-set title '$file'
+set terminal postscript
+set title '$runName'
 set ylabel 'Execution Time (seconds)'
 set xlabel 'LU Step'
 set pointsize 0.5
@@ -107,4 +111,7 @@ plot '$temp' using 1:2 title 'Active panel time' with points lt 1 pt 5, \\
      '$temp' using 1:4 title 'Trailing update time per step' with lines lw 2
 END
 
-print "$plotCmds";
+my $opFile = "tmp-" . $runName . ".ps";
+open (OPIPE, "| gnuplot > $opFile && ps2pdf $opFile") or die $!;
+print OPIPE "$plotCmds";
+
