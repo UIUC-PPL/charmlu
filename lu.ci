@@ -597,6 +597,7 @@ mainmodule lu {
     entry void deliverBlock(blkMsg *m);
     entry void printBlockLimit();
     entry void allRegistered(CkReductionMsg *m);
+    entry void scheduleSend(CkIndex2D index, bool onActive);
   }
 
   group LUMap : CkArrayMap {

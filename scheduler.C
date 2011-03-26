@@ -59,6 +59,11 @@ void BlockScheduler::scheduleSend(blkMsg *msg, bool onActive) {
   pumpMessages();
 }
 
+void BlockScheduler::scheduleSend(CkIndex2D index, bool onActive) {
+  blkMsg *msg = luArr(index).ckLocal()->LUmsg;
+  scheduleSend(msg, onActive);
+}
+
 void pumpOnIdle(void *s, double) {
   BlockScheduler *scheduler = (BlockScheduler *)s;
   //CkPrintf("Firing pumpMessages on Idle\n");

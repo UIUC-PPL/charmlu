@@ -97,6 +97,7 @@ public:
   void startedActivePanel();
   bool shouldExecute();
   void scheduleSend(blkMsg *m, bool onActive);
+  void scheduleSend(CkIndex2D index, bool onActive);
   void updateUntriggered();
   void pumpMessages();
 

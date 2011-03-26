@@ -66,6 +66,8 @@ class LUBlk: public CBase_LUBlk {
 public:
   int internalStep;
   bool factored;
+  blkMsg *LUmsg;
+
 private:
   CProxy_BlockScheduler scheduler;
   BlockScheduler *localScheduler;
@@ -76,7 +78,6 @@ private:
 
   /// Variables used during factorization
   double *LU;
-  blkMsg *LUmsg;
 
   int BLKSIZE, numBlks;
   blkMsg *L, *U;
