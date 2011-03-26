@@ -96,7 +96,7 @@ public:
   void deliverBlock(blkMsg *m);
   void startedActivePanel();
   bool shouldExecute();
-  void scheduleSend(blkMsg *m);
+  void scheduleSend(blkMsg *m, bool onActive);
   void updateUntriggered();
   void pumpMessages();
 

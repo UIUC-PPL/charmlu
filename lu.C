@@ -846,7 +846,10 @@ inline void LUBlk::multicastRecvU() {
 
   DEBUG_PRINT("Multicast to part of column %d", thisIndex.y);
 
-  localScheduler->scheduleSend(LUmsg);
+  if (internalStep == thisIndex.y - 1)
+    localScheduler->scheduleSend(LUmsg, true);
+  else
+    localScheduler->scheduleSend(LUmsg, false);
 
   // BlockReadyMsg *mU = new(8*sizeof(int)) BlockReadyMsg(thisIndex);
   // mgr->setPrio(mU, MULT_RECV_U);
@@ -866,7 +869,7 @@ inline void LUBlk::multicastRecvL() {
   } else {
     DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
 
-    localScheduler->scheduleSend(LUmsg);
+    localScheduler->scheduleSend(LUmsg, true);
 
     // DEBUG_PRINT("Announce block ready to part of row %d", thisIndex.x);
     // BlockReadyMsg *mL = new(8*sizeof(int)) BlockReadyMsg(thisIndex);
@@ -877,7 +880,13 @@ inline void LUBlk::multicastRecvL() {
 void LUBlk::getBlock(int pe, int rx, int ry) {
   if (factored) {
     requestingPEs.push_back(pe);
-    localScheduler->scheduleSend(LUmsg);
+
+    if (thisIndex.x > thisIndex.y && internalStep == thisIndex.y) {
+      localScheduler->scheduleSend(LUmsg, true);
+    } else if (thisIndex.x < thisIndex.y && internalStep == thisIndex.y - 1) {
+      localScheduler->scheduleSend(LUmsg, true);
+    } else
+      localScheduler->scheduleSend(LUmsg, false);
   } else {
     DEBUG_PRINT("Queueing remote block for pe %d", pe);
     requestingPEs.push_back(pe);

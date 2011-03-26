@@ -44,12 +44,16 @@ void BlockScheduler::incomingComputeU(CkIndex2D index, int t) {
   }
 }
 
-void BlockScheduler::scheduleSend(blkMsg *msg) {
+void BlockScheduler::scheduleSend(blkMsg *msg, bool onActive) {
   list<blkMsg *>::iterator iter = find(scheduledSends.begin(),
                                        scheduledSends.end(), msg);
   DEBUG_SCHED("scheduling a new send (%d, %d)", msg->src.x, msg->src.y);
   if (iter == scheduledSends.end()) {
-    scheduledSends.push_back(msg);
+    if (onActive) {
+      scheduledSends.push_front(msg);
+    } else {
+      scheduledSends.push_back(msg);
+    }
   }
 
   pumpMessages();
@@ -274,7 +278,7 @@ void BlockScheduler::deliverBlock(blkMsg *m) {
   m->npes_receiver--;
   m->firstHalfSent = false;
   if (m->npes_receiver >= 1) {
-    scheduleSend(m);
+    scheduleSend(m, false);
     block.isSending = true;
   }
 
