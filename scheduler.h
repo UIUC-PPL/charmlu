@@ -148,10 +148,6 @@ private:
   template <typename K>
   void addDependence(std::map<K, Panel> &panels, K index, StateList::iterator block);
 
-  // Keep localBlocks partitioned by whether blocks are eligible or not
-  // Eligible at the head of localBlocks, all else at the tail
-  void repositionBlock(StateList::iterator block);
-
   // Memory usage instrumentation
   // Memory occupied before factorization starts (kilobytes)
   int baseMemory;

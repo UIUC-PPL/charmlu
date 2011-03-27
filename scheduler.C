@@ -193,12 +193,6 @@ void BlockScheduler::startedActivePanel() {
   numActive++;
 }
 
-void BlockScheduler::repositionBlock(StateList::iterator block) {
-  StateList::iterator pos = block->pendingDependencies == 0 ?
-    localBlocks.begin() : localBlocks.end();
-  localBlocks.splice(pos, localBlocks, block);
-}
-
 template <typename K>
 void BlockScheduler::updatePanel(map<K, Panel> &panels, K index) {
   typename map<K, Panel>::iterator iter = panels.find(index);
@@ -210,7 +204,6 @@ void BlockScheduler::updatePanel(map<K, Panel> &panels, K index) {
     for (list<StateList::iterator>::iterator i = panel.dependents.begin();
          i != panel.dependents.end(); ++i) {
       (*i)->pendingDependencies--;
-      repositionBlock(*i);
     }
 
     panels.erase(iter);
@@ -240,7 +233,6 @@ void BlockScheduler::planUpdate(StateList::iterator target) {
 
   if (target->updatesPlanned < min(target->ix, target->iy)) {
     addDependence(panels, t+1, target);
-    repositionBlock(target);
   } else {
     doneBlocks.splice(doneBlocks.end(), localBlocks, target);
   }
