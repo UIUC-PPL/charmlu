@@ -39,9 +39,11 @@ void BlockScheduler::scheduleSend(blkMsg *msg, bool onActive) {
                                        scheduledSends.end(), msg);
   DEBUG_SCHED("scheduling a new send (%d, %d)", msg->src.x, msg->src.y);
   if (iter == scheduledSends.end()) {
+#if 0
     if (onActive)
       scheduledSends.push_front(msg);
     else
+#endif
       scheduledSends.push_back(msg);
   }
 
