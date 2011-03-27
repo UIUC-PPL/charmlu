@@ -55,6 +55,7 @@ if ($PEs == 0) {
 }
 
 my $output = 0;
+my $totalTime = 0;
 
 for my $key (sort {$a <=> $b} (keys %blockTimingStart)) {
     if (exists $blockTimingStop{$key} and exists $blockTimingStart{$key}) {
@@ -71,6 +72,8 @@ for my $key (sort {$a <=> $b} (keys %blockTimingStart)) {
             my $DGEMMsecs = $DGEMM / 1000;
             my $TUmodel = (($chareArray-$key-1)*($chareArray-$key-1)/$PEs)*$DGEMMsecs;
             $output = 1;
+            $totalTime += $diff;
+            $totalTime += $delay;
             print FILE "$key $diff $delay $TUmodel\n";
         }
     }
@@ -78,6 +81,8 @@ for my $key (sort {$a <=> $b} (keys %blockTimingStart)) {
 
 close FILE;
 close RFILE;
+
+print "Total measured time = $totalTime\n";
 
 if ($output == 0) {
     exit 1;
