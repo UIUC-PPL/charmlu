@@ -294,7 +294,7 @@ PE2DTilingMap(int _peRows, int _peCols, int _peRotate, int _peStride, int _numBl
   }
 
   int pesInPanel(CkIndex2D index) {
-    if (index.x <= index.y)
+    if (index.x < index.y)
       return peRows;
     else {
       std::set<int> pesInRow;
