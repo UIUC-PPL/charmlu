@@ -59,6 +59,16 @@ void BlockScheduler::scheduleSend(blkMsg *msg, bool onActive) {
   pumpMessages();
 }
 
+void BlockScheduler::releaseActiveColumn(const int y) {
+  for (StateList::iterator iter = localBlocks.begin();
+       iter != localBlocks.end(); ++iter) {
+    if (iter->iy == y && y - 1 == iter->updatesPlanned) {
+      CkAssert(iter->pendingDependencies > 0);
+      iter->pendingDependencies--;
+    }
+  }
+}
+
 void BlockScheduler::scheduleSend(CkIndex2D index, bool onActive) {
   blkMsg *msg = luArr(index).ckLocal()->LUmsg;
   scheduleSend(msg, onActive);

@@ -916,6 +916,10 @@ void LUBlk::processComputeU(int ignoredParam) {
   factored = true;
   localScheduler->factorizationDone(thisIndex);
 
+  if (thisIndex.x + 1 == thisIndex.y) {
+    scheduler.releaseActiveColumn(thisIndex.y);
+  }
+
   DEBUG_PRINT("done");
 }
 
