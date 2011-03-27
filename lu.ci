@@ -239,27 +239,35 @@ mainmodule lu {
           }
         }
 
-        atomic {
-          updateExecuted = false;
-        }
-        while (!updateExecuted) {
-          when processComputeU(intptr_t update_ptr) atomic "process_compute_U" {
-            Update &update = *(Update *)update_ptr;
-            if (localScheduler->shouldExecute()) {
-              DEBUG_PRINT("doing triangular solve");
-              // We are in the top row of active blocks, and we have received the incoming L
-              computeU(update.L);
-              // Broadcast the newly computed U downwards to the blocks in the same column
-              multicastRecvU();
-              factored = true;
-              localScheduler->factorizationDone(thisIndex);
-              localScheduler->updateDone(update_ptr);
-              updateExecuted = true;
-            } else {
-              update.triggered = false;
-              localScheduler->updateUntriggered();
+        if (thisIndex.y == thisIndex.x + 1) {
+          when deliverDiagonal(blkMsg* m) atomic "deliver_diagonal" {
+            DEBUG_PRINT("doing triangular solve");
+            computeU(m->data);
+            delete m;
+          }
+        } else {
+          atomic {
+            updateExecuted = false;
+          }
+          while (!updateExecuted) {
+            when processComputeU(intptr_t update_ptr) atomic "process_compute_U" {
+              Update &update = *(Update *)update_ptr;
+              if (localScheduler->shouldExecute()) {
+                DEBUG_PRINT("doing triangular solve");
+                computeU(update.L);
+                localScheduler->updateDone(update_ptr);
+                updateExecuted = true;
+              } else {
+                update.triggered = false;
+                localScheduler->updateUntriggered();
+              }
             }
           }
+        }
+        atomic "finish_U" {
+          multicastRecvU();
+          factored = true;
+          localScheduler->factorizationDone(thisIndex);
         }
       }
       // Below diagonal
@@ -486,6 +494,11 @@ mainmodule lu {
         // All diagonal chares except the last must continue the factorization
         if (thisIndex.x < numBlks-1 && thisIndex.y < numBlks-1) {
           DEBUG_PRINT("is top,left block this step, multicast L");
+          if (thisIndex.x == thisIndex.y) {
+            blkMsg *msg = new (BLKSIZE * BLKSIZE, 0, mgr->bitsOfPrio()) blkMsg(thisIndex);
+            memcpy(msg->data, LU, sizeof(double) * BLKSIZE * BLKSIZE);
+            thisProxy(thisIndex.x, thisIndex.y + 1).deliverDiagonal(msg);
+          }
           // Multicast the local block of L rightwards to the blocks in the same row
           multicastRecvL();
         }
@@ -593,6 +606,8 @@ mainmodule lu {
     entry void print();
 
     entry void finishInit();
+
+    entry void deliverDiagonal(blkMsg* m);
   };
 
   group OnePerPE : CkArrayMap {

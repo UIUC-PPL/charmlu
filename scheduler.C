@@ -248,7 +248,11 @@ void BlockScheduler::planUpdate(StateList::iterator target) {
 
   if (update.isComputeU()) {
     CkAssert(t == min(target->ix, target->iy));
-    getBlock(target->ix, target->ix, update.L, &update);
+
+    if (target->iy == target->ix + 1)
+      plannedUpdates.pop_back();
+    else
+      getBlock(target->ix, target->ix, update.L, &update);
 
     updatePanel(panels, t);
 
