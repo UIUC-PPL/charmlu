@@ -101,6 +101,7 @@ public:
   void updateUntriggered();
   void pumpMessages();
   void releaseActiveColumn(const int y);
+  void outputStats();
 
 private:
   LUMgr *mgr;
@@ -152,10 +153,10 @@ private:
   void repositionBlock(StateList::iterator block);
 
   // Memory usage instrumentation
-  // Memory occupied before factorization starts
-  size_t baseMemory;
-  // Maximum memory usage seen
-  size_t maxMemory, maxMemoryIncreases, maxMemoryStep;
+  // Memory occupied before factorization starts (kilobytes)
+  int baseMemory;
+  // Maximum memory usage seen (kilobytes)
+  int maxMemory, maxMemoryIncreases, maxMemoryStep;
 };
 
 #endif

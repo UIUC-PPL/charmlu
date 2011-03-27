@@ -82,7 +82,7 @@ void pumpOnIdle(void *s, double) {
 }
 
 void BlockScheduler::pumpMessages() {
-  size_t curMemory = CmiMemoryUsage();
+  size_t curMemory = CmiMemoryUsage()/1024;
   if (curMemory > maxMemory) {
     maxMemory = curMemory;
     maxMemoryIncreases++;
@@ -160,16 +160,30 @@ void BlockScheduler::registerBlock(CkIndex2D index) {
 }
 
 void printMemory(void *time, void *msg) {
-  size_t mem = ((int*) ((CkReductionMsg *)msg)->getData())[0];
-  CkPrintf("%s memory usage: %zu bytes\n", time, mem);
+  int *s = (int*) ((CkReductionMsg *)msg)->getData();
+  int mem = s[0];
+  CkPrintf("%s memory usage: %zu KiB, additional stats: ", time, mem);
+  for (int i = 1; i < ((CkReductionMsg *)msg)->getLength()/sizeof(int); i++)
+    CkPrintf("%zd ", s[i]);
+  CkPrintf("\n");
   delete (CkReductionMsg *)msg;
+}
+
+void BlockScheduler::outputStats() {
+  int stats[3];
+  stats[0] = maxMemory;
+  stats[1] = maxMemoryIncreases;
+  stats[2] = maxMemoryStep;
+
+  contribute(3*sizeof(int), stats, CkReduction::max_int,
+	     CkCallback(&printMemory, const_cast<char*>("Peak")));
 }
 
 void BlockScheduler::allRegistered(CkReductionMsg *m) {
   delete m;
 
-  baseMemory = CmiMemoryUsage();
-  contribute(sizeof(size_t), &baseMemory, CkReduction::max_int,
+  baseMemory = CmiMemoryUsage()/1024;
+  contribute(sizeof(int), &baseMemory, CkReduction::max_int,
 	     CkCallback(&printMemory, const_cast<char*>("Base")));
 
   progress();
