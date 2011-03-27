@@ -24,7 +24,6 @@ struct BlockState {
   int updatesCompleted, updatesPlanned, updatesEligible;
   // Have pivots been completed for this step?
   bool pivotsDone;
-  // State of the L and U input blocks for the next update
 
   BlockState(CkIndex2D index)
     : ix(index.x), iy(index.y), pendingDependencies(0),
@@ -54,7 +53,9 @@ struct Update {
       U = data;
   }
 
-  bool ready() { return L && U && !triggered; }
+  bool isComputeU() { return target->ix == t; }
+
+  bool ready() { return L && (U || isComputeU()) && !triggered; }
 
   Update(BlockState *target_, int step)
     : target(target_), triggered(false), t(step), L(NULL), U(NULL) { }
@@ -87,7 +88,6 @@ public:
 
   void registerBlock(CkIndex2D index);
   void allRegistered(CkReductionMsg *m);
-  void incomingComputeU(CkIndex2D index, int t);
   void printBlockLimit();
   void pivotsDone(CkIndex2D index);
 //  void dataReady(CkIndex2D index, BlockReadyMsg *m);
@@ -106,14 +106,14 @@ public:
 private:
   LUMgr *mgr;
   StateList localBlocks, doneBlocks;
-  std::list<ComputeU> pendingComputeU;
 
   std::map<int, Panel> panels;
+  std::map<int, Panel> Upanels;
 
   std::list<Update> plannedUpdates;
   CProxy_LUBlk luArr;
   int blockLimit;
-  bool inProgress;
+  bool inProgress, inPumpMessages;
   int numActive;
   int pendingTriggered;
   bool reverseSends;

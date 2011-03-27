@@ -238,11 +238,28 @@ mainmodule lu {
               }
           }
         }
-        // Once all pivot info is processed, perform the row update
-        when recvL[internalStep](blkMsg *mL) atomic "beforeL_schedule_computeU" {
-          takeRef(mL);
-          L = mL;
-          localScheduler->incomingComputeU(thisIndex, internalStep);
+
+        atomic {
+          updateExecuted = false;
+        }
+        while (!updateExecuted) {
+          when processComputeU(intptr_t update_ptr) atomic "process_compute_U" {
+            Update &update = *(Update *)update_ptr;
+            if (localScheduler->shouldExecute()) {
+              DEBUG_PRINT("doing triangular solve");
+              // We are in the top row of active blocks, and we have received the incoming L
+              computeU(update.L);
+              // Broadcast the newly computed U downwards to the blocks in the same column
+              multicastRecvU();
+              factored = true;
+              localScheduler->factorizationDone(thisIndex);
+              localScheduler->updateDone(update_ptr);
+              updateExecuted = true;
+            } else {
+              update.triggered = false;
+              localScheduler->updateUntriggered();
+            }
+          }
         }
       }
       // Below diagonal
@@ -562,16 +579,6 @@ mainmodule lu {
         }
       };
 
-    // These entry methods are the targets of the row- and column-wise
-    // multicasts each block makes.
-    //
-    // These methods reference but will not modify the messages
-    // delivered to them. Thus, we can use the [nokeep] annotation to
-    // tell the runtime that it can safely deliver the same message
-    // instance to every object on a processor, rather than making a
-    // separate copy for each object.
-    entry [nokeep] void recvL(blkMsg *);
-
     //entry void readyL(BlockReadyMsg *mL);
     //entry void readyU(BlockReadyMsg *mU);
 
@@ -580,7 +587,7 @@ mainmodule lu {
     // scheduler decide when the work they represent (the bulk of the
     // computation) should execute.
     entry void processTrailingUpdate(int step, intptr_t update_ptr);
-    entry void processComputeU(int ignoredParam);
+    entry void processComputeU(intptr_t update_ptr);
 
     entry void flushLogs();
     entry void print();

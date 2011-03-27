@@ -80,7 +80,7 @@ private:
   double *LU;
 
   int BLKSIZE, numBlks;
-  blkMsg *L, *U;
+  blkMsg *U;
   //BlockReadyMsg *mL, *mU;
   int activeCol, ind;
 
@@ -192,7 +192,7 @@ private:
   LUBlk(CkMigrateMessage* m) {}
   //added for migration
   void pup(PUP::er &p) {  }
-  void computeU(blkMsg *givenLMsg);
+  void computeU(double *givenL);
   void computeL(blkMsg *givenUMsg);
   void updateMatrix(double *incomingL, double *incomingU);
   //broadcast the U downwards to the blocks in the same column

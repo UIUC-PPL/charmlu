@@ -765,9 +765,8 @@ LUBlk::~LUBlk() {
   LU = NULL;
 }
 
-void LUBlk::computeU(blkMsg *givenLMsg) {
+void LUBlk::computeU(double *givenL) {
   traceLU t(internalStep, traceComputeU);
-  double *givenL = givenLMsg->data;
 
 #if 0
   if( ((unsigned long)givenL) % 16 != 0){
@@ -860,19 +859,12 @@ inline void LUBlk::multicastRecvL() {
   traceMemoryUsage();
   mgr->setPrio(LUmsg, MULT_RECV_L);
 
-  if (thisIndex.x == thisIndex.y) {
-    DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
-    takeRef(LUmsg);
-    rowAfterDiag.recvL(LUmsg);
-  } else {
-    DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
+  DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
+  localScheduler->scheduleSend(thisIndex, true);
 
-    localScheduler->scheduleSend(thisIndex, true);
-
-    // DEBUG_PRINT("Announce block ready to part of row %d", thisIndex.x);
-    // BlockReadyMsg *mL = new(8*sizeof(int)) BlockReadyMsg(thisIndex);
-    // oneRow.readyL(mL);
-  }
+  // DEBUG_PRINT("Announce block ready to part of row %d", thisIndex.x);
+  // BlockReadyMsg *mL = new(8*sizeof(int)) BlockReadyMsg(thisIndex);
+  // oneRow.readyL(mL);
 }
 
 void LUBlk::getBlock(int pe, int rx, int ry) {
@@ -894,34 +886,6 @@ void LUBlk::getBlock(int pe, int rx, int ry) {
 }
 double* LUBlk::getBlock() {
   return LU;
-}
-
-void LUBlk::processComputeU(int ignoredParam) {
-  localScheduler->updateUntriggered();
-  if (!localScheduler->shouldExecute()) {
-    localScheduler->incomingComputeU(thisIndex, internalStep);
-    return;
-  }
-  DEBUG_PRINT("processComputeU() called");
-  CkAssert(internalStep==thisIndex.x && L);
-  // We are in the top row of active blocks, and we
-  // have received the incoming L
-
-  DEBUG_PRINT("computeU");
-  computeU(L);
-
-  DEBUG_PRINT("multicast U downward");
-  multicastRecvU(); //broadcast the newly computed U downwards to the blocks in the same column
-
-  dropRef(L);
-  factored = true;
-  localScheduler->factorizationDone(thisIndex);
-
-  if (thisIndex.x + 1 == thisIndex.y) {
-    scheduler.releaseActiveColumn(thisIndex.y);
-  }
-
-  DEBUG_PRINT("done");
 }
 
 void LUBlk::localSolve(double *xvec, double *preVec) {

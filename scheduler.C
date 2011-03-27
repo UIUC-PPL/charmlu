@@ -25,23 +25,13 @@ pair<int, int> make_pair(CkIndex2D index) {
 }
 
 BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_)
-  : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false), numActive(0),
+  : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false), inPumpMessages(false), numActive(0),
     pendingTriggered(0), sendDelay(0), reverseSends(CkMyPe() % 2 == 0),
     maxMemory(0), maxMemoryIncreases(0), maxMemoryStep(-1) {
   blockLimit = config.memThreshold * 1024 * 1024 /
     (config.blockSize * (config.blockSize + 1) * sizeof(double) + sizeof(LUBlk) + sdagOverheadPerBlock);
 
   contribute(CkCallback(CkIndex_LUBlk::schedulerReady(NULL), luArr));
-}
-
-void BlockScheduler::incomingComputeU(CkIndex2D index, int t) {
-  if (numActive > 0) {
-    pendingComputeU.push_back(ComputeU(index.x, index.y, t));
-  } else {
-    CkEntryOptions opts;
-    luArr(index).processComputeU(0, &(mgr->setPrio(RECVL, opts, index.y)));
-    pendingTriggered++;
-  }
 }
 
 void BlockScheduler::scheduleSend(blkMsg *msg, bool onActive) {
@@ -64,6 +54,9 @@ void BlockScheduler::releaseActiveColumn(const int y) {
        iter != localBlocks.end(); ++iter) {
     if (iter->iy == y && y - 1 == iter->updatesPlanned &&
         iter->pendingDependencies > 0) {
+      list<StateList::iterator> &dependents = panels[y].dependents;
+      CkAssert(find(dependents.begin(), dependents.end(), iter) != dependents.end());
+      dependents.remove(iter);
       iter->pendingDependencies--;
     }
   }
@@ -82,6 +75,10 @@ void pumpOnIdle(void *s, double) {
 }
 
 void BlockScheduler::pumpMessages() {
+  if (inPumpMessages) return;
+
+  inPumpMessages = true;
+
   size_t curMemory = CmiMemoryUsage()/1024;
   if (curMemory > maxMemory) {
     maxMemory = curMemory;
@@ -111,6 +108,7 @@ void BlockScheduler::pumpMessages() {
           if (block.refs.size() == 0)  {
             delete msg;
             wantedBlocks.erase(blockIter);
+            progress();
           }
         } else {
           // If local, needs to be set back to false, so setupMsg gets called
@@ -135,11 +133,13 @@ void BlockScheduler::pumpMessages() {
   }
 
   if (sendsInFlight.size() != 0 || scheduledSends.size() != 0) {
-    //CkPrintf("Setting up idle condition; %d messages in flight\n", sendsInFlight.size());
+    //DEBUG_SCHED("Setting up idle condition; %d messages in flight\n", sendsInFlight.size());
     CcdCallOnCondition(CcdPROCESSOR_STILL_IDLE, pumpOnIdle, this);
   } else {
     DEBUG_SCHED("finished all sends");
   }
+
+  inPumpMessages = false;
 }
 
 void BlockScheduler::printBlockLimit() {
@@ -148,11 +148,17 @@ void BlockScheduler::printBlockLimit() {
 
 void BlockScheduler::registerBlock(CkIndex2D index) {
   blockLimit--;
-  if (index.x != 0 && index.y != 0) {
+
+  if (index.y != 0) {
     localBlocks.push_back(BlockState(index));
-    for (int i = 1; i < min(index.x, index.y) + 1; i++) {
-      panels[i].updatesLeftToPlan++;
+
+    if (index.x != 0) {
+      for (int i = 1; i < min(index.x, index.y) + 1; i++)
+        Upanels[i].updatesLeftToPlan++;
     }
+
+    if (index.y > index.x)
+      panels[index.x].updatesLeftToPlan++;
   }
 
   if (blockLimit< 2)
@@ -185,6 +191,18 @@ void BlockScheduler::allRegistered(CkReductionMsg *m) {
   baseMemory = CmiMemoryUsage()/1024;
   contribute(sizeof(int), &baseMemory, CkReduction::max_int,
 	     CkCallback(&printMemory, const_cast<char*>("Base")));
+
+  for (map<int, Panel>::iterator iter = panels.begin(); iter != panels.end();
+       ++iter)
+    DEBUG_SCHED("panels[%d] = %d", iter->first, iter->second.updatesLeftToPlan);
+  for (map<int, Panel>::iterator iter = Upanels.begin(); iter != Upanels.end();
+       ++iter)
+    DEBUG_SCHED("Upanels[%d] = %d", iter->first, iter->second.updatesLeftToPlan);
+
+  for (StateList::iterator iter = localBlocks.begin();
+       iter != localBlocks.end(); ++iter)
+    if (iter->ix != 0)
+      addDependence(panels, 0, iter);
 
   progress();
 }
@@ -228,16 +246,29 @@ void BlockScheduler::planUpdate(StateList::iterator target) {
   plannedUpdates.push_back(Update(&*target, t));
   Update &update = plannedUpdates.back();
 
+  if (update.isComputeU()) {
+    CkAssert(t == min(target->ix, target->iy));
+    getBlock(target->ix, target->ix, update.L, &update);
+
+    updatePanel(panels, t);
+
+    doneBlocks.splice(doneBlocks.end(), localBlocks, target);
+    return;
+  }
+
   getBlock(target->ix, t, update.L, &update);
   getBlock(t, target->iy, update.U, &update);
 
   if (target->updatesPlanned < min(target->ix, target->iy)) {
     addDependence(panels, t+1, target);
-  } else {
+    addDependence(Upanels, t+1, target);
+  } else if (target->iy > target->ix) {
+    CkAssert(target->updatesPlanned == min(target->ix, target->iy));
+    addDependence(Upanels, t+1, target);
+  } else
     doneBlocks.splice(doneBlocks.end(), localBlocks, target);
-  }
 
-  updatePanel(panels, t+1);
+  updatePanel(Upanels, t+1);
 }
 
 void BlockScheduler::getBlock(int srcx, int srcy, double *&data,
@@ -372,11 +403,17 @@ void BlockScheduler::runUpdate(list<Update>::iterator iter) {
   pendingTriggered++;
 
   CkEntryOptions opts;
-  int t = update.t;
   intptr_t update_ptr = (intptr_t)&update;
-  luArr(tx, ty).processTrailingUpdate(t, update_ptr,
-                                      &(mgr->setPrio(PROCESS_TRAILING_UPDATE,
-                                                     opts, ty, tx, t)));
+
+  if (update.isComputeU()) {
+   luArr(tx, ty).processComputeU(update_ptr,
+                                 &(mgr->setPrio(PROCESS_COMPUTE_U, opts)));
+  } else {
+    int t = update.t;
+    luArr(tx, ty).processTrailingUpdate(t, update_ptr,
+                                        &(mgr->setPrio(PROCESS_TRAILING_UPDATE,
+                                                       opts, ty, tx, t)));
+  }
 }
 
 void BlockScheduler::updateDone(intptr_t update_ptr) {
@@ -385,7 +422,8 @@ void BlockScheduler::updateDone(intptr_t update_ptr) {
   DEBUG_SCHED("updateDone on (%d,%d)", tx, ty);
 
   dropRef(tx, update.t, &update);
-  dropRef(update.t, ty, &update);
+  if (!update.isComputeU())
+    dropRef(update.t, ty, &update);
 
   update.target->updatesCompleted++;
   if (update.target->updatesCompleted == min(update.target->ix, update.target->iy)) {
@@ -478,18 +516,7 @@ void BlockScheduler::progress() {
     }
 
     if (numActive == 0) {
-      // Start processComputeU
-      // TODO: refactor into a foreach?
-      for (list<ComputeU>::iterator computeU = pendingComputeU.begin();
-           computeU != pendingComputeU.end(); ++computeU) {
-        CkEntryOptions opts;
-        luArr(computeU->x, computeU->y).
-          processComputeU(0, &(mgr->setPrio(RECVL, opts, computeU->y)));
-        pendingTriggered++;
-        computeU = pendingComputeU.erase(computeU);
-      }
-
-      // Start trailing updates
+      // Start triangular solves and trailing updates
       for (list<Update>::iterator update = plannedUpdates.begin();
 	   update != plannedUpdates.end(); ++update) {
 	if (update->ready()) {
