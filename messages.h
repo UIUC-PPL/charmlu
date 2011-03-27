@@ -20,6 +20,7 @@ struct blkMsg: public CkMcastBaseMsg, CMessage_blkMsg {
     : src(index_), npes_sender(0), npes_receiver(0), offset(0),
       firstHalfSent(false) {
     CkSetRefNum(this, std::min(src.x, src.y));
+    CkSetQueueing(this, CK_QUEUEING_IFIFO);
   }
 };
 

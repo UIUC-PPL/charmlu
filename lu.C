@@ -1252,7 +1252,6 @@ inline blkMsg* LUBlk::createABlkMsg() {
   maxRequestingPEs = CProxy_LUMap(cfg.map).ckLocalBranch()->pesInPanel(thisIndex);
   blkMsg *msg = new (BLKSIZE*BLKSIZE, maxRequestingPEs, prioBits) blkMsg(thisIndex);
   memset(msg->pes, -1, maxRequestingPEs*sizeof(int));
-  CkSetQueueing(msg, CK_QUEUEING_IFIFO);
   return msg;
 }
 
