@@ -62,8 +62,8 @@ void BlockScheduler::scheduleSend(blkMsg *msg, bool onActive) {
 void BlockScheduler::releaseActiveColumn(const int y) {
   for (StateList::iterator iter = localBlocks.begin();
        iter != localBlocks.end(); ++iter) {
-    if (iter->iy == y && y - 1 == iter->updatesPlanned) {
-      CkAssert(iter->pendingDependencies > 0);
+    if (iter->iy == y && y - 1 == iter->updatesPlanned &&
+        iter->pendingDependencies > 0) {
       iter->pendingDependencies--;
     }
   }
