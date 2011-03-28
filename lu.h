@@ -204,7 +204,6 @@ private:
   void sendBlocks(int);
   void getBlock(int pe, int rx, int ry);
   double *getBlock();
-  void processComputeU(int ignoredParam);
   void localSolve(double *xvec, double *preVec);
   void localForward(double *xvec);
   void localBackward(double *xvec);
