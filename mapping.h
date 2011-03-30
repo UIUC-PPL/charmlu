@@ -283,7 +283,7 @@ PE2DTilingMap(int _peRows, int _peCols, int _peRotate, int _peStride, int _numBl
     int XwithinPEtile = (coor[0] + tileYIndex * peRotate) % peRows;
     int YwithinPEtile = coor[1] % peStride;
     int subtileY = (coor[1] % peCols) / peStride;
-    int peNum = XwithinPEtile * peStride + YwithinPEtile * peRows + subtileY;
+    int peNum = XwithinPEtile * peStride + YwithinPEtile * peStride * peRows + subtileY;
     CkAssert(peNum < CkNumPes());
     return peNum;
   }
