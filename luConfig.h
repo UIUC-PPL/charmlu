@@ -1,6 +1,7 @@
 #ifndef LU_CONFIG_H
 #define LU_CONFIG_H
 
+#include "peMeshDims.h"
 #include "pup.h"
 #include <charm++.h>
 
@@ -30,6 +31,7 @@ class LUConfig {
             p | peTileCols;
             p | peTileRotate;
             p | peTileStride;
+            p | peMesh4Panel;
 
             p | memThreshold;
 
@@ -57,6 +59,9 @@ class LUConfig {
         int peTileRotate;
         /// The stride between PEs on a column
         int peTileStride;
+        /// The size of the mesh of PEs onto which a single panel should be mapped (only in contexts where topo info is available)
+        PEMeshDims peMesh4Panel;
+
         /// The max memory (in MB) that the adaptive RTS should limit the app to
         int memThreshold;
 

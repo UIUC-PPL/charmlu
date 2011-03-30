@@ -415,4 +415,5 @@ struct OnePerPE : public CBase_OnePerPE {
   }
 };
 
+#include "map-topo-3Dmesh.h"
 #endif

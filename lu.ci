@@ -658,5 +658,10 @@ mainmodule lu {
   group StrongScaling1: LUMap {
     entry StrongScaling1(int numBlks_);
   };
+
+  include "peMeshDims.h";
+  group LUMapTopo: LUMap {
+    entry LUMapTopo(int _numBlks, PEMeshDims _panelMesh);
+  };
 };
 

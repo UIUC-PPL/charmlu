@@ -77,6 +77,9 @@ int traceComputeL;
 int traceSolveLocalLU;
 CkGroupID mcastMgrGID;
 
+// Define extern globals
+TopoManager luTopoMgr;
+
 // define static variable
 #if defined(LU_TRACING)
     int traceToggler::traceCmdHandlerID;
@@ -191,8 +194,10 @@ public:
     Main(CkArgMsg* m) : solved(false), LUcomplete(false), sentVectorData(false) {
 
     if (m->argc<4) {
-      CkPrintf("Usage: %s <matrix size> <block size> <mem threshold> [<pivot batch size> <mapping scheme>"
-               " [<peTileRows> <peTileCols> <peRotate> <peStride>] ]\n", m->argv[0]);
+      CkPrintf("Usage: %s <matrix size> <block size> <mem threshold> [<pivot batch size> <map scheme> [mapargs]]\n"
+               "\t mapscheme=3 (2D Tiling)     [<peTileRows> <peTileCols> <peRotate> <peStride>]\n",
+               "\t mapscheme=4 (3D Topo Mesh)  [<panelPEx> <panelPEy> <panelPEz> <panelPEt>]\n",
+               m->argv[0]);
       CkExit();
     }
 
@@ -236,6 +241,31 @@ public:
             if ( peTileSize < CkNumPes() )
                 CkPrintf("WARNING: Configured to use a PE tile size(%dx%d) (for 2D tile mapping) that does not use all the PEs(%d)\n",
                          luCfg.peTileRows, luCfg.peTileCols, CkNumPes() );
+        }
+
+        // If the mapping is topo-aware
+        if (mappingScheme == 5)
+        {
+#if !defined(XT5_TOPOLOGY) && !defined(CMK_BLUEGENEP)
+            CkAbort("Cannot use a Topo map as we do not have topo information available");
+#endif
+            TopoManager topoMgr;
+            if (m->argc < 10)
+            {
+#if defined(XT5_TOPOLOGY)
+                luCfg.peMesh4Panel = PEMeshDims(1, topoMgr.getDimNY(), topoMgr.getDimNZ(), topoMgr.getDimNT()/4);
+#elif defined(CMK_BLUEGENEP)
+                luCfg.peMesh4Panel = PEMeshDims(1, topoMgr.getDimNY(), topoMgr.getDimNZ(), topoMgr.getDimNT()/2);
+#else
+                CkAbort("How did we get here?!!");
+#endif
+            }
+            else
+                luCfg.peMesh4Panel = PEMeshDims( atoi(m->argv[6]), atoi(m->argv[7]), atoi(m->argv[8]), atoi(m->argv[9]) );
+
+            /// Compute the number of rows and columns in the PE tile
+            luCfg.peTileRows = luCfg.peMesh4Panel.y * luCfg.peMesh4Panel.z * luCfg.peMesh4Panel.t;
+            luCfg.peTileCols = luCfg.peMesh4Panel.x * (topoMgr.getDimNT() / luCfg.peMesh4Panel.t);
         }
     }
     else
@@ -362,6 +392,9 @@ public:
         break;
       case 4:
         map = CProxy_StrongScaling1::ckNew(luCfg.numBlocks);
+        break;
+      case 5:
+        map = CProxy_LUMapTopo::ckNew(luCfg.numBlocks, luCfg.peMesh4Panel);
         break;
       default:
         CkAbort("Unrecognized mapping scheme specified");
