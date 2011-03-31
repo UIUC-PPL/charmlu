@@ -53,12 +53,23 @@ void BlockScheduler::scheduleSend(blkMsg *msg, bool onActive) {
 void BlockScheduler::releaseActiveColumn(const int y) {
   for (StateList::iterator iter = localBlocks.begin();
        iter != localBlocks.end(); ++iter) {
-    if (iter->iy == y && y - 1 == iter->updatesPlanned &&
-        iter->pendingDependencies > 0) {
-      list<StateList::iterator> &dependents = panels[y].dependents;
-      CkAssert(find(dependents.begin(), dependents.end(), iter) != dependents.end());
-      dependents.remove(iter);
-      iter->pendingDependencies--;
+    if (iter->iy == y && y - 1 == iter->updatesPlanned && iter->pendingDependencies > 0) {
+      if (Upanels.find(y-1) != Upanels.end()) {
+        list<StateList::iterator> &dependents = Upanels[y-1].dependents;
+        list<StateList::iterator>::iterator dep = find(dependents.begin(), dependents.end(), iter);
+        if (dep != dependents.end()) {
+          dependents.erase(dep);
+          iter->pendingDependencies--;
+        }
+      }
+      if (panels.find(y-1) != panels.end()) {
+        list<StateList::iterator> &dependents = panels[y-1].dependents;
+        list<StateList::iterator>::iterator dep = find(dependents.begin(), dependents.end(), iter);
+        if (dep != dependents.end()) {
+          dependents.erase(dep);
+          iter->pendingDependencies--;
+        }
+      }
     }
   }
 }
