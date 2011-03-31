@@ -257,6 +257,9 @@ mainmodule lu {
                 computeU(update.L);
                 localScheduler->updateDone(update_ptr);
                 updateExecuted = true;
+                if (thisIndex.x + 1 == thisIndex.y) {
+                  scheduler.releaseActiveColumn(thisIndex.y);
+                }
               } else {
                 update.triggered = false;
                 localScheduler->updateUntriggered();
