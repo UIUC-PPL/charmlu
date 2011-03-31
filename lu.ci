@@ -244,6 +244,7 @@ mainmodule lu {
             DEBUG_PRINT("doing triangular solve");
             computeU(m->data);
             delete m;
+            scheduler.releaseActiveColumn(thisIndex.y);
           }
         } else {
           atomic {
@@ -257,9 +258,6 @@ mainmodule lu {
                 computeU(update.L);
                 localScheduler->updateDone(update_ptr);
                 updateExecuted = true;
-                if (thisIndex.x + 1 == thisIndex.y) {
-                  scheduler.releaseActiveColumn(thisIndex.y);
-                }
               } else {
                 update.triggered = false;
                 localScheduler->updateUntriggered();
