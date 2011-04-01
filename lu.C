@@ -14,6 +14,7 @@
 #include <string.h>
 #include <iostream>
 #include <sstream>
+#include <fstream>
 #include <map>
 #include <algorithm>
 using std::min;
@@ -411,6 +412,12 @@ public:
 
       luCfg.map = map;
       opts.setMap(map);
+
+      /// Dump the complete map to file
+      std::ofstream mapStream("lu-map-dump.log");
+      LUMap *mapObj = CProxy_LUMap(map).ckLocalBranch();
+      mapObj->dumpMap(mapStream, luCfg.numBlocks);
+      mapStream.close();
 
       CProxy_LUMgr mgr = CProxy_PrioLU::ckNew(luCfg.blockSize, luCfg.matrixSize);
 
