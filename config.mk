@@ -50,6 +50,7 @@ BLAS_LIBS = -lcblas
 #BLAS_LIBS = -lacml
 
 # To compile on BG/P with ESSL:
+#DEPSTRIPDIRS = /bgsys/drivers/ppcfloor/comm/include
 #SEND_LIM ?= 50
 #BGP_ESSL  = /soft/apps/ESSL-4.4.1-0
 #BGP_LIBS  = -L$(BGP_ESSL)/lib \

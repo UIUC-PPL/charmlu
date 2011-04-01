@@ -89,7 +89,7 @@ regtest: lu.prod
 # Rule to generate dependency information for C++ source files
 %.d: %.C
 	$(info Generating dependencies for $<)
-	@g++ -MM -MG $(CPPFLAGS) $(INCDIRS:%=-I%) -I$(CHARMINC) $< | perl $(CHARMPROD)/bin/dep.pl $(CHARMINC) > $@
+	@g++ -MM -MG $(CPPFLAGS) $(INCDIRS:%=-I%) -I$(CHARMINC) $< | perl $(CHARMPROD)/bin/dep.pl $(CHARMINC) $(DEPSTRIPDIRS)> $@
 #	@$(SHELL) -ec 'g++ -MM -MG $(CPPFLAGS) $(INCDIRS:%=-I%) $< \
 #	| sed '\''s/\($*\)\.o[ :]*/\1.o $@ : /g'\'' > $@; \
 #	[ -s $@ ] || rm -f $@'
