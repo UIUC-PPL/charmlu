@@ -142,11 +142,11 @@ class LUMapTopo: public LUMap
                 return false;
 
             // Assume that each panel can be load balanced onto a complete YZ plane
-            if (numBlocks % (allPEdims.y * allPEdims.z) == 0)
-                CkPrintf("WARNING: mapping will not yield load balance. Hence uneven mem usage");
+            if (numBlocks % (allPEdims.y * allPEdims.z) == 0 && CkMyPe() == 0)
+                CkPrintf("WARNING: mapping will not yield load balance. Hence uneven mem usage\n");
             // Assume that the panels can be evenly distributed across the whole PE space
-            if (numBlocks % ( allPEdims.x * (allPEdims.t / activePanelPEdims.t) ) == 0)
-                CkPrintf("WARNING: mapping will not yield load balance. Hence uneven mem usage");
+            if (numBlocks % ( allPEdims.x * (allPEdims.t / activePanelPEdims.t) ) == 0 && CkMyPe() == 0)
+                CkPrintf("WARNING: mapping will not yield load balance. Hence uneven mem usage\n");
             return true;
         }
 
