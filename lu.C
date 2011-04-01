@@ -304,11 +304,20 @@ public:
              mappingScheme,
              mappingScheme == 1 ? "Balanced Snake" :
                (mappingScheme==2 ? "Block Cylic" :
-                 (mappingScheme == 3 ? "2D Tiling" : "Strong Scaling"))
+               (mappingScheme == 3 ? "2D Tiling" :
+               (mappingScheme == 4 ? "Strong Scaling" :
+               (mappingScheme == 5 ? "Topo-Aware" :
+                "Unknown") ) ) )
              );
     if (mappingScheme == 3)
       CkPrintf("\tMapping PE tile size: %d x %d rotate %d stride %d \n", luCfg.peTileRows, luCfg.peTileCols,
                luCfg.peTileRotate, luCfg.peTileStride);
+    if (mappingScheme == 5)
+    {
+      CkPrintf("\tMapping PE tile size: %d x %d \n", luCfg.peTileRows, luCfg.peTileCols);
+      CkPrintf("\tPE Mesh Dimensions for LU panel: %d x %d x %d x %d\n",
+               luCfg.peMesh4Panel.x, luCfg.peMesh4Panel.y, luCfg.peMesh4Panel.z, luCfg.peMesh4Panel.t);
+    }
 #ifdef SCHED_PIVOT_REDN
     CkPrintf("\tPivot Redn Scheduling: On\n");
 #else
