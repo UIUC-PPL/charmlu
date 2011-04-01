@@ -3,11 +3,31 @@
 
 #include "lu.decl.h"
 #include <string>
+#include <iostream>
+#include <iomanip>
 
 struct LUMap : public CkArrayMap {
   LUMap() {}
   virtual std::string desc() { return ""; }
   virtual int pesInPanel(CkIndex2D index) { return CkNumPes(); }
+  virtual void dumpMap(std::ostream &out, const int numBlks)
+  {
+      CkArrayIndex2D arrIdx;
+      int *idx = arrIdx.data();
+
+      out<<"\nLU Array mapping";
+      for (int x=0; x<numBlks; x++)
+      {
+          out<<std::endl;
+          idx[0] = x;
+          for (int y=0; y<numBlks; y++)
+          {
+              idx[1] = y;
+              out<<std::setw(8)<<procNum(0, arrIdx);
+          }
+      }
+      out<<std::endl;
+  }
   int procNum(int arrayHdl, const CkArrayIndex &idx) { return 0; }
 };
 
