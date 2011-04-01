@@ -87,7 +87,7 @@ class LUMapTopo: public LUMap
 
 
         /// Return the PE where this index should reside
-        inline int procNum(int arrayHdl, const CkArrayIndex &arrIdx) const
+        inline int procNum(int arrayHdl, const CkArrayIndex &arrIdx)
         {
             const int *idx = arrIdx.data();
             int x, y, z, t;
