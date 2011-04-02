@@ -53,13 +53,14 @@ void BlockScheduler::scheduleSend(blkMsg *msg, bool onActive) {
 void BlockScheduler::releaseActiveColumn(const int y) {
   for (StateList::iterator iter = localBlocks.begin();
        iter != localBlocks.end(); ++iter) {
-    if (iter->iy == y && y - 1 == iter->updatesPlanned && iter->pendingDependencies > 0) {
+    if (iter->iy == y && y - 1 == iter->updatesPlanned &&
+        iter->pendingDependencies.size() > 0) {
       if (Upanels.find(y-1) != Upanels.end()) {
         list<StateList::iterator> &dependents = Upanels[y-1].dependents;
         list<StateList::iterator>::iterator dep = find(dependents.begin(), dependents.end(), iter);
         if (dep != dependents.end()) {
           dependents.erase(dep);
-          iter->pendingDependencies--;
+          iter->pendingDependencies.remove(&Upanels[y-1]);
         }
       }
       if (panels.find(y-1) != panels.end()) {
@@ -67,7 +68,7 @@ void BlockScheduler::releaseActiveColumn(const int y) {
         list<StateList::iterator>::iterator dep = find(dependents.begin(), dependents.end(), iter);
         if (dep != dependents.end()) {
           dependents.erase(dep);
-          iter->pendingDependencies--;
+          iter->pendingDependencies.remove(&panels[y-1]);
         }
       }
     }
@@ -233,7 +234,7 @@ void BlockScheduler::updatePanel(map<K, Panel> &panels, K index) {
   if(panel.updatesLeftToPlan == 0) {
     for (list<StateList::iterator>::iterator i = panel.dependents.begin();
          i != panel.dependents.end(); ++i) {
-      (*i)->pendingDependencies--;
+      (*i)->pendingDependencies.remove(&panel);
     }
 
     panels.erase(iter);
@@ -245,13 +246,13 @@ void BlockScheduler::addDependence(map<K, Panel> &panels, K index,
 				   StateList::iterator block) {
   typename map<K, Panel>::iterator panel = panels.find(index);
   if (panel != panels.end()) {
-    block->pendingDependencies++;
+    block->pendingDependencies.push_back(&panel->second);
     panel->second.addDependent(block);
   }
 }
 
 void BlockScheduler::planUpdate(StateList::iterator target) {
-  CkAssert(target->pendingDependencies == 0);
+  CkAssert(target->pendingDependencies.size() == 0);
 
   int t = target->updatesPlanned++;
 
@@ -492,8 +493,8 @@ void BlockScheduler::factorizationDone(CkIndex2D index) {
 }
 
 bool eligibilityYOrder(const BlockState& block1, const BlockState& block2) {
-  if (block1.pendingDependencies != block2.pendingDependencies) {
-    return block1.pendingDependencies < block2.pendingDependencies;
+  if (block1.pendingDependencies.size() != block2.pendingDependencies.size()) {
+    return block1.pendingDependencies.size() < block2.pendingDependencies.size();
   } else {
     return block1.iy < block2.iy;
   }
@@ -519,13 +520,13 @@ void BlockScheduler::progress() {
 	for (StateList::iterator block = localBlocks.begin(); block != localBlocks.end();
 	     ++block) {
 	  DEBUG_SCHED("\t(%d,%d), deps: %d, updatesCompleted %d, updatesPlanned %d",
-		      block->ix, block->iy, block->pendingDependencies,
+		      block->ix, block->iy, block->pendingDependencies.size(),
 		      block->updatesCompleted, block->updatesPlanned);
 	}
 
         localBlocks.sort(eligibilityYOrder);
 
-	CkAssert(localBlocks.front().pendingDependencies == 0);
+	CkAssert(localBlocks.front().pendingDependencies.size() == 0);
 	planUpdate(localBlocks.begin());
 	plannedAnything = true;
       }
