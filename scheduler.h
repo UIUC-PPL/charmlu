@@ -102,7 +102,7 @@ public:
   void scheduleSend(CkIndex2D index, bool onActive);
   void updateUntriggered();
   void pumpMessages();
-  void releaseActiveColumn(const int y);
+  void releaseActiveColumn(const int y, const int t);
   void outputStats();
 
 private:
