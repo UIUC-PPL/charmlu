@@ -433,7 +433,7 @@ void BlockScheduler::runUpdate(list<Update>::iterator iter) {
     if (ty > highestY)
       mgr->setPrio(PROCESS_TRAILING_UPDATE, opts, ty, tx, t);
     else
-      opts.setPriority(ty);
+      opts.setPriority(0);
     luArr(tx, ty).processTrailingUpdate(t, update_ptr, &opts);
   }
 }
