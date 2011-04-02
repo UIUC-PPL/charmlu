@@ -492,6 +492,7 @@ mainmodule lu {
 
         localScheduler->factorizationDone(thisIndex);
         factored = true;
+        scheduler.increaseYPriority(thisIndex.y);
         // All diagonal chares except the last must continue the factorization
         if (thisIndex.x < numBlks-1 && thisIndex.y < numBlks-1) {
           DEBUG_PRINT("is top,left block this step, multicast L");
@@ -622,6 +623,7 @@ mainmodule lu {
     entry void allRegistered(CkReductionMsg *m);
     entry void scheduleSend(CkIndex2D index, bool onActive);
     entry void releaseActiveColumn(const int y);
+    entry void increaseYPriority(const int y);
     entry void outputStats();
   }
 

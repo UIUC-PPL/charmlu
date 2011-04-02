@@ -27,7 +27,7 @@ pair<int, int> make_pair(CkIndex2D index) {
 BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_)
   : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false), inPumpMessages(false), numActive(0),
     pendingTriggered(0), sendDelay(0), reverseSends(CkMyPe() % 2 == 0),
-    maxMemory(0), maxMemoryIncreases(0), maxMemoryStep(-1) {
+    maxMemory(0), maxMemoryIncreases(0), maxMemoryStep(-1), highestY(0) {
   blockLimit = config.memThreshold * 1024 * 1024 /
     (config.blockSize * (config.blockSize + 1) * sizeof(double) + sizeof(LUBlk) + sdagOverheadPerBlock);
 
@@ -48,6 +48,10 @@ void BlockScheduler::scheduleSend(blkMsg *msg, bool onActive) {
   }
 
   pumpMessages();
+}
+
+void BlockScheduler::increaseYPriority(const int y) {
+  highestY = y;
 }
 
 void BlockScheduler::releaseActiveColumn(const int y) {
@@ -426,9 +430,11 @@ void BlockScheduler::runUpdate(list<Update>::iterator iter) {
                                  &(mgr->setPrio(PROCESS_COMPUTE_U, opts)));
   } else {
     int t = update.t;
-    luArr(tx, ty).processTrailingUpdate(t, update_ptr,
-                                        &(mgr->setPrio(PROCESS_TRAILING_UPDATE,
-                                                       opts, ty, tx, t)));
+    if (ty > highestY)
+      mgr->setPrio(PROCESS_TRAILING_UPDATE, opts, ty, tx, t);
+    else
+      opts.setPriority(0);
+    luArr(tx, ty).processTrailingUpdate(t, update_ptr, &opts);
   }
 }
 
