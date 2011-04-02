@@ -55,22 +55,12 @@ void BlockScheduler::releaseActiveColumn(const int y) {
        iter != localBlocks.end(); ++iter) {
     if (iter->iy == y && y - 1 == iter->updatesPlanned &&
         iter->pendingDependencies.size() > 0) {
-      if (Upanels.find(y-1) != Upanels.end()) {
-        list<StateList::iterator> &dependents = Upanels[y-1].dependents;
-        list<StateList::iterator>::iterator dep = find(dependents.begin(), dependents.end(), iter);
-        if (dep != dependents.end()) {
-          dependents.erase(dep);
-          iter->pendingDependencies.remove(&Upanels[y-1]);
-        }
+      for (list<Panel*>::iterator depPanels = iter->pendingDependencies.begin();
+           depPanels != iter->pendingDependencies.end(); ++depPanels) {
+        Panel &panel = **depPanels;
+        panel.dependents.remove(iter);
       }
-      if (panels.find(y-1) != panels.end()) {
-        list<StateList::iterator> &dependents = panels[y-1].dependents;
-        list<StateList::iterator>::iterator dep = find(dependents.begin(), dependents.end(), iter);
-        if (dep != dependents.end()) {
-          dependents.erase(dep);
-          iter->pendingDependencies.remove(&panels[y-1]);
-        }
-      }
+      iter->pendingDependencies.clear();
     }
   }
 }
