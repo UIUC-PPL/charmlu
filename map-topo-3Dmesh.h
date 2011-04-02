@@ -94,7 +94,7 @@ class LUMapTopo: public LUMap
             // Assume that an active panel is mapped onto a complete YZ plane
             int linearizedYZidx = idx[0]/activePanelPEdims.t;
             int ta = idx[0]  % activePanelPEdims.t;
-            int tb = idx[1]  / allPEdims.x;
+            int tb = (idx[1]%numPanelsInTile)  / allPEdims.x;
 
             x  = idx[1]  % allPEdims.x;
             y  = linearizedYZidx / activePanelPEdims.z;
