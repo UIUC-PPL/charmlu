@@ -318,6 +318,8 @@ public:
       CkPrintf("\tMapping PE tile size: %d x %d \n", luCfg.peTileRows, luCfg.peTileCols);
       CkPrintf("\tPE Mesh Dimensions for LU panel: %d x %d x %d x %d\n",
                luCfg.peMesh4Panel.x, luCfg.peMesh4Panel.y, luCfg.peMesh4Panel.z, luCfg.peMesh4Panel.t);
+      CkPrintf("\tPE Mesh Dimensions for whole partition: %d x %d x %d x %d\n",
+               luTopoMgr.getDimNX(), luTopoMgr.getDimNY(), luTopoMgr.getDimNZ(), luTopoMgr.getDimNT());
     }
 #ifdef SCHED_PIVOT_REDN
     CkPrintf("\tPivot Redn Scheduling: On\n");
