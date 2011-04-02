@@ -5,7 +5,7 @@
 #define MAP_TOPO_3D_MESH_H
 
 /// A global topomgr object for everyone to use
-extern TopoManager luTopoMgr;
+extern TopoManager *luTopoMgr;
 
 /**
  * A mapping for the LU chare array tuned for machines with 3D meshes / torii
@@ -62,7 +62,7 @@ class LUMapTopo: public LUMap
         ///
         LUMapTopo(const int _numBlocks, PEMeshDims panelPEmesh):
             numBlocks(_numBlocks),
-            allPEdims(luTopoMgr.getDimNX(), luTopoMgr.getDimNY(), luTopoMgr.getDimNZ(), luTopoMgr.getDimNT()),
+            allPEdims(luTopoMgr->getDimNX(), luTopoMgr->getDimNY(), luTopoMgr->getDimNZ(), luTopoMgr->getDimNT()),
             activePanelPEdims(panelPEmesh)
 
         {
@@ -107,7 +107,7 @@ class LUMapTopo: public LUMap
                       (t >= 0 && t < allPEdims.t)
                     );
 
-            return luTopoMgr.coordinatesToRank(x, y, z, t);
+            return luTopoMgr->coordinatesToRank(x, y, z, t);
         }
 
 
