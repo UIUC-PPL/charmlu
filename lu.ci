@@ -294,13 +294,13 @@ mainmodule lu {
 	      updateLsubBlock(activeCol-1, pendingUmsg->data, 2);
 	      dropRef(pendingUmsg);
 	      pendingUmsg = NULL;
-          if (activeCol % 20 == 0) {
-              flushLogs();
-          }
+              if (activeCol % 20 == 0) {
+                flushLogs();
+              }
 	    }
-	    ownedPivotThisStep = false;
+            ownedPivotThisStep = false;
             thisProxy(thisIndex.x, thisIndex.y).belowPivot(activeCol);
-        delete dummyMsg;
+            delete dummyMsg;
 	  }
           // Wait for the post-diagonal U segment from the original owner of the pivot row
           when sendUSegment(UMsg* anUmsg) atomic "below_recv_useg" {
