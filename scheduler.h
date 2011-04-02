@@ -101,7 +101,6 @@ public:
   void updateUntriggered();
   void pumpMessages();
   void releaseActiveColumn(const int y);
-  void increaseYPriority(const int y);
   void outputStats();
 
 private:
@@ -118,7 +117,6 @@ private:
   int numActive;
   int pendingTriggered;
   bool reverseSends;
-  int highestY;
 
   int sendDelay;
   std::list<blkMsg *> scheduledSends, sendsInFlight;
