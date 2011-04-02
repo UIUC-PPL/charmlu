@@ -117,7 +117,7 @@ class LUMapTopo: public LUMap
         {
             // Ensure this is a valid mesh size
             if (!activePanelPEdims.isValid())
-                return false;
+                CkAbort("Invalid dimensions for active panel submesh");
 
             // Ensure that user has asked to map the active panel onto
             // at most a 2D mesh of nodes. Not more (3D)
@@ -125,21 +125,21 @@ class LUMapTopo: public LUMap
                  (activePanelPEdims.y > 1) &&
                  (activePanelPEdims.z > 1)
                )
-                return false;
+                CkAbort("Currently cannot map active panel onto 3D cuboid. Only 2D slices allowed");
 
             // Ensure that each node can host an integer number of active panels
             // This massively simplifies load balance and mapping
             if (allPEdims.t % activePanelPEdims.t != 0)
-                return false;
+                CkAbort("Can only map an integer num of panels onto each node");
 
             // To start with,
-            // Assume that the active panel is always mapped onto the XY plane
+            // Assume that the active panel is always mapped onto the YZ plane
             // Hence, check if one YZ plane can host an integral number of active panels
             // in each dimension
             if ( (allPEdims.y % activePanelPEdims.y != 0) ||
                  (allPEdims.z % activePanelPEdims.z != 0)
                )
-                return false;
+                CkAbort("Can only map an integral number of panels to a 2D YZ PE slice");
 
             // Assume that each panel can be load balanced onto a complete YZ plane
             if (numBlocks % (allPEdims.y * allPEdims.z) == 0 && CkMyPe() == 0)
