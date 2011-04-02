@@ -463,7 +463,7 @@ void BlockScheduler::updateUntriggered() {
 }
 
 bool BlockScheduler::shouldExecute() {
-  return numActive == 0;
+  return true;
 }
 
 void BlockScheduler::factorizationDone(CkIndex2D index) {
