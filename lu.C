@@ -247,11 +247,15 @@ public:
         // If the mapping is topo-aware
         if (mappingScheme == 5)
         {
-#if !defined(XT5_TOPOLOGY) && !defined(CMK_BLUEGENEP)
+#if !defined(XT5_TOPOLOGY) && !defined(CMK_BLUEGENEP) && !defined(LU_TEST_TOPO_MAP)
             CkAbort("Cannot use a Topo map as we do not have topo information available");
 #endif
             // Create a new TopoManager so that it can be used globally
+#if defined(LU_TEST_TOPO_MAP)
+            luTopoMgr = new TopoManager(4, 4, 4, 4);
+#else
             luTopoMgr = new TopoManager();
+#endif
             // If there are insufficient cmd line args
             if (m->argc < 10)
             {
@@ -259,6 +263,8 @@ public:
                 luCfg.peMesh4Panel = PEMeshDims(1, luTopoMgr->getDimNY(), luTopoMgr->getDimNZ(), luTopoMgr->getDimNT()/4);
 #elif defined(CMK_BLUEGENEP)
                 luCfg.peMesh4Panel = PEMeshDims(1, luTopoMgr->getDimNY(), luTopoMgr->getDimNZ(), luTopoMgr->getDimNT()/2);
+#elif defined(LU_TEST_TOPO_MAP)
+                luCfg.peMesh4Panel = PEMeshDims(1, 4, 4, 2);
 #else
                 CkAbort("How did we get here?!!");
 #endif
@@ -410,8 +416,19 @@ public:
         map = CProxy_StrongScaling1::ckNew(luCfg.numBlocks);
         break;
       case 5:
+      {
+#if defined(LU_TEST_TOPO_MAP)
+        PEMeshDims allPEdims(luTopoMgr->getDimNX(),
+                             luTopoMgr->getDimNY(),
+                             luTopoMgr->getDimNZ(),
+                             luTopoMgr->getDimNT()
+                            );
+        map = CProxy_LUMapTopo::ckNew(luCfg.numBlocks, luCfg.peMesh4Panel, allPEdims);
+#else
         map = CProxy_LUMapTopo::ckNew(luCfg.numBlocks, luCfg.peMesh4Panel);
+#endif
         break;
+      }
       default:
         CkAbort("Unrecognized mapping scheme specified");
       }

@@ -125,7 +125,7 @@ class LUMapTopo: public LUMap
                       (t >= 0 && t < allPEdims.t)
                     );
 
-            return myTopoMgr.coordinatesToRank(x, y, z, t);
+            return myTopoMgr.coordinatesToRank(x, y, z, t) % CkNumPes();
         }
 
 
