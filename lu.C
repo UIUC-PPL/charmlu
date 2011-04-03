@@ -264,8 +264,10 @@ public:
                 luCfg.peMesh4Panel = PEMeshDims( atoi(m->argv[6]), atoi(m->argv[7]), atoi(m->argv[8]), atoi(m->argv[9]) );
 
             /// Compute the number of rows and columns in the PE tile
-            luCfg.peTileRows = luCfg.peMesh4Panel.y * luCfg.peMesh4Panel.z * luCfg.peMesh4Panel.t;
-            luCfg.peTileCols = luCfg.peMesh4Panel.x * (luTopoMgr->getDimNT() / luCfg.peMesh4Panel.t);
+            luCfg.peTileRows = luCfg.peMesh4Panel.x * luCfg.peMesh4Panel.y *
+                               luCfg.peMesh4Panel.z * luCfg.peMesh4Panel.t;
+            luCfg.peTileCols = (luTopoMgr->getDimNX() / luCfg.peMesh4Panel.x) *
+                               (luTopoMgr->getDimNT() / luCfg.peMesh4Panel.t);
         }
     }
     else
