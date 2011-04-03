@@ -250,6 +250,9 @@ public:
 #if !defined(XT5_TOPOLOGY) && !defined(CMK_BLUEGENEP)
             CkAbort("Cannot use a Topo map as we do not have topo information available");
 #endif
+            // Create a new TopoManager so that it can be used globally
+            luTopoMgr = new TopoManager();
+            // If there are insufficient cmd line args
             if (m->argc < 10)
             {
 #if defined(XT5_TOPOLOGY)
@@ -316,8 +319,6 @@ public:
                luCfg.peTileRotate, luCfg.peTileStride);
     if (mappingScheme == 5)
     {
-      // Create a new TopoManager so that it can be used globally
-      luTopoMgr = new TopoManager();
       CkPrintf("\tMapping PE tile size: %d x %d \n", luCfg.peTileRows, luCfg.peTileCols);
       CkPrintf("\tPE Mesh Dimensions for LU panel: %d x %d x %d x %d\n",
                luCfg.peMesh4Panel.x, luCfg.peMesh4Panel.y, luCfg.peMesh4Panel.z, luCfg.peMesh4Panel.t);
