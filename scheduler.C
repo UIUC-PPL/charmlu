@@ -462,7 +462,7 @@ void BlockScheduler::updateUntriggered() {
   }
 }
 
-bool BlockScheduler::shouldExecute() {
+bool BlockScheduler::shouldExecuteBulkWork() {
   return true;
 }
 
@@ -531,7 +531,7 @@ void BlockScheduler::progress() {
       }
     }
 
-    if (numActive == 0) {
+    if (shouldExecuteBulkWork()) {
       // Start triangular solves and trailing updates
       for (list<Update>::iterator update = plannedUpdates.begin();
 	   update != plannedUpdates.end(); ++update) {

@@ -95,7 +95,7 @@ public:
   void factorizationDone(CkIndex2D index);
   void deliverBlock(blkMsg *m);
   void startedActivePanel();
-  bool shouldExecute();
+  bool shouldExecuteBulkWork();
   void scheduleSend(blkMsg *m, bool onActive);
   void scheduleSend(CkIndex2D index, bool onActive);
   void updateUntriggered();
