@@ -250,13 +250,12 @@ public:
 #if !defined(XT5_TOPOLOGY) && !defined(CMK_BLUEGENEP)
             CkAbort("Cannot use a Topo map as we do not have topo information available");
 #endif
-            TopoManager topoMgr;
             if (m->argc < 10)
             {
 #if defined(XT5_TOPOLOGY)
-                luCfg.peMesh4Panel = PEMeshDims(1, topoMgr.getDimNY(), topoMgr.getDimNZ(), topoMgr.getDimNT()/4);
+                luCfg.peMesh4Panel = PEMeshDims(1, luTopoMgr->getDimNY(), luTopoMgr->getDimNZ(), luTopoMgr->getDimNT()/4);
 #elif defined(CMK_BLUEGENEP)
-                luCfg.peMesh4Panel = PEMeshDims(1, topoMgr.getDimNY(), topoMgr.getDimNZ(), topoMgr.getDimNT()/2);
+                luCfg.peMesh4Panel = PEMeshDims(1, luTopoMgr->getDimNY(), luTopoMgr->getDimNZ(), luTopoMgr->getDimNT()/2);
 #else
                 CkAbort("How did we get here?!!");
 #endif
@@ -266,7 +265,7 @@ public:
 
             /// Compute the number of rows and columns in the PE tile
             luCfg.peTileRows = luCfg.peMesh4Panel.y * luCfg.peMesh4Panel.z * luCfg.peMesh4Panel.t;
-            luCfg.peTileCols = luCfg.peMesh4Panel.x * (topoMgr.getDimNT() / luCfg.peMesh4Panel.t);
+            luCfg.peTileCols = luCfg.peMesh4Panel.x * (luTopoMgr->getDimNT() / luCfg.peMesh4Panel.t);
         }
     }
     else
