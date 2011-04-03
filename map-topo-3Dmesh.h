@@ -73,11 +73,6 @@ class LUMapTopo: public LUMap
             if ( !isFeasible() )
                 CkAbort("Active panels cannot be mapped onto the specified sub-mesh. Check your inputs to the mapping scheme.");
 
-            if (CkMyPe() == 0)
-            {
-                CkPrintf("\tMachine Topology: %d x %d x %d x %d\n", allPEdims.x, allPEdims.y, allPEdims.z, allPEdims.t);
-                CkPrintf("\tPanel PE Mesh: %d x %d x %d x %d\n", activePanelPEdims.x, activePanelPEdims.y, activePanelPEdims.z, activePanelPEdims.t);
-            }
             // Compute the number of panels (chare columns) per 2D slice (plane) of the 3D pe mesh
             numPanelsPerMeshPlane = allPEdims.t / activePanelPEdims.t;
             // Compute the total number of panels (chare columns) that will fit onto the
