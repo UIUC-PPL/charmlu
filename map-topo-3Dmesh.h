@@ -146,10 +146,10 @@ class LUMapTopo: public LUMap
                 CkAbort("Can only map an integral number of panels to a 2D YZ PE slice");
 
             // Assume that each panel can be load balanced onto a complete YZ plane
-            if (numBlocks % (allPEdims.y * allPEdims.z) == 0 && CkMyPe() == 0)
+            if (numBlocks % (allPEdims.y * allPEdims.z) != 0 && CkMyPe() == 0)
                 CkPrintf("WARNING: mapping will not yield load balance. Hence uneven mem usage\n");
             // Assume that the panels can be evenly distributed across the whole PE space
-            if (numBlocks % ( allPEdims.x * (allPEdims.t / activePanelPEdims.t) ) == 0 && CkMyPe() == 0)
+            if (numBlocks % ( allPEdims.x * (allPEdims.t / activePanelPEdims.t) ) != 0 && CkMyPe() == 0)
                 CkPrintf("WARNING: mapping will not yield load balance. Hence uneven mem usage\n");
             return true;
         }
