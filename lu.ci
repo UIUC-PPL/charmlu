@@ -178,7 +178,7 @@ mainmodule lu {
             when processTrailingUpdate[internalStep](int step, intptr_t update_ptr)
               atomic "trailing_update" {
 	      Update &update = *(Update *)update_ptr;
-              if (localScheduler->shouldExecute()) {
+              if (localScheduler->shouldExecuteBulkWork()) {
                 DEBUG_PRINT("doing trailing update");
                 updateMatrix(update.L, update.U);
                 thisProxy(thisIndex.x, internalStep).blockUsed(1);
@@ -253,7 +253,7 @@ mainmodule lu {
           while (!updateExecuted) {
             when processComputeU(intptr_t update_ptr) atomic "process_compute_U" {
               Update &update = *(Update *)update_ptr;
-              if (localScheduler->shouldExecute()) {
+              if (localScheduler->shouldExecuteBulkWork()) {
                 DEBUG_PRINT("doing triangular solve");
                 computeU(update.L);
                 localScheduler->updateDone(update_ptr);
