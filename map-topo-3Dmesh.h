@@ -62,6 +62,7 @@ class LUMapTopo: public LUMap
         ///
         LUMapTopo(const int _numBlocks, PEMeshDims panelPEmesh):
             numBlocks(_numBlocks),
+            numPanelsPerMeshPlane(0), numPanelsInTile(0), numRowsInTile(0),
             allPEdims(luTopoMgr->getDimNX(), luTopoMgr->getDimNY(), luTopoMgr->getDimNZ(), luTopoMgr->getDimNT()),
             activePanelPEdims(panelPEmesh)
 
@@ -77,11 +78,14 @@ class LUMapTopo: public LUMap
                 CkPrintf("\tMachine Topology: %d x %d x %d x %d\n", allPEdims.x, allPEdims.y, allPEdims.z, allPEdims.t);
                 CkPrintf("\tPanel PE Mesh: %d x %d x %d x %d\n", activePanelPEdims.x, activePanelPEdims.y, activePanelPEdims.z, activePanelPEdims.t);
             }
-            // Compute the number of panels (chare columns) per plane of the 3d pe mesh
+            // Compute the number of panels (chare columns) per 2D slice (plane) of the 3D pe mesh
             numPanelsPerMeshPlane = allPEdims.t / activePanelPEdims.t;
             // Compute the total number of panels (chare columns) that will fit onto the
-            // whole 3d pe mesh. This constitutes the number of columns in the pe tile
+            // whole 3D pe mesh. This constitutes the number of columns in the pe tile
             numPanelsInTile = allPEdims.x * numPanelsPerMeshPlane;
+            // Compute the total number of PEs on a 2D slice for a single panel.
+            // This constitutes the number of rows in the pe tile
+            numRowsInTile = activePanelPEdims.x * activePanelPEdims.y * activePanelPEdims.z * activePanelPEdims.t;
         }
 
 
@@ -92,7 +96,7 @@ class LUMapTopo: public LUMap
             const int *idx = arrIdx.data();
             int x, y, z, t;
             // Assume that an active panel is mapped onto a complete YZ plane
-            int linearizedYZidx = idx[0]/activePanelPEdims.t;
+            int linearizedYZidx = (idx[0] % numRowsInTile) / activePanelPEdims.t;
             int ta = idx[0]  % activePanelPEdims.t;
             int tb = (idx[1]%numPanelsInTile)  / allPEdims.x;
 
@@ -170,6 +174,8 @@ class LUMapTopo: public LUMap
         int numPanelsPerMeshPlane;
         /// The number of panels that will fit onto the whole 3d pe mesh
         int numPanelsInTile;
+        /// The number of chare array rows that will map onto a 2D slice of the PE mesh without repetition
+        int numRowsInTile;
         /// The total number of blocks in the A matrix
         int numBlocks;
 };
