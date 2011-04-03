@@ -4,9 +4,6 @@
 #ifndef MAP_TOPO_3D_MESH_H
 #define MAP_TOPO_3D_MESH_H
 
-/// A global topomgr object for everyone to use
-extern TopoManager *luTopoMgr;
-
 /**
  * A mapping for the LU chare array tuned for machines with 3D meshes / torii
  *
@@ -59,16 +56,38 @@ extern TopoManager *luTopoMgr;
 class LUMapTopo: public LUMap
 {
     public:
-        ///
+        /// Typical construction mechanism
         LUMapTopo(const int _numBlocks, PEMeshDims panelPEmesh):
             numBlocks(_numBlocks),
             numPanelsPerMeshPlane(0), numPanelsInTile(0), numRowsInTile(0),
-            allPEdims(luTopoMgr->getDimNX(), luTopoMgr->getDimNY(), luTopoMgr->getDimNZ(), luTopoMgr->getDimNT()),
             activePanelPEdims(panelPEmesh)
+        { init(); }
 
+
+
+        /// Constructor when TopoMgr has to be supplied arbit PE mesh dims
+        LUMapTopo(const int _numBlocks, PEMeshDims panelPEmesh, PEMeshDims allPEs):
+            numBlocks(_numBlocks),
+            numPanelsPerMeshPlane(0), numPanelsInTile(0), numRowsInTile(0),
+            activePanelPEdims(panelPEmesh)
         {
-            if (_numBlocks <= 0)
+            myTopoMgr = TopoManager(allPEs.x, allPEs.y, allPEs.z, allPEs.t);
+            init();
+        }
+
+
+
+        /// Commong init procedure shared by the constructors
+        void init()
+        {
+            if (numBlocks <= 0)
                 CkAbort("numBlocks < 0!!");
+
+            allPEdims = PEMeshDims( myTopoMgr.getDimNX(),
+                                    myTopoMgr.getDimNY(),
+                                    myTopoMgr.getDimNZ(),
+                                    myTopoMgr.getDimNT()
+                                  );
 
             if ( !isFeasible() )
                 CkAbort("Active panels cannot be mapped onto the specified sub-mesh. Check your inputs to the mapping scheme.");
@@ -106,16 +125,16 @@ class LUMapTopo: public LUMap
                       (t >= 0 && t < allPEdims.t)
                     );
 
-            return luTopoMgr->coordinatesToRank(x, y, z, t);
+            return myTopoMgr.coordinatesToRank(x, y, z, t);
         }
 
 
 
         /// Check if its feasible to map the active panel onto the specified sub-mesh
-        inline bool isFeasible() const
+        inline bool isFeasible()
         {
             // Ensure this is a valid mesh size
-            if (!activePanelPEdims.isValid())
+            if (!activePanelPEdims.isValid(&myTopoMgr))
                 CkAbort("Invalid dimensions for active panel submesh");
 
             // Ensure that user has asked to map the active panel onto
@@ -157,10 +176,14 @@ class LUMapTopo: public LUMap
             return activePanelPEdims.x * activePanelPEdims.y * activePanelPEdims.z * activePanelPEdims.t; 
         }
 
+
+
         ///
         inline std::string desc() { return "LU array mapping for 3D meshes and torii"; }
 
     private:
+        /// A topoManager to query topo info
+        TopoManager myTopoMgr;
         /// Machine dimensions
         PEMeshDims allPEdims;
         /// Dimensions of partition onto which an active panel is mapped

@@ -662,6 +662,7 @@ mainmodule lu {
   include "peMeshDims.h";
   group LUMapTopo: LUMap {
     entry LUMapTopo(int _numBlks, PEMeshDims _panelMesh);
+    entry LUMapTopo(int _numBlks, PEMeshDims _panelMesh, PEMeshDims _allPEmesh);
   };
 };
 
