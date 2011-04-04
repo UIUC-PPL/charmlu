@@ -532,10 +532,18 @@ void BlockScheduler::progress() {
     }
 
     if (shouldExecuteBulkWork()) {
+      int ustep = std::numeric_limits<int>::max();
+      for (list<Update>::iterator update = plannedUpdates.begin();
+	   update != plannedUpdates.end(); ++update) {
+	if (update->isComputeU()) {
+	  ustep = std::min(ustep, update->t);
+	}
+      }
+
       // Start triangular solves and trailing updates
       for (list<Update>::iterator update = plannedUpdates.begin();
 	   update != plannedUpdates.end(); ++update) {
-	if (update->ready()) {
+	if (update->ready() && (update->isComputeU() || update->t < ustep)) {
           runUpdate(update);
           stateModified = true;
           break;
