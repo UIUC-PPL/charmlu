@@ -73,12 +73,6 @@ struct Panel {
   Panel() : updatesLeftToPlan(0) { }
 };
 
-struct ComputeU {
-  int x, y, t;
-  ComputeU(int x_, int y_, int t_) :
-    x(x_), y(y_), t(t_) {}
-};
-
 const int sdagOverheadPerBlock = 3760;
 
 class BlockScheduler : public CBase_BlockScheduler {
