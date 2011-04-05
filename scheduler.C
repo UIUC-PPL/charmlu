@@ -50,30 +50,6 @@ void BlockScheduler::scheduleSend(blkMsg *msg, bool onActive) {
   pumpMessages();
 }
 
-void BlockScheduler::releaseActiveColumn(const int y) {
-  for (StateList::iterator iter = localBlocks.begin();
-       iter != localBlocks.end(); ++iter) {
-    if (iter->iy == y && y - 1 == iter->updatesPlanned && iter->pendingDependencies > 0) {
-      if (Upanels.find(y-1) != Upanels.end()) {
-        list<StateList::iterator> &dependents = Upanels[y-1].dependents;
-        list<StateList::iterator>::iterator dep = find(dependents.begin(), dependents.end(), iter);
-        if (dep != dependents.end()) {
-          dependents.erase(dep);
-          iter->pendingDependencies--;
-        }
-      }
-      if (panels.find(y-1) != panels.end()) {
-        list<StateList::iterator> &dependents = panels[y-1].dependents;
-        list<StateList::iterator>::iterator dep = find(dependents.begin(), dependents.end(), iter);
-        if (dep != dependents.end()) {
-          dependents.erase(dep);
-          iter->pendingDependencies--;
-        }
-      }
-    }
-  }
-}
-
 void BlockScheduler::scheduleSend(CkIndex2D index, bool onActive) {
   blkMsg *msg = luArr(index).ckLocal()->LUmsg;
   scheduleSend(msg, onActive);
@@ -261,10 +237,7 @@ void BlockScheduler::planUpdate(StateList::iterator target) {
   if (update.isComputeU()) {
     CkAssert(t == min(target->ix, target->iy));
 
-    if (target->iy == target->ix + 1)
-      plannedUpdates.pop_back();
-    else
-      getBlock(target->ix, target->ix, update.L, &update);
+    getBlock(target->ix, target->ix, update.L, &update);
 
     updatePanel(panels, t);
 

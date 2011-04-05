@@ -239,29 +239,20 @@ mainmodule lu {
           }
         }
 
-        if (thisIndex.y == thisIndex.x + 1) {
-          when deliverDiagonal(blkMsg* m) atomic "deliver_diagonal" {
-            DEBUG_PRINT("doing triangular solve");
-            computeU(m->data);
-            delete m;
-            scheduler.releaseActiveColumn(thisIndex.y);
-          }
-        } else {
-          atomic {
-            updateExecuted = false;
-          }
-          while (!updateExecuted) {
-            when processComputeU(intptr_t update_ptr) atomic "process_compute_U" {
-              Update &update = *(Update *)update_ptr;
-              if (localScheduler->shouldExecute()) {
-                DEBUG_PRINT("doing triangular solve");
-                computeU(update.L);
-                localScheduler->updateDone(update_ptr);
-                updateExecuted = true;
-              } else {
-                update.triggered = false;
-                localScheduler->updateUntriggered();
-              }
+        atomic {
+          updateExecuted = false;
+        }
+        while (!updateExecuted) {
+          when processComputeU(intptr_t update_ptr) atomic "process_compute_U" {
+            Update &update = *(Update *)update_ptr;
+            if (localScheduler->shouldExecute()) {
+              DEBUG_PRINT("doing triangular solve");
+              computeU(update.L);
+              localScheduler->updateDone(update_ptr);
+              updateExecuted = true;
+            } else {
+              update.triggered = false;
+              localScheduler->updateUntriggered();
             }
           }
         }
@@ -498,7 +489,6 @@ mainmodule lu {
           if (thisIndex.x == thisIndex.y) {
             blkMsg *msg = new (BLKSIZE * BLKSIZE, 0, mgr->bitsOfPrio()) blkMsg(thisIndex);
             memcpy(msg->data, LU, sizeof(double) * BLKSIZE * BLKSIZE);
-            thisProxy(thisIndex.x, thisIndex.y + 1).deliverDiagonal(msg);
           }
           // Multicast the local block of L rightwards to the blocks in the same row
           multicastRecvL();
@@ -607,8 +597,6 @@ mainmodule lu {
     entry void print();
 
     entry void finishInit();
-
-    entry void deliverDiagonal(blkMsg* m);
   };
 
   group OnePerPE : CkArrayMap {
@@ -621,7 +609,6 @@ mainmodule lu {
     entry void printBlockLimit();
     entry void allRegistered(CkReductionMsg *m);
     entry void scheduleSend(CkIndex2D index, bool onActive);
-    entry void releaseActiveColumn(const int y);
     entry void outputStats();
   }
 
