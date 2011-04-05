@@ -91,6 +91,9 @@ void BlockScheduler::pumpMessages() {
 
   inPumpMessages = true;
 
+  DEBUG_SCHED("scheduledSends = %d, sendsInFlight = %d", scheduledSends.size(),
+              sendsInFlight.size());
+
   size_t curMemory = CmiMemoryUsage()/1024;
   if (curMemory > maxMemory) {
     maxMemory = curMemory;
@@ -101,7 +104,7 @@ void BlockScheduler::pumpMessages() {
 
   for (list<blkMsg*>::iterator iter = sendsInFlight.begin();
        iter != sendsInFlight.end(); ++iter) {
-    //DEBUG_SCHED("pumpMessages, iter through sendsInFlight %p", *iter);
+    DEBUG_SCHED("pumpMessages, iter through sendsInFlight %p", *iter);
     blkMsg *msg = *iter;
     int ref = REFFIELD(UsrToEnv(msg));
     CkAssert(ref > 0 && ref <= 2);
@@ -134,13 +137,15 @@ void BlockScheduler::pumpMessages() {
   for (list<blkMsg*>::iterator iter = scheduledSends.begin();
        iter != scheduledSends.end() && sendsInFlight.size() < SEND_LIMIT;
        ++iter) {
-    //DEBUG_SCHED("pumpMessages, iter through scheduledSends %p", *iter);
+    DEBUG_SCHED("pumpMessages, iter through scheduledSends %p", *iter);
     if (find(sendsInFlight.begin(), sendsInFlight.end(), *iter) ==
         sendsInFlight.end()) {
       sendsInFlight.push_back(*iter);
       DEBUG_SCHED("%p calling propagate on first half", *iter);
-      propagateBlkMsg(*iter);
+      blkMsg *msg = *iter;
       iter = scheduledSends.erase(iter);
+      propagateBlkMsg(msg);
+      DEBUG_SCHED("%p removed form scheduledSends", msg);
     }
   }
 

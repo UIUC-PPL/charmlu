@@ -821,21 +821,21 @@ void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
 void LUBlk::setupMsg(bool reverse) {
   blkMsg *m = LUmsg;
 
-  CkAssert(requestingPEs.size() <= maxRequestingPEs);
-
-  std::sort(requestingPEs.begin(), requestingPEs.end());
-  if (reverse)
-    std::reverse(requestingPEs.begin(), requestingPEs.end());
-
-  DEBUG_PRINT("Preparing block for delivery to %d PEs", requestingPEs.size());
+  int pe = requestingPEs.size() > 0 ? requestingPEs.front() : -1;
 
   // Junk value to catch bugs
   m->npes_sender = -1;
-  m->npes_receiver = requestingPEs.size();
+  m->npes_receiver = pe != -1 ? 1 : 0;
   m->offset = 0;
-  memcpy(m->pes, &requestingPEs[0], sizeof(requestingPEs[0])*m->npes_receiver);
+  memcpy(m->pes, &pe, sizeof(pe)*m->npes_receiver);
 
-  requestingPEs.clear();
+  if (requestingPEs.size() > 0)
+      requestingPEs.pop_front();
+
+  if (requestingPEs.size() > 0) {
+      DEBUG_PRINT("scheduleSend setupMsg");
+      localScheduler->scheduleSend(m, false);
+  }
 }
 
 //broadcast the U downwards to the blocks in the same column
@@ -846,7 +846,9 @@ inline void LUBlk::multicastRecvU() {
 
   DEBUG_PRINT("Multicast to part of column %d", thisIndex.y);
 
-  localScheduler->scheduleSend(thisIndex, internalStep == thisIndex.y - 1);
+  DEBUG_PRINT("scheduleSend multicastRecvU");
+  if (requestingPEs.size() > 0)
+    localScheduler->scheduleSend(thisIndex, internalStep == thisIndex.y - 1);
 
   // BlockReadyMsg *mU = new(8*sizeof(int)) BlockReadyMsg(thisIndex);
   // mgr->setPrio(mU, MULT_RECV_U);
@@ -860,7 +862,9 @@ inline void LUBlk::multicastRecvL() {
   mgr->setPrio(LUmsg, MULT_RECV_L);
 
   DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
-  localScheduler->scheduleSend(thisIndex, true);
+  DEBUG_PRINT("scheduleSend multicastRecvL");
+  if (requestingPEs.size() > 0)
+    localScheduler->scheduleSend(thisIndex, true);
 
   // DEBUG_PRINT("Announce block ready to part of row %d", thisIndex.x);
   // BlockReadyMsg *mL = new(8*sizeof(int)) BlockReadyMsg(thisIndex);
@@ -878,6 +882,7 @@ void LUBlk::getBlock(int pe, int rx, int ry) {
     else if (thisIndex.x < thisIndex.y && internalStep == thisIndex.y - 1)
       onActive = true;
 
+    DEBUG_PRINT("scheduleSend getBlock");
     localScheduler->scheduleSend(thisIndex, onActive);
   } else {
     DEBUG_PRINT("Queueing remote block for pe %d", pe);

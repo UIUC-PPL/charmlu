@@ -129,7 +129,7 @@ private:
   /// How many blocks in the trailing submatrix live on processors that have asked for it?
   int blocksAfter;
   /// Which PE's schedulers have requested this block?
-  std::vector<int> requestingPEs;
+  std::list<int> requestingPEs;
   int maxRequestingPEs;
 
   /// The sub-diagonal chare array section that will participate in pivot selection
