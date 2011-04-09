@@ -16,6 +16,7 @@ for (<>) {
             $rotate, $stride,$t1, $send, $time, $peak) = @cols;
         my $gflopsMax = 10.39;
         my $gflops = ($peak / 100) * $gflopsMax;
+        my $totalTflops = ($peak / 100) * $gflopsMax * $procs / 1000;
         my $aspect = $tiley / $tilex;
         my $upar;
         if (int($rotate) == 0) {
@@ -30,6 +31,9 @@ for (<>) {
 
         ### Exclusive
         #$xmap{$procs}{$type} = $gflops;
+
+        ### Weak scaling
+        #$xmap{$procs}{0} = $totalTflops;
     }
 }
 
@@ -37,12 +41,13 @@ my $temp = "tmp-graph.dat";
 chomp $temp;
 open DATFILE, ">", "$temp" or die $!;
 
-my @tlist = (132, 528, 2112);
+my @plist = (132, 528, 2112);
 my @exclusive = ("baseline", "noisolateactive", "isolateu", "redncb");
+my @weak = (0);
 
 for my $key (sort {$a <=> $b} (keys %xmap)) {
     print DATFILE "$key ";
-    foreach my $p (@tlist) {
+    foreach my $p (@exclusive) {
         if (exists $xmap{$key}{$p}) {
             print DATFILE "$xmap{$key}{$p} ";
         } else {
@@ -75,10 +80,10 @@ set style line 4 lt 8 lc rgb "orange" lw 3
 # set ytics autofreq nomirror
 # set mxtics 20
 # set mytics 5
-# plot '$temp' using 1:5 title 'redncb' with linespoints ls 1 pt 7, \\
-#      '$temp' using 1:2 title 'baseline' with linespoints ls 2 pt 5, \\
-#      '$temp' using 1:4 title 'isolateu' with linespoints ls 3 pt 13, \\
-#      '$temp' using 1:3 title 'noisolateactive' with linespoints ls 4 pt 9
+# plot '$temp' using 1:5 title 'Active panel and reduction callback isolated' with linespoints ls 1 pt 7, \\
+#      '$temp' using 1:2 title 'Active panel isolated' with linespoints ls 2 pt 5, \\
+#      '$temp' using 1:4 title 'Active panel and U triangular solves isolated' with linespoints ls 3 pt 13, \\
+#      '$temp' using 1:3 title 'No isolation' with linespoints ls 4 pt 9
 
 ### Send limit
 set xlabel 'Locally incomplete message sends'
@@ -122,6 +127,18 @@ plot '$temp' using 1:2 title '132 processors' with linespoints ls 1 pt 7, \\
 #      '$temp' using 1:3 title '528 processors' with linespoints ls 2 pt 5, \\
 #      '$temp' using 1:4 title '2112 processors' with linespoints ls 3 pt 13
 
+### Weak scaling
+# set logscale xy
+# set xlabel 'Number of PEs'
+# set ylabel 'Total TFlops'
+# set xrange [100:8500]
+# #set yrange [5:7.5]
+# set xtics axis in nomirror 128,8,8064
+# set ytics autofreq nomirror
+# #set xrange [0:500]
+# set mxtics 15
+# set mytics 15
+# plot '$temp' using 1:2 title 'Weak scaling matrix size with PEs' with linespoints ls 2 pt 7
 END
 
 my $opFile = "tmp-graph.ps";
