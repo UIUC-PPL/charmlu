@@ -53,7 +53,7 @@ void BlockScheduler::scheduleSend(blkMsg *msg, bool onActive) {
 void BlockScheduler::releaseActiveColumn(const int y, const int t) {
   for (StateList::iterator iter = localBlocks.begin();
        iter != localBlocks.end(); ++iter) {
-    if (iter->iy == y && t == iter->updatesPlanned &&
+    if (iter->iy == y && t >= iter->updatesPlanned &&
         iter->pendingDependencies.size() > 0) {
       for (list<Panel*>::iterator depPanels = iter->pendingDependencies.begin();
            depPanels != iter->pendingDependencies.end(); ++depPanels) {
