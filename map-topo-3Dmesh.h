@@ -57,19 +57,21 @@ class LUMapTopo: public LUMap
 {
     public:
         /// Typical construction mechanism
-        LUMapTopo(const int _numBlocks, PEMeshDims panelPEmesh):
+        LUMapTopo(const int _numBlocks, PEMeshDims panelPEmesh, const int _peRotate = 0):
             numBlocks(_numBlocks),
             numPanelsPerMeshPlane(0), numPanelsInTile(0), numRowsInTile(0),
-            activePanelPEdims(panelPEmesh)
+            activePanelPEdims(panelPEmesh),
+            peRotate(_peRotate)
         { init(); }
 
 
 
         /// Constructor when TopoMgr has to be supplied arbit PE mesh dims
-        LUMapTopo(const int _numBlocks, PEMeshDims panelPEmesh, PEMeshDims allPEs):
+        LUMapTopo(const int _numBlocks, PEMeshDims panelPEmesh, PEMeshDims allPEs, const int _peRotate = 0):
             numBlocks(_numBlocks),
             numPanelsPerMeshPlane(0), numPanelsInTile(0), numRowsInTile(0),
-            activePanelPEdims(panelPEmesh)
+            activePanelPEdims(panelPEmesh),
+            peRotate(_peRotate)
         {
             myTopoMgr = TopoManager(allPEs.x, allPEs.y, allPEs.z, allPEs.t);
             init();
@@ -109,12 +111,16 @@ class LUMapTopo: public LUMap
         {
             const int *idx = arrIdx.data();
             int x, y, z, t;
-            // Assume that an active panel is mapped onto a complete YZ plane
-            int linearizedYZidx = (idx[0] % numRowsInTile) / activePanelPEdims.t;
-            int ta = idx[0]  % activePanelPEdims.t;
-            int tb = (idx[1]%numPanelsInTile)  / allPEdims.x;
+            // Compute location of host PE within the PE tile
+            int rowWithinPEtile = (idx[0] + peRotate * (idx[1]/numPanelsInTile) ) % numRowsInTile;
+            int colWithinPEtile = (idx[1] % numPanelsInTile);
 
-            x  = idx[1]  % allPEdims.x;
+            // Assume that an active panel is mapped onto a complete YZ plane
+            int linearizedYZidx = rowWithinPEtile / activePanelPEdims.t;
+            int ta = rowWithinPEtile % activePanelPEdims.t;
+            int tb = colWithinPEtile / allPEdims.x;
+
+            x  = colWithinPEtile % allPEdims.x;
             y  = linearizedYZidx / activePanelPEdims.z;
             z  = linearizedYZidx % activePanelPEdims.z;
             t  = ta * numPanelsPerMeshPlane + tb;
@@ -196,6 +202,8 @@ class LUMapTopo: public LUMap
         int numRowsInTile;
         /// The total number of blocks in the A matrix
         int numBlocks;
+        /// The num of rows to shift the pe tile by, when moving down a tile row
+        int peRotate;
 };
 
 // determine X, Y, Z and T dims

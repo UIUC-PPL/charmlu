@@ -197,7 +197,7 @@ public:
     if (m->argc<4) {
       CkPrintf("Usage: %s <matrix size> <block size> <mem threshold> [<pivot batch size> <map scheme> [mapargs]]\n"
                "\t mapscheme=3 (2D Tiling)     [<peTileRows> <peTileCols> <peRotate> <peStride>]\n",
-               "\t mapscheme=4 (3D Topo Mesh)  [<panelPEx> <panelPEy> <panelPEz> <panelPEt>]\n",
+               "\t mapscheme=4 (3D Topo Mesh)  [<panelPEx> <panelPEy> <panelPEz> <panelPEt> <peRotate>]\n",
                m->argv[0]);
       CkExit();
     }
@@ -270,7 +270,13 @@ public:
 #endif
             }
             else
+            {
                 luCfg.peMesh4Panel = PEMeshDims( atoi(m->argv[6]), atoi(m->argv[7]), atoi(m->argv[8]), atoi(m->argv[9]) );
+                if (m->argc >= 11)
+                    luCfg.peTileRotate = atoi(m->argv[10]);
+                else
+                    luCfg.peTileRotate = 0;
+            }
 
             /// Compute the number of rows and columns in the PE tile
             luCfg.peTileRows = luCfg.peMesh4Panel.x * luCfg.peMesh4Panel.y *
@@ -325,7 +331,7 @@ public:
                luCfg.peTileRotate, luCfg.peTileStride);
     if (mappingScheme == 5)
     {
-      CkPrintf("\tMapping PE tile size: %d x %d \n", luCfg.peTileRows, luCfg.peTileCols);
+      CkPrintf("\tMapping PE tile size: %d x %d rotate %d\n", luCfg.peTileRows, luCfg.peTileCols, luCfg.peTileRotate);
       CkPrintf("\tPE Mesh Dimensions for LU panel: %d x %d x %d x %d\n",
                luCfg.peMesh4Panel.x, luCfg.peMesh4Panel.y, luCfg.peMesh4Panel.z, luCfg.peMesh4Panel.t);
       CkPrintf("\tPE Mesh Dimensions for whole partition: %d x %d x %d x %d\n",
@@ -423,9 +429,9 @@ public:
                              luTopoMgr->getDimNZ(),
                              luTopoMgr->getDimNT()
                             );
-        map = CProxy_LUMapTopo::ckNew(luCfg.numBlocks, luCfg.peMesh4Panel, allPEdims);
+        map = CProxy_LUMapTopo::ckNew(luCfg.numBlocks, luCfg.peMesh4Panel, allPEdims, luCfg.peTileRotate);
 #else
-        map = CProxy_LUMapTopo::ckNew(luCfg.numBlocks, luCfg.peMesh4Panel);
+        map = CProxy_LUMapTopo::ckNew(luCfg.numBlocks, luCfg.peMesh4Panel, luCfg.peTileRotate);
 #endif
         break;
       }
