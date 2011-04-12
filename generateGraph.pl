@@ -26,7 +26,12 @@ for (<>) {
         }
         my $percentU = $upar / $procs * 100.0;
 
-        ### Replace first hash key with x to grah
+        if ($stride > 12) {
+            $stride = 12;
+        }
+        my $numActive = 12 / $stride;
+
+        ### Replace first hash key with x to graph
         $xmap{$send}{$procs} = $gflops;
 
         ### Exclusive
@@ -47,7 +52,7 @@ my @weak = (0);
 
 for my $key (sort {$a <=> $b} (keys %xmap)) {
     print DATFILE "$key ";
-    foreach my $p (@exclusive) {
+    foreach my $p (@plist) {
         if (exists $xmap{$key}{$p}) {
             print DATFILE "$xmap{$key}{$p} ";
         } else {
@@ -61,84 +66,87 @@ close DATFILE;
 
 my $plotScript = <<END;
 set terminal postscript color
-#set title 'test'
 set border 1+2+4+8 lw 1.3
 
-set ylabel 'GFlops'
+set pointsize 1.5
+
+set ylabel 'GFlops' font "Myriad Pro,20"
 
 set style line 1 lt 2 lc rgb "red" lw 3
 set style line 2 lt 1 lc rgb "blue" lw 3
 set style line 3 lt 4 lc rgb "green" lw 3
 set style line 4 lt 8 lc rgb "orange" lw 3
 
+set key font "Myriad Pro,20" spacing 2
+
 ### Exclusive prio classes
 # set logscale x
-# set xlabel 'Number of processors'
+# set xlabel 'Number of processors' font "Myriad Pro,20"
 # set xrange [100:2300]
-# set yrange [5:7.5]
-# set xtics axis in nomirror 132,4,2112
-# set ytics autofreq nomirror
+# set yrange [5:7.8]
+# set xtics axis in nomirror 132,4,2112 font "Myriad Pro,20"
+# set ytics autofreq nomirror font "Myriad Pro,20"
 # set mxtics 20
 # set mytics 5
-# plot '$temp' using 1:5 title 'Active panel and reduction callback isolated' with linespoints ls 1 pt 7, \\
-#      '$temp' using 1:2 title 'Active panel isolated' with linespoints ls 2 pt 5, \\
-#      '$temp' using 1:4 title 'Active panel and U triangular solves isolated' with linespoints ls 3 pt 13, \\
-#      '$temp' using 1:3 title 'No isolation' with linespoints ls 4 pt 9
+# plot '$temp' using 1:5 title 'Active panel and reduction callback isolated' with linespoints ls 32 lw 6 pt 7 lc rgb "#b22222", \\
+#      '$temp' using 1:2 title 'Active panel isolated' with linespoints ls 2 lw 6 pt 5 lc rgb "#000080", \\
+#      '$temp' using 1:4 title 'Active panel and U triangular solves isolated' with linespoints ls 3 lw 6 pt 9 lc rgb "#006400", \\
+#      '$temp' using 1:3 title 'No isolation' with linespoints lt 2 lw 6 pt 13 lc rgb "#ff8c00"
 
 ### Send limit
-set xlabel 'Locally incomplete message sends'
-set xtics autofreq nomirror 1,1,5
-set ytics autofreq nomirror
+set xlabel 'Locally incomplete message sends' font "Myriad Pro,20"
+set xtics autofreq nomirror 1,1,5 font "Myriad Pro,20"
+set ytics autofreq nomirror font "Myriad Pro,20"
 set yrange [6:7.5]
 set mytics 5
-plot '$temp' using 1:2 title '132 processors' with linespoints ls 1 pt 7, \\
-     '$temp' using 1:3 title '528 processors' with linespoints ls 2 pt 5, \\
-     '$temp' using 1:4 title '2112 processors' with linespoints ls 3 pt 13
+plot '$temp' using 1:2 title '132 processors' with linespoints ls 32 lw 6 pt 7 lc rgb "#b22222", \\
+     '$temp' using 1:3 title '528 processors' with linespoints ls 2 lw 6 pt 5 lc rgb "#000080", \\
+     '$temp' using 1:4 title '2112 processors' with linespoints ls 3 lw 6 pt 9 lc rgb "#006400"
 
 ### Aspect ratio
-# set xlabel 'Aspect ratio'
-# set xtics autofreq nomirror
-# set ytics autofreq nomirror
-# set xrange [0:5]
+# set xlabel 'Aspect ratio' font "Myriad Pro,20"
+# set xtics autofreq nomirror font "Myriad Pro,20"
+# set ytics autofreq nomirror font "Myriad Pro,20"
+# set xrange [0:8.5]
 # set mxtics 5
 # set mytics 5
-# plot '$temp' using 1:2 title '132 processors' with linespoints ls 1 pt 7, \\
-#      '$temp' using 1:3 title '528 processors' with linespoints ls 2 pt 5, \\
-#      '$temp' using 1:4 title '2112 processors' with linespoints ls 3 pt 13
+# plot '$temp' using 1:2 title '132 processors' with linespoints ls 32 lw 6 pt 7 lc rgb "#b22222", \\
+#      '$temp' using 1:3 title '528 processors' with linespoints ls 2 lw 6 pt 5 lc rgb "#000080", \\
+#      '$temp' using 1:4 title '2112 processors' with linespoints ls 3 lw 6 pt 9 lc rgb "#006400"
 
 ### Stride
-# set xlabel 'Active panel PEs/node'
-# set xtics autofreq nomirror
-# set ytics autofreq nomirror
+# set xlabel 'Active panel PEs/node' font "Myriad Pro,20"
+# set xtics autofreq nomirror font "Myriad Pro,20"
+# set ytics autofreq nomirror font "Myriad Pro,20"
 # set mxtics 5
 # set mytics 5
-# plot '$temp' using 1:2 title '132 processors' with linespoints ls 1 pt 7, \\
-#      '$temp' using 1:3 title '528 processors' with linespoints ls 2 pt 5, \\
-#      '$temp' using 1:4 title '2112 processors' with linespoints ls 3 pt 13
+# plot '$temp' using 1:2 title '132 processors' with linespoints ls 32 lw 6 pt 7 lc rgb "#b22222", \\
+#      '$temp' using 1:3 title '528 processors' with linespoints ls 2 lw 6 pt 5 lc rgb "#000080", \\
+#      '$temp' using 1:4 title '2112 processors' with linespoints ls 3 lw 6 pt 9 lc rgb "#006400"
 
 ### Rotation
-# set xlabel 'Percent of PEs performing triangluar solves'
+# set xlabel 'Percent of PEs performing triangluar solves' font "Myriad Pro,20"
 # set xtics autofreq nomirror
 # set ytics autofreq nomirror
 # #set xrange [0:500]
 # set mxtics 5
 # set mytics 5
-# plot '$temp' using 1:2 title '132 processors' with linespoints ls 1 pt 7, \\
-#      '$temp' using 1:3 title '528 processors' with linespoints ls 2 pt 5, \\
-#      '$temp' using 1:4 title '2112 processors' with linespoints ls 3 pt 13
+# plot '$temp' using 1:2 title '132 processors' with linespoints ls 32 lw 6 pt 7 lc rgb "#b22222", \\
+#      '$temp' using 1:3 title '528 processors' with linespoints ls 2 lw 6 pt 5 lc rgb "#000080", \\
+#      '$temp' using 1:4 title '2112 processors' with linespoints ls 3 lw 6 pt 9 lc rgb "#006400"
 
 ### Weak scaling
 # set logscale xy
-# set xlabel 'Number of PEs'
-# set ylabel 'Total TFlops'
+# set xlabel 'Number of PEs' font "Myriad Pro,20"
+# set ylabel 'Total TFlops' font "Myriad Pro,20"
 # set xrange [100:8500]
 # #set yrange [5:7.5]
-# set xtics axis in nomirror 128,8,8064
-# set ytics autofreq nomirror
+# set xtics axis in nomirror 128,8,8064 font "Myriad Pro,20"
+# set ytics autofreq nomirror font "Myriad Pro,20"
 # #set xrange [0:500]
 # set mxtics 15
 # set mytics 15
-# plot '$temp' using 1:2 title 'Weak scaling matrix size with PEs' with linespoints ls 2 pt 7
+# plot '$temp' using 1:2 title 'Weak scaling matrix size with PEs' with linespoints ls 2 lw 6 pt 5 lc rgb "#000080"
 END
 
 my $opFile = "tmp-graph.ps";
