@@ -1,9 +1,18 @@
 #include "benchmark.decl.h"
 #include <vector>
 #include <algorithm>
-#include "acml.h"
 
+#if USE_ACML_H
+#include "acml.h"
 #define BLAS_NOTRANSPOSE 'N'
+
+#elif USE_ESSL
+#define _ESVCPTR
+#include <complex>
+#include <essl.h>
+#define BLAS_NOTRANSPOSE "N"
+
+#endif
 
 CProxy_Main mainProxy;
 int blockSize;
