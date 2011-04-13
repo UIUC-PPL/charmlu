@@ -1,0 +1,15 @@
+mainmodule benchmark {
+  readonly CProxy_Main mainProxy;
+  readonly int blockSize;
+  readonly int numIter;
+
+  mainchare Main {
+    entry Main(CkArgMsg *m);
+    entry void finishedTest(int, double);
+  };
+
+  group dgemmTest {
+    entry dgemmTest();
+    entry void testAndSync();
+  };
+}
