@@ -4,14 +4,14 @@ include config.mk
 RAWSRC    = lu.C scheduler.C
 INTF      = lu.ci
 
-BENCHSRC = dgerBenchmark.C
-BENCHCI = dgerBenchmark.ci
+BENCHSRC = dgemmBenchmark.C
+BENCHCI = dgemmBenchmark.ci
 
 # Specify the exe name and the arguments to run it with
 NP        = 4
 TARGET    = lu.prod
 BINS      = lu.prod lu.trace
-BENCH     = lu_dger
+BENCH     = lu_dgemm
 ARGS      = 64 16 500 8 2
 
 # Specify the compilers, run script, flags etc.
@@ -52,8 +52,8 @@ endif
 
 all: $(BINS)
 
-lu_dger: CXX = $(CHARMPROD)/bin/charmc
-lu_dger: $(BENCHSRC:.C=.o)
+lu_dgemm: CXX = $(CHARMPROD)/bin/charmc
+lu_dgemm: $(BENCHSRC:.C=.o)
 	$(CHARMC) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 lu.prod: CXX = $(CHARMPROD)/bin/charmc
