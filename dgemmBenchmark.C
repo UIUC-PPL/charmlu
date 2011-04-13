@@ -3,15 +3,18 @@
 #include <algorithm>
 #include "acml.h"
 
+#define BLAS_NOTRANSPOSE 'N'
+
 CProxy_Main mainProxy;
 int blockSize;
 int numIter;
 
 struct Main : public CBase_Main {
+  int count;
   CProxy_dgemmTest dgemms;
   std::vector<double> peTimes;
 
-  Main(CkArgMsg *m) : peTimes(CkNumPes()) {
+  Main(CkArgMsg *m) : count(0), peTimes(CkNumPes()) {
     if (m->argc < 3) {
       CkPrintf("usage: blockSize numIter\n");
       CkExit();
@@ -51,9 +54,9 @@ struct dgemmTest : public CBase_dgemmTest {
   double *m1, *m2, *m3;
 
   dgemmTest() {
-    m1 = new double[blocksize*blocksize];
-    m2 = new double[blocksize*blocksize];
-    m3 = new double[blocksize*blocksize];
+    m1 = new double[blockSize*blockSize];
+    m2 = new double[blockSize*blockSize];
+    m3 = new double[blockSize*blockSize];
   }
 
   void testAndSync() {
@@ -62,10 +65,10 @@ struct dgemmTest : public CBase_dgemmTest {
 
     for(int i=0; i < numIter; i++) {
         dgemm(BLAS_NOTRANSPOSE, BLAS_NOTRANSPOSE,
-            blocksize, blocksize, blocksize,
+            blockSize, blockSize, blockSize,
             -1.0, m1,
-            blocksize, m2, blocksize,
-            1.0, m3, blocksize);
+            blockSize, m2, blockSize,
+            1.0, m3, blockSize);
     }
 
     double totalTestTime = CmiWallTimer() - startTestTime;
