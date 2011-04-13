@@ -2,6 +2,7 @@ mainmodule benchmark {
   readonly CProxy_Main mainProxy;
   readonly int blockSize;
   readonly int numIter;
+  readonly int blockNum;
 
   mainchare Main {
     entry Main(CkArgMsg *m);

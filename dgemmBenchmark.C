@@ -8,6 +8,7 @@
 CProxy_Main mainProxy;
 int blockSize;
 int numIter;
+int blockNum;
 
 struct Main : public CBase_Main {
   int count;
@@ -15,13 +16,14 @@ struct Main : public CBase_Main {
   std::vector<double> peTimes;
 
   Main(CkArgMsg *m) : count(0), peTimes(CkNumPes()) {
-    if (m->argc < 3) {
-      CkPrintf("usage: blockSize numIter\n");
+    if (m->argc < 4) {
+      CkPrintf("usage: blockSize numIter blockNum\n");
       CkExit();
     }
 
     blockSize = atoi(m->argv[1]);
     numIter = atoi(m->argv[2]);
+    blockNum = atoi(m->argv[3]);
 
     CkPrintf("blockSize = %d, numIter = %d\n",blockSize, numIter);
 
@@ -51,12 +53,26 @@ struct Main : public CBase_Main {
 
 struct dgemmTest : public CBase_dgemmTest {
 
-  double *m1, *m2, *m3;
+  double **m1, **m2, **m3;
 
   dgemmTest() {
-    m1 = new double[blockSize*blockSize];
-    m2 = new double[blockSize*blockSize];
-    m3 = new double[blockSize*blockSize];
+
+    CkPrintf("PE %d using blocknum = %d\n",CkMyPe(),blockNum);
+    m1 = new double*[blockNum];
+    m2 = new double*[blockNum];
+    m3 = new double*[blockNum];    
+
+    for(int i = 0; i < blockNum;i++) {
+      m1[i] = new double[blockSize*blockSize];
+      m2[i] = new double[blockSize*blockSize];
+      m3[i] = new double[blockSize*blockSize];
+    
+      for(int j = 0; j < blockSize*blockSize; j++) {
+       m1[i][j] = 0;
+       m2[i][j] = 0;
+       m3[i][j] = 0;
+       }
+    }
   }
 
   void testAndSync() {
@@ -64,18 +80,20 @@ struct dgemmTest : public CBase_dgemmTest {
     double startTestTime = CmiWallTimer();
 
     for(int i=0; i < numIter; i++) {
+        int block = i % blockNum;
         dgemm(BLAS_NOTRANSPOSE, BLAS_NOTRANSPOSE,
             blockSize, blockSize, blockSize,
-            -1.0, m1,
-            blockSize, m2, blockSize,
-            1.0, m3, blockSize);
+            -1.0, m1[block],
+            blockSize, m2[block], blockSize,
+            1.0, m3[block], blockSize);
     }
 
     double totalTestTime = CmiWallTimer() - startTestTime;
 
-    delete[] m1;
-    delete[] m2;
-    delete[] m3;
+    //Don't care about freeing memory
+    //delete[] m1;
+    //delete[] m2;
+    //delete[] m3;
 
     mainProxy.finishedTest(CkMyPe(), totalTestTime);
   }
