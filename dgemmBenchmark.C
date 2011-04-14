@@ -44,16 +44,16 @@ struct Main : public CBase_Main {
   void finishedTest(int pe, double time) {
     peTimes[pe] = time;
     if (++count == CkNumPes()) {
+        double dgemmDuration    = 0;
+        for (int i = 0; i < CkNumPes(); ++i)
+            dgemmDuration += peTimes[i];
+        dgemmDuration /= (CkNumPes() * numIter);
+        double dgemmFlopCount   = (double)blockSize * (double)blockSize * (double)blockSize * 2.0;
+        double dgemmGFlopCount  = dgemmFlopCount / 1000000000.0;
+        double dgemmGFlopPerSec = dgemmGFlopCount / dgemmDuration;
 
-        for (int i = 0; i < CkNumPes(); ++i) {
-            double dgemmDuration    = peTimes[i]/numIter;
-            double dgemmFlopCount   = (double)blockSize * (double)blockSize * (double)blockSize * 2.0;
-            double dgemmGFlopCount  = dgemmFlopCount / 1000000000.0;
-            double dgemmGFlopPerSec = dgemmGFlopCount / dgemmDuration;
-
-            CkPrintf("The dgemm %d x %d takes %g ms and achieves %g GFlop/sec, %g percent of peak on Jaguar\n", blockSize,
-            blockSize, dgemmDuration*1000, dgemmGFlopPerSec, dgemmGFlopPerSec/10.3987);
-        }
+        CkPrintf("The dgemm %d x %d takes %g ms and achieves %g GFlop/sec, %g percent of peak on BGP\n", blockSize,
+            blockSize, dgemmDuration*1000, dgemmGFlopPerSec, dgemmGFlopPerSec/3.4);
 
         CkExit();
     }
@@ -66,7 +66,7 @@ struct dgemmTest : public CBase_dgemmTest {
 
   dgemmTest() {
 
-    CkPrintf("PE %d using blocknum = %d\n",CkMyPe(),blockNum);
+    //CkPrintf("PE %d using blocknum = %d\n",CkMyPe(),blockNum);
     m1 = new double*[blockNum];
     m2 = new double*[blockNum];
     m3 = new double*[blockNum];    
