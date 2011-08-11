@@ -241,7 +241,7 @@ public:
     else
         mappingScheme = 1;
 
-    if (sizeof(CMK_REFNUM_TYPE) != sizeof(int)) {
+    if (luCfg.matrixSize >= std::numeric_limits<short>::max() && sizeof(CMK_REFNUM_TYPE) != sizeof(int)) {
       CkPrintf("Refnum size too small for large matrices."
                " Compile charm with build option --with-refnum-type=int\n");
       CkExit();
