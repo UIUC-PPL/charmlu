@@ -105,9 +105,11 @@ if ($yaxis == 0) {
   $plotCmds .= "set yrange [0:$yaxis]\n";
 }
 
+my $opFile = $runName . ".eps";
 $plotCmds .= <<END;
-set terminal postscript
+set terminal postscript eps color enhanced
 set title '$runName'
+set output '$opFile'
 set ylabel 'Execution Time (seconds)'
 set xlabel 'LU Step'
 set pointsize 0.5
@@ -116,7 +118,6 @@ plot '$temp' using 1:2 title 'Active panel time' with points lt 1 pt 5, \\
      '$temp' using 1:4 title 'Trailing update time per step' with lines lw 2
 END
 
-my $opFile = "tmp-" . $runName . ".ps";
-open (OPIPE, "| gnuplot > $opFile && ps2pdf $opFile") or die $!;
+open (OPIPE, "| gnuplot") or die $!;
 print OPIPE "$plotCmds";
 
