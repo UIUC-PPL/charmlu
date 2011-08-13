@@ -43,6 +43,7 @@ mainmodule lu {
   mainchare Main {
     entry Main(CkArgMsg *m);
     entry void finishInit();
+    entry void finishGen();
     entry void continueIter();
     entry void arrayIsCreated();
     entry void outputStats();
@@ -63,6 +64,7 @@ mainmodule lu {
 
   array [2D] LUBlk {
     entry LUBlk(void);
+    entry void recvBlock(int size, double data[size], int fromPE);
     entry [nokeep] void prepareForPivotRedn(rednSetupMsg *);
     entry void prepareForActivePanel(rednSetupMsg *);
     entry [nokeep] void prepareForRowBeforeDiag(rednSetupMsg *);
@@ -610,6 +612,11 @@ mainmodule lu {
     entry void finishInit();
 
     entry void deliverDiagonal(blkMsg* m);
+  };
+
+  array [2D] LUInitialDist {
+    entry LUInitialDist(const LUConfig cfg, CProxy_Main mproxy);
+    entry void moveData(CProxy_LUBlk proxy);
   };
 
   group OnePerPE : CkArrayMap {

@@ -186,6 +186,8 @@ class Main : public CBase_Main {
   CProxy_LUBlk luArrProxy;
   CProxy_BlockScheduler bs;
   int mappingScheme;
+  double dataTime;
+  CProxy_LUInitialDist initDist;
 
 public:
     Main(CkArgMsg* m) : solved(false), LUcomplete(false), sentVectorData(false) {
@@ -312,12 +314,27 @@ public:
       luArrProxy.initVec();
       sentVectorData = true;
     } else {
-      luArrProxy.finishInit();
+      // Set up array for initial distribution
+      std::pair<int,int> tileDims = computePETileDimensions();
+      CkGroupID stdMap = CProxy_PE2DTilingMap::ckNew(tileDims.first, tileDims.second,
+                                                     0, luCfg.peTileCols,
+                                                     luCfg.numBlocks);
+      CkArrayOptions initOpts(luCfg.numBlocks, luCfg.numBlocks);
+      initOpts.setMap(stdMap);
+
+      initDist = CProxy_LUInitialDist::ckNew(luCfg, thisProxy, initOpts);
     }
   }
 
+  void finishGen() {
+    dataTime = CmiWallTimer();
+    initDist.moveData(luArrProxy);
+  }
+
   void continueIter() {
-    arrayIsCreated();
+    ckout << "Data movement time = " << CmiWallTimer() - dataTime << endl;
+    CkExit();
+    //arrayIsCreated();
   }
 
   void arrayIsCreated() {
@@ -514,6 +531,37 @@ public:
   }
 };
 
+CrnStream blockStream, vecStream;
+
+LUInitialDist::LUInitialDist(const LUConfig cfg, CProxy_Main mproxy) {
+  //ckout << "(" << thisIndex.x << ", " << thisIndex.y << ")"
+  //<< ": allocating initial memory, blocks = " << cfg.numBlocks << endl;
+  dsize = cfg.blockSize * cfg.blockSize;
+  blk = new double[dsize];
+
+  int seed_A = 2998389;
+  CrnStream stream;
+  CrnInitStream(&stream, seed_A + thisIndex.x * cfg.numBlocks + thisIndex.y, 0);
+
+  for (double *d = blk; d < blk + dsize; ++d)
+    *d = CrnDouble(&stream);
+
+  contribute(CkCallback(CkIndex_Main::finishGen(), mproxy));
+}
+
+void LUInitialDist::moveData(CProxy_LUBlk proxy) {
+  proxy(thisIndex.x, thisIndex.y).recvBlock(dsize, blk, CkMyPe());
+  //delete blk;
+}
+
+void LUBlk::recvBlock(int size, double* data, int fromPE) {
+  //ckout << "recvBlock on " << thisIndex.x << ", " << thisIndex.y
+  //<< " from " << fromPE << ", pe " << CkMyPe() << endl;
+  memcpy(LU, data, sizeof(double) * size);
+
+  contribute(CkCallback(CkIndex_LUBlk::finishInit(), thisProxy));
+}
+
 void LUBlk::finishInit() {
   contribute(CkCallback(CkIndex_Main::continueIter(), mainProxy));
 }
@@ -652,8 +700,6 @@ void LUBlk::initVec() {
 
   contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
 }
-
-CrnStream blockStream, vecStream;
 
 void LUBlk::genBlock()
 {

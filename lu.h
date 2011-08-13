@@ -62,6 +62,14 @@ static inline void dropRef(void *m) {
 //    CmiUnlock(lock);
 }
 
+struct LUInitialDist : public CBase_LUInitialDist {
+  double* blk;
+  int dsize;
+  LUInitialDist(const LUConfig cfg, CProxy_Main mproxy);
+  LUInitialDist(CkMigrateMessage* m) {}
+  void moveData(CProxy_LUBlk proxy);
+};
+
 class LUBlk: public CBase_LUBlk {
 public:
   int internalStep;
@@ -175,6 +183,9 @@ private:
     traceBegin();
 #endif
   }
+
+  // For testing data movement time
+  void recvBlock(int size, double* data, int fromPE);
 
   //VALIDATION
   void startValidation();
