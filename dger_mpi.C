@@ -5,6 +5,7 @@
 #include <papi.h>
 #include <mpi.h>
 
+// Event set for Jaguar
 int EVENTS[] = {
   PAPI_FPU_IDL // FPU idle cycles
   , PAPI_RES_STL // resource stalls
