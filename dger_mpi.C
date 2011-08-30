@@ -85,10 +85,10 @@ int main(int argc, char **argv) {
   for (int activeCol = 0; activeCol < numIter; ++activeCol) {
     MPI_Barrier(MPI_COMM_WORLD);
 
-    if (isLive) {
-    double startTestTime = MPI_Wtime();
     if (PAPI_start_counters(EVENTS, NUM_EVENTS) != PAPI_OK)
       exit(3);
+    if (isLive) {
+    double startTestTime = MPI_Wtime();
     for (int i = 0; i < numBlocks; i++) {
       double *block = blocks[i];
 
@@ -125,14 +125,16 @@ int main(int argc, char **argv) {
 	   &block[getIndex(startingRow,activeCol)], blockSize,
 	   &block[getIndex(startingRow,activeCol+offset)], blockSize);
 #endif
-    }
-    if (PAPI_stop_counters(values, NUM_EVENTS) != PAPI_OK)
-      exit(4);
     totalTestTime = MPI_Wtime() - startTestTime;
+
+    }
     } else { // do dgemms to simulate actual interference
       for (int i = 0; i < numBlocks; i += 3)
 	dgemm('n', 'n', blockSize, blockSize, blockSize, 1.0, blocks[i%numBlocks], blockSize, blocks[(i+1)%numBlocks], blockSize, 1.0, blocks[(i+2)%numBlocks], blockSize);
     }
+    MPI_Barrier(MPI_COMM_WORLD);
+    if (PAPI_stop_counters(values, NUM_EVENTS) != PAPI_OK)
+      exit(4);
 
 #ifdef GATHER
     MPI_Gather(&totalTestTime, 1, MPI_DOUBLE, &peTimes[0], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
