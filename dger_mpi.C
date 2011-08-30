@@ -143,7 +143,13 @@ int main(int argc, char **argv) {
     MPI_Gather(values, NUM_EVENTS, MPI_LONG_LONG_INT, &counts[0], NUM_EVENTS, MPI_LONG_LONG_INT, 0, MPI_COMM_WORLD);
 #else
     MPI_Reduce(&totalTestTime, &peTimes[0], 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-    MPI_Reduce(values, &counts[0], NUM_EVENTS, MPI_LONG_LONG_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(values, &counts[0], 2, MPI_LONG_LONG_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+    int vi[2];
+    vi[0] = values[2];
+    vi[1] = values[3];
+    MPI_Reduce(rank == 0 ? MPI_IN_PLACE : vi, vi, 2, MPI_LONG_LONG_INT, MPI_MAX, 0, MPI_COMM_WORLD);
+    counts[0].l[2] = vi[0];
+    counts[0].l[3] = vi[1];
 #endif
 
     if (rank == 0) {
@@ -169,8 +175,10 @@ int main(int argc, char **argv) {
 
   if (rank == 0) {
     printf("sums: %f, ", summedTime/liveCores);
-    for (int j = 0; j < NUM_EVENTS; ++j)
+    for (int j = 0; j < 2; ++j)
       printf("%lld, ", summedCounts[j]/liveCores);
+    for (int j = 2; j < 4; ++j)
+      printf("%lld, ", summedCounts[j]);
     printf("\n");
   }
 
