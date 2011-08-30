@@ -129,8 +129,10 @@ int main(int argc, char **argv) {
 
     }
     } else { // do dgemms to simulate actual interference
+#ifdef DO_DGEMM
       for (int i = 0; i < numBlocks; i += 3)
 	dgemm('n', 'n', blockSize, blockSize, blockSize, 1.0, blocks[i%numBlocks], blockSize, blocks[(i+1)%numBlocks], blockSize, 1.0, blocks[(i+2)%numBlocks], blockSize);
+#endif
     }
     MPI_Barrier(MPI_COMM_WORLD);
     if (PAPI_stop_counters(values, NUM_EVENTS) != PAPI_OK)
