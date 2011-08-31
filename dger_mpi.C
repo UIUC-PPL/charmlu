@@ -27,6 +27,10 @@ struct Events {
 
 //#define GATHER
 
+bool isLive(int liveCores, int rank) {
+  return (rank == 0) || (rank % 6) < (liveCores / 2);
+}
+
 int main(int argc, char **argv) {
   MPI_Init(&argc, &argv);
   int rank, size;
@@ -53,8 +57,6 @@ int main(int argc, char **argv) {
     printf("Asked for too many working cores\n");
     exit(2);
   }
-
-  bool isLive = (rank == 0) || (rank % 6) < (liveCores / 2);
 
   if (rank == 0)
     printf("numBlocks = %d, blockSize = %d, numIter = %d, liveCores = %d\n",
@@ -87,7 +89,7 @@ int main(int argc, char **argv) {
 
     if (PAPI_start_counters(EVENTS, NUM_EVENTS) != PAPI_OK)
       exit(3);
-    if (isLive) {
+    if (isLive(liveCores, rank)) {
     double startTestTime = MPI_Wtime();
     for (int i = 0; i < numBlocks; i++) {
       double *block = blocks[i];
