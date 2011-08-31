@@ -58,9 +58,11 @@ int main(int argc, char **argv) {
     exit(2);
   }
 
-  if (rank == 0)
-    printf("numBlocks = %d, blockSize = %d, numIter = %d, liveCores = %d\n",
-	   numBlocks, blockSize, numIter, liveCores);
+  if (rank == 0) {
+      printf("Live Cores, Iteration, Core, Live, Time, FPU Idle, Resource Stall, L3 Evictions, L3 Misses\n");
+      //printf("numBlocks = %d, blockSize = %d, numIter = %d, liveCores = %d\n",
+      //       numBlocks, blockSize, numIter, liveCores);
+  }
 
   double **blocks;
   double *U;
@@ -156,11 +158,10 @@ int main(int argc, char **argv) {
 
     if (rank == 0) {
 #ifdef GATHER
-      printf("Iteration %d\n", activeCol);
       for (int i = 0; i < size; ++i) {
-	printf("%d: time = %f, counts = ", i, peTimes[i]);
+	printf("%d, %d, %d, %d, %f", liveCores, activeCol, i, isLive(liveCores, i) ? 1 : 0, peTimes[i]);
 	for (int j = 0; j < NUM_EVENTS; ++j)
-	  printf("%lld, ", counts[i].l[j]);
+	  printf(", %lld", counts[i].l[j]);
 	printf("\n");
       }
 #else
@@ -175,6 +176,7 @@ int main(int argc, char **argv) {
     }
   }
 
+#ifndef GATHER
   if (rank == 0) {
     printf("sums: %f, ", summedTime/liveCores);
     for (int j = 0; j < 2; ++j)
@@ -183,6 +185,7 @@ int main(int argc, char **argv) {
       printf("%lld, ", summedCounts[j]);
     printf("\n");
   }
+#endif
 
   MPI_Finalize();
   return 0;
