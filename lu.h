@@ -105,6 +105,8 @@ private:
 
   // Timer for each block
   double startTime;
+  double columnStartTime;
+  std::vector<double> columnTimings;
 
   //Variables for pivoting SDAG code
 

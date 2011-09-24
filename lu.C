@@ -681,6 +681,7 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler b
   contribute(CkCallback(CkIndex_BlockScheduler::allRegistered(NULL), bs));
   cfg = _cfg;
   BLKSIZE = cfg.blockSize;
+  columnTimings.resize(BLKSIZE);
   numBlks = cfg.numBlocks;
   mgr = _mgr.ckLocalBranch();
   suggestedPivotBatchSize = cfg.pivotBatchSize;

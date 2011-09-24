@@ -385,6 +385,7 @@ mainmodule lu {
         CkAssert(pivotBatchTag == thisIndex.x*BLKSIZE);
         pivotRecords.clear();
         numRowsSinceLastPivotSend = 0;
+	columnStartTime = CkWallTimer();
         // Find the pivot candidate for just the first column in the block
         pivotCandidate = findLocVal(0, 0);
         // Toggle projections tracing when necessary
@@ -476,6 +477,10 @@ mainmodule lu {
             pivotCandidate = computeMultipliersAndFindColMax(activeCol, &LU[getIndex(activeCol,activeCol)], activeCol+1);
             // Update the sub-block
             updateLsubBlock(activeCol, &LU[getIndex(activeCol,activeCol)], 2, activeCol+1);
+
+	    double curTime = CkWallTimer();
+	    columnTimings[activeCol] = curTime - columnStartTime;
+	    columnStartTime = curTime;
         }
       }
 
@@ -490,6 +495,10 @@ mainmodule lu {
                 traceToggler::start();
                 DEBUG_PRINT("Resuming projections tracing");
             }
+
+	for (activeCol = 0; activeCol < BLKSIZE; ++activeCol)
+	  ckout << "Block " << thisIndex.x << " column " << activeCol << ", "
+		<< columnTimings[activeCol] << endl;
 
         localScheduler->factorizationDone(thisIndex);
         factored = true;
