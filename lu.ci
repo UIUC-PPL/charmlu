@@ -78,7 +78,7 @@ mainmodule lu {
     entry [nokeep] void applyPivots(pivotSequencesMsg *msg);
     entry void acceptPivotData(pivotRowsMsg *msg);
     entry [nokeep] void sendUSegment(UMsg* msg);
-    entry void performUpdate(CkMarshallMsg *dummyMsg);
+    //entry void performUpdate(CkMarshallMsg *dummyMsg);
     entry void blockUsed(int);
     entry void getBlock(int pe, int rx, int ry);
 
@@ -285,24 +285,23 @@ mainmodule lu {
             // Contribute to a reduction along the active panel to identify the pivot row
             mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
 #ifndef SCHED_PIVOT_REDN
-            void *yuckMsg = CkAllocSysMsg();
-            thisProxy(thisIndex.x, thisIndex.y).performUpdate((CkMarshallMsg*)yuckMsg);
+            //void *yuckMsg = CkAllocSysMsg();
+            //thisProxy(thisIndex.x, thisIndex.y).performUpdate((CkMarshallMsg*)yuckMsg);
 #endif
-          }
-	  when performUpdate(CkMarshallMsg *dummyMsg) atomic "useg_delayed_update" {
-	    // Delayed update using the U segment from the prev activeCol iteration
-	    if (pendingUmsg) {
-	      updateLsubBlock(activeCol-1, pendingUmsg->data, 2);
-	      dropRef(pendingUmsg);
-	      pendingUmsg = NULL;
-              if (activeCol % 20 == 0) {
-                flushLogs();
-              }
-	    }
-            ownedPivotThisStep = false;
             thisProxy(thisIndex.x, thisIndex.y).belowPivot(activeCol);
-            delete dummyMsg;
-	  }
+          }
+	  // when performUpdate(CkMarshallMsg *dummyMsg) atomic "useg_delayed_update" {
+	  //   // Delayed update using the U segment from the prev activeCol iteration
+	  //   if (pendingUmsg) {
+	  //     dropRef(pendingUmsg);
+	  //     pendingUmsg = NULL;
+          //     if (activeCol % 20 == 0) {
+          //       flushLogs();
+          //     }
+	  //   }
+          //   ownedPivotThisStep = false;
+          //   delete dummyMsg;
+	  // }
           // Wait for the post-diagonal U segment from the original owner of the pivot row
           when sendUSegment(UMsg* anUmsg) atomic "below_recv_useg" {
             // Release the sendPivotData trigger to free memory
@@ -316,6 +315,7 @@ mainmodule lu {
             }
             // Compute multipliers and update just one column to find the next candidate pivot
             pivotCandidate = computeMultipliersAndFindColMax(activeCol, anUmsg->data);
+            updateLsubBlock(activeCol, anUmsg->data, 2);
             // Save the Umsg for later use
             pendingUmsg = anUmsg;
             takeRef(pendingUmsg);
