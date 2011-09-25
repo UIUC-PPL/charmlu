@@ -317,12 +317,12 @@ mainmodule lu {
             pivotCandidate = computeMultipliersAndFindColMax(activeCol, anUmsg->data);
             updateLsubBlock(activeCol, anUmsg->data, 2);
             // Save the Umsg for later use
-            pendingUmsg = anUmsg;
-            takeRef(pendingUmsg);
+            //pendingUmsg = anUmsg;
+            //takeRef(pendingUmsg);
           }
         }
         atomic "below_send_L" {
-          if (pendingUmsg) dropRef(pendingUmsg);
+          //if (pendingUmsg) dropRef(pendingUmsg);
           DEBUG_PRINT("done computing L");
 	  multicastRecvL();
 	  factored = true;
