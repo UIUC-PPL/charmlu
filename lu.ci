@@ -1,13 +1,6 @@
-mainmodule lu {
+module lu {
   include "traceToggler.h";
   initproc void traceToggler::registerHandler();
-
-  readonly CProxy_Main mainProxy;
-  readonly int traceTrailingUpdate;
-  readonly int traceComputeU;
-  readonly int traceComputeL;
-  readonly int traceSolveLocalLU;
-  readonly CkGroupID mcastMgrGID;
 
   // Register the reducer function that handles reductions of locval
   initnode void registerLocValReducer();
@@ -40,8 +33,11 @@ mainmodule lu {
 
   message rednSetupMsg;
 
-  mainchare Main {
-    entry Main(CkArgMsg *m);
+  class LUConfig;
+  class CProxy_BlockScheduler;
+
+  chare LUSolver {
+    entry LUSolver(LUConfig luCfg, CkCallback finishedSolve);
     entry void finishInit();
     entry void continueIter();
     entry void arrayIsCreated();
@@ -57,9 +53,6 @@ mainmodule lu {
   };
 
   include "set";
-
-  class CProxy_BlockScheduler;
-  class LUConfig;
 
   array [2D] LUBlk {
     entry LUBlk(void);
@@ -370,7 +363,7 @@ mainmodule lu {
       if (thisIndex.x != thisIndex.y) {
         atomic "offdiag_iteration_completed" {
           DEBUG_PRINT("contributing");
-          contribute(CkCallback(CkIndex_Main::startNextStep(), mainProxy));
+          contribute(CkCallback(CkIndex_LUSolver::startNextStep(), mainProxy));
         }
       }
       // Swallow excess pivots message broadcast to the entire array
@@ -505,7 +498,7 @@ mainmodule lu {
         }
         // Contribute to a reduction indicating that this chare is done with its factorization work
 	DEBUG_PRINT("contributing");
-        contribute(CkCallback(CkIndex_Main::startNextStep(), mainProxy));
+        contribute(CkCallback(CkIndex_LUSolver::startNextStep(), mainProxy));
         VERBOSE_PROGRESS("\n");
       }
     };
@@ -514,10 +507,11 @@ mainmodule lu {
     entry void recvSolveData(CkReductionMsg *m);
     entry void schedulerReady(CkReductionMsg *m);
 
-    entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs) {
+    entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr,
+                       CProxy_BlockScheduler bs, CProxy_LUSolver solver) {
       when schedulerReady(CkReductionMsg *m) atomic {
 	delete m;
-	init(luCfg, _mgr, bs);
+	init(luCfg, _mgr, bs, solver);
       }
       when multicastRedns(int dummy) {
         if (thisIndex.x >= thisIndex.y) {
@@ -540,7 +534,7 @@ mainmodule lu {
             CkGetSectionInfo(rowAfterCookie, msg);
           }
         }
-        atomic { contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy)); }
+        atomic { contribute(CkCallback(CkIndex_LUSolver::finishInit(), mainProxy)); }
       }
     };
 

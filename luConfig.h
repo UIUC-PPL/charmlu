@@ -39,6 +39,11 @@ public:
     p | tracePeriodFraction;
     p | numStepsToTrace;
     p | numTimesToTrace;
+    p | traceTrailingUpdate;
+    p | traceComputeU;
+    p | traceComputeL;
+    p | traceSolveLocalLU;
+    p | mcastMgrGID;
   }
 
   /// The size of the matrix
@@ -69,6 +74,11 @@ public:
   int numStepsToTrace;
   /// The number of times when tracing will be active (computed from above two)
   int numTimesToTrace;
+  int traceTrailingUpdate;
+  int traceComputeU;
+  int traceComputeL;
+  int traceSolveLocalLU;
+  CkGroupID mcastMgrGID;
 };
 
 #endif // LU_CONFIG_H

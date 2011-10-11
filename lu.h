@@ -40,7 +40,7 @@ struct locval {
 };
 
 /* readonly */
-extern CProxy_Main mainProxy;
+extern CProxy_LUSolver mainProxy;
 extern int traceTrailingUpdate;
 extern int traceComputeU;
 extern int traceComputeL;
@@ -69,6 +69,13 @@ public:
   blkMsg *LUmsg;
 
 private:
+  CProxy_LUSolver mainProxy;
+  int traceTrailingUpdate;
+  int traceComputeU;
+  int traceComputeL;
+  int traceSolveLocalLU;
+  CkGroupID mcastMgrGID;
+
   CProxy_BlockScheduler scheduler;
   BlockScheduler *localScheduler;
   int l_block, u_block;
@@ -186,7 +193,8 @@ private:
   void initVec();
   void genBlock();
   void genVec(double *buf);
-  void init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs);
+  void init(const LUConfig _cfg, CProxy_LUMgr _mgr,
+            CProxy_BlockScheduler bs, CProxy_LUSolver solver);
   void prepareForActivePanel(rednSetupMsg *msg);
   ~LUBlk();
   LUBlk(CkMigrateMessage* m) {}

@@ -1,8 +1,8 @@
 include config.mk
 
 # The relevant source files for this project
-RAWSRC    = lu.C scheduler.C
-INTF      = lu.ci
+RAWSRC    = lu.C scheduler.C benchmark.C
+INTF      = lu.ci benchmark.ci
 
 BENCHSRC = dgerBenchmark.C
 BENCHCI = dgerBenchmark.ci

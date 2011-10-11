@@ -8,8 +8,6 @@
 #ifndef LU_REVISION
     #define LU_REVISION Unknown
 #endif
-#define _QUOTEIT(x) #x
-#define INQUOTES(x) _QUOTEIT(x)
 
 #include <string.h>
 #include <iostream>
@@ -68,14 +66,6 @@ extern "C" {
 #include "manager.h"
 #include "mapping.h"
 #include "messages.h"
-
-/* readonly: */
-CProxy_Main mainProxy;
-int traceTrailingUpdate;
-int traceComputeU;
-int traceComputeL;
-int traceSolveLocalLU;
-CkGroupID mcastMgrGID;
 
 // define static variable
 #if defined(LU_TRACING)
@@ -178,7 +168,7 @@ struct traceLU {
   }
 };
 
-class Main : public CBase_Main {
+class LUSolver : public CBase_LUSolver {
   LUConfig luCfg;
   double startTime;
   bool solved, LUcomplete;
@@ -186,119 +176,23 @@ class Main : public CBase_Main {
   CProxy_LUBlk luArrProxy;
   CProxy_BlockScheduler bs;
   int mappingScheme;
+  CkCallback finishedSolve;
 
 public:
-    Main(CkArgMsg* m) : solved(false), LUcomplete(false), sentVectorData(false) {
-
-    if (m->argc<4) {
-      CkPrintf("Usage: %s <matrix size> <block size> <mem threshold> [<pivot batch size> <mapping scheme>"
-               " [<peTileRows> <peTileCols> <peRotate> <peStride>] ]\n", m->argv[0]);
-      CkExit();
-    }
-
-    /// Parse the command line and accept user input
-    luCfg.matrixSize     = atoi(m->argv[1]);
-    luCfg.blockSize      = atoi(m->argv[2]);
-    luCfg.memThreshold   = atoi(m->argv[3]);
-
-    if (m->argc >= 5)
-        luCfg.pivotBatchSize = atoi( m->argv[4] );
-    else
-        luCfg.pivotBatchSize = luCfg.blockSize / 4;
-
-    if (m->argc >= 6)
-    {
-        mappingScheme = atoi( m->argv[5] );
-        if (mappingScheme == 3)
-        {
-            if (m->argc < 8) {
-                std::pair<int,int> tileDims = computePETileDimensions();
-                luCfg.peTileRows = tileDims.first;
-                luCfg.peTileCols = tileDims.second;
-            }
-            else {
-                luCfg.peTileRows = atoi( m->argv[6] );
-                luCfg.peTileCols = atoi( m->argv[7] );
-            }
-            if (m->argc < 9)
-              luCfg.peTileRotate = 0;
-            else
-              luCfg.peTileRotate = atoi(m->argv[8]);
-
-            if (m->argc < 10)
-              luCfg.peTileStride = luCfg.peTileCols;
-            else
-              luCfg.peTileStride = atoi(m->argv[9]);
-
-            int peTileSize = luCfg.peTileRows * luCfg.peTileCols;
-            if ( peTileSize > CkNumPes() )
-                CkAbort("The PE tile dimensions are too big for the num of PEs available!");
-            if ( peTileSize < CkNumPes() )
-                CkPrintf("WARNING: Configured to use a PE tile size(%dx%d) (for 2D tile mapping) that does not use all the PEs(%d)\n",
-                         luCfg.peTileRows, luCfg.peTileCols, CkNumPes() );
-        }
-    }
-    else
-        mappingScheme = 1;
-
-    if (sizeof(CMK_REFNUM_TYPE) != sizeof(int)) {
-      CkPrintf("Refnum size too small for large matrices."
-               " Compile charm with build option --with-refnum-type=int\n");
-      CkExit();
-    }
-
-    if (luCfg.matrixSize % luCfg.blockSize!=0) {
-      CkPrintf("The matrix size %d should be a multiple of block size %d!\n",
-               luCfg.matrixSize, luCfg.blockSize);
-      CkExit();
-    }
-
-    luCfg.numBlocks = luCfg.matrixSize / luCfg.blockSize;
-
-    CkPrintf("Running LU compiled from revision: "INQUOTES(LU_REVISION)"\n");
-    CkPrintf("Running LU on %d processors (%d nodes): "
-             "\n\tMatrix size: %d X %d "
-             "\n\tBlock size: %d X %d "
-             "\n\tChare Array size: %d X %d"
-             "\n\tPivot batch size: %d"
-             "\n\tMem Threshold (MB): %d"
-             "\n\tSend Limit: %d"
-             "\n\tMapping Scheme: %d (%s)\n",
-             CkNumPes(), CmiNumNodes(),
-             luCfg.matrixSize, luCfg.matrixSize,
-             luCfg.blockSize, luCfg.blockSize,
-             luCfg.numBlocks, luCfg.numBlocks,
-             luCfg.pivotBatchSize,
-             luCfg.memThreshold,
-             SEND_LIM,
-             mappingScheme,
-             mappingScheme == 1 ? "Balanced Snake" :
-               (mappingScheme==2 ? "Block Cylic" :
-                 (mappingScheme == 3 ? "2D Tiling" : "Strong Scaling"))
-             );
-    if (mappingScheme == 3)
-      CkPrintf("\tMapping PE tile size: %d x %d rotate %d stride %d \n", luCfg.peTileRows, luCfg.peTileCols,
-               luCfg.peTileRotate, luCfg.peTileStride);
-#ifdef SCHED_PIVOT_REDN
-    CkPrintf("\tPivot Redn Scheduling: On\n");
-#else
-    CkPrintf("\tPivot Redn Scheduling: Off\n");
-#endif
-#if defined(CHARMLU_USEG_FROM_BELOW)
-    CkPrintf("\tUseg Multicast from: Below\n");
-#else
-    CkPrintf("\tUseg Multicast from: Diagonal\n");
-#endif
+  LUSolver(LUConfig luCfg_, CkCallback finishedSolve)
+  : solved(false)
+  , LUcomplete(false)
+  , sentVectorData(false)
+  , luCfg(luCfg_)
+  , finishedSolve(finishedSolve) {
 
     // Create a multicast manager group
-    mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
+    luCfg.mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
 
-    mainProxy = thisProxy;
-
-    traceTrailingUpdate = traceRegisterUserEvent("Trailing Update");
-    traceComputeU = traceRegisterUserEvent("Compute U");
-    traceComputeL = traceRegisterUserEvent("Compute L");
-    traceSolveLocalLU = traceRegisterUserEvent("Solve local LU");
+    luCfg.traceTrailingUpdate = traceRegisterUserEvent("Trailing Update");
+    luCfg.traceComputeU = traceRegisterUserEvent("Compute U");
+    luCfg.traceComputeL = traceRegisterUserEvent("Compute L");
+    luCfg.traceSolveLocalLU = traceRegisterUserEvent("Solve local LU");
 
     traceRegisterUserEvent("Local Multicast Deliveries", 10000);
     traceRegisterUserEvent("Remote Multicast Forwarding - preparing", 10001);
@@ -380,30 +274,8 @@ public:
 
       LUcomplete = true;
 
-      luArrProxy.startup(luCfg, mgr, bs);
+      luArrProxy.startup(luCfg, mgr, bs, thisProxy);
     }
-  }
-
-
-  std::pair<int,int> computePETileDimensions()
-  {
-      // Identify two factors that can be used as the tile dimensions for the PE tile
-      int factor1 = std::sqrt((double)CkNumPes());
-      while ( (CkNumPes() % factor1 != 0) && (factor1 > 0) )
-          factor1--;
-      if (factor1 == 0)
-          CkAbort("Couldn't identify a factor of numPEs to represent the PEs as a 2D tile");
-
-      int factor2 = CkNumPes() / factor1;
-
-      // Set the tile dimensions
-      int numPErows = (factor1 >= factor2) ? factor1 : factor2;
-      int numPEcols = CkNumPes() / numPErows;
-
-      if (numPErows * numPEcols != CkNumPes())
-          CkAbort("The identified tile dimensions dont match the number of PEs!!");
-
-      return std::make_pair(numPErows, numPEcols);
   }
 
   /// Returns how long a single dgemm of given block size takes
@@ -510,12 +382,12 @@ public:
 
 	delete msg;
         CkPrintf("finished validation at wall time: %f\n", CmiWallTimer());
-        CkExit();
+        finishedSolve.send();
   }
 };
 
 void LUBlk::finishInit() {
-  contribute(CkCallback(CkIndex_Main::continueIter(), mainProxy));
+  contribute(CkCallback(CkIndex_LUSolver::continueIter(), mainProxy));
 }
 
 //VALIDATION
@@ -570,7 +442,7 @@ void LUBlk::recvXvec(int size, double* xvec) {
     maxvals[3] = -1;
 
     contribute(sizeof(maxvals), &maxvals, CkReduction::max_double,
-	       CkCallback(CkIndex_Main::calcScaledResidual(NULL), mainProxy));
+	       CkCallback(CkIndex_LUSolver::calcScaledResidual(NULL), mainProxy));
   }
 }
 
@@ -629,7 +501,7 @@ void LUBlk::calcResiduals() {
   maxvals[3] = res_max;
 
   contribute(sizeof(maxvals), &maxvals, CkReduction::max_double,
-	     CkCallback(CkIndex_Main::calcScaledResidual(NULL), mainProxy));
+	     CkCallback(CkIndex_LUSolver::calcScaledResidual(NULL), mainProxy));
 }
 
 void LUBlk::flushLogs() {
@@ -650,7 +522,7 @@ void LUBlk::initVec() {
   }
 #endif
 
-  contribute(CkCallback(CkIndex_Main::finishInit(), mainProxy));
+  contribute(CkCallback(CkIndex_LUSolver::finishInit(), mainProxy));
 }
 
 CrnStream blockStream, vecStream;
@@ -673,7 +545,14 @@ void LUBlk::genVec(double *buf)
   rnd.getNRndDoubles(BLKSIZE, buf);
 }
 
-void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs) {
+void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
+                 CProxy_BlockScheduler bs, CProxy_LUSolver solver) {
+  mainProxy = solver;
+  mcastMgrGID = _cfg.mcastMgrGID;
+  traceTrailingUpdate = _cfg.traceTrailingUpdate;
+  traceComputeU = _cfg.traceComputeU;
+  traceComputeL = _cfg.traceComputeL;
+  traceSolveLocalLU = _cfg.traceSolveLocalLU;
   scheduler = bs;
   localScheduler = scheduler[CkMyPe()].ckLocal();
   CkAssert(localScheduler);

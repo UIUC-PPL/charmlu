@@ -1,0 +1,8 @@
+mainmodule driver {
+  extern module lu;
+
+  mainchare Benchmark {
+    entry Benchmark(CkArgMsg* m);
+    entry void finished();
+  }
+}
