@@ -36,16 +36,6 @@ module lu {
   class LUConfig;
   class CProxy_BlockScheduler;
 
-  chare LUSolver {
-    entry LUSolver(LUConfig luCfg, CkCallback finishedSolve);
-    entry void finishInit();
-    entry void continueIter();
-    entry void arrayIsCreated();
-    entry void outputStats();
-    entry void calcScaledResidual(CkReductionMsg *);
-    entry void startNextStep();
-  };
-
   group LUMgr { };
 
   group PrioLU {
@@ -61,10 +51,6 @@ module lu {
     entry [nokeep] void prepareForRowBeforeDiag(rednSetupMsg *);
     entry [nokeep] void prepareForRowAfterDiag(rednSetupMsg *);
     entry void multicastRedns(int dummy);
-    entry void initVec();
-    entry void startValidation();
-    entry [nokeep] void recvXvec(int size, double xvec[size]);
-    entry void sumBvec(int size, double partial_b[size]);
 
     entry void colMax(CkReductionMsg *m);
     entry void sendPivotData(int rowIndex, int pivotRow, int size, const double data[size], double b, bool noop);
@@ -363,7 +349,7 @@ module lu {
       if (thisIndex.x != thisIndex.y) {
         atomic "offdiag_iteration_completed" {
           DEBUG_PRINT("contributing");
-          contribute(CkCallback(CkIndex_LUSolver::startNextStep(), mainProxy));
+	  contribute(factorizationDone);
         }
       }
       // Swallow excess pivots message broadcast to the entire array
@@ -498,7 +484,7 @@ module lu {
         }
         // Contribute to a reduction indicating that this chare is done with its factorization work
 	DEBUG_PRINT("contributing");
-        contribute(CkCallback(CkIndex_LUSolver::startNextStep(), mainProxy));
+        contribute(factorizationDone);
         VERBOSE_PROGRESS("\n");
       }
     };
@@ -506,12 +492,13 @@ module lu {
     entry [nokeep] void offDiagSolve(BVecMsg *m);
     entry void recvSolveData(CkReductionMsg *m);
     entry void schedulerReady(CkReductionMsg *m);
+    entry void dataReady(int);
 
     entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr,
-                       CProxy_BlockScheduler bs, CProxy_LUSolver solver) {
+                       CProxy_BlockScheduler bs, CkCallback initialized, CkCallback factored, CkCallback solved) {
       when schedulerReady(CkReductionMsg *m) atomic {
 	delete m;
-	init(luCfg, _mgr, bs, solver);
+	init(luCfg, _mgr, bs, initialized, factored, solved);
       }
       when multicastRedns(int dummy) {
         if (thisIndex.x >= thisIndex.y) {
@@ -534,7 +521,9 @@ module lu {
             CkGetSectionInfo(rowAfterCookie, msg);
           }
         }
-        atomic { contribute(CkCallback(CkIndex_LUSolver::finishInit(), mainProxy)); }
+	when dataReady(int foo) atomic {
+	  contribute(initDone);
+	}
       }
     };
 
@@ -573,8 +562,9 @@ module lu {
 
         atomic {
           localBackward(bvec);
-          if (thisIndex.x == 0)
-            mainProxy.startNextStep();
+          if (thisIndex.x == 0) {
+	    solveDone.send();
+	  }
           else {
             // Broadcast upward from diagonal
             CProxySection_LUBlk col = CProxySection_LUBlk::ckNew(thisArrayID,
@@ -599,8 +589,6 @@ module lu {
 
     entry void flushLogs();
     entry void print();
-
-    entry void finishInit();
 
     entry void deliverDiagonal(blkMsg* m);
   };

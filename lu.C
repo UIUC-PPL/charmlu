@@ -17,41 +17,7 @@
 using std::min;
 #include <limits>
 
-#if USE_CBLAS_H
-extern "C" {
-#include <cblas.h>
-#include <clapack.h>
-}
-
-#elif USE_MKL_CBLAS_H
-#include "mkl_cblas.h"
-#include "mkl_lapack.h"
-
-#elif USE_ACML_H
-#include "acml.h"
-#define BLAS_TRANSPOSE 'T'
-#define BLAS_NOTRANSPOSE 'N'
-#define BLAS_RIGHT 'R'
-#define BLAS_UPPER 'U'
-#define BLAS_UNIT 'U'
-
-#elif USE_ACCELERATE_BLAS
-#include <Accelerate/Accelerate.h>
-
-#elif USE_ESSL
-#define _ESVCPTR
-#include <complex>
-#include <essl.h>
-
-#define BLAS_TRANSPOSE "T"
-#define BLAS_NOTRANSPOSE "N"
-#define BLAS_RIGHT "R"
-#define BLAS_UPPER "U"
-#define BLAS_UNIT "U"
-
-#else
-#error "No BLAS Header files included!"
-#endif
+#include "platformBlas.h"
 
 #if USE_MEMALIGN
 #include <malloc.h>
@@ -95,65 +61,6 @@ CkReduction::reducerType LocValReducer;
 void registerLocValReducer()
 { LocValReducer = CkReduction::addReducer(maxLocVal); }
 
-double infNorm(int size, double * array)
-{
-	  double maxval = fabs(array[0]);
-	  for(int i = 1; i < size; i++) {
-	      if(fabs(array[i]) > maxval)
-	          maxval = fabs(array[i]);
-	  }
-	  return maxval;
-}
-
-//A class for randomly generating matrix elements' value
-#define MAXINT (~(1<<31))
-class MatGen {
-private:
-  //variables for generating the sequence of random numbers
-  int curRnd;
-  int rndA;
-  int rndQ;
-  int rndR;
-
-public:
-  MatGen(int seed) {
-    curRnd = seed;
-    rndA = 48271;
-    rndQ = MAXINT/rndA;
-    rndR = MAXINT%rndA;
-  }
-
-  int nextRndInt() {
-    curRnd = rndA*(curRnd%rndQ) - rndR*(curRnd/rndQ);
-    if (curRnd<0) curRnd += MAXINT;
-    return curRnd;
-  }
-
-  //The range of the returned double random number is [-0.5, 0.5]
-  double toRndDouble(int rndInt) {
-    return (double)rndInt/MAXINT - 0.5;
-  }
-
-  double nextRndDouble() {
-    return toRndDouble(nextRndInt());
-  }
-
-  void getNRndInts(int num, int *d) {
-    for (int i=0; i<num; i++)
-      d[i] = nextRndInt();
-  }
-
-  void getNRndDoubles(int num, double *d) {
-    for (int i=0; i<num; i++)
-      d[i] = nextRndDouble();
-  }
-
-  void skipNDoubles(int num) {
-    for (int i=0; i<num; i++)
-      nextRndDouble();
-  }
-};
-
 struct traceLU {
   int step, event;
   double startTime;
@@ -168,386 +75,16 @@ struct traceLU {
   }
 };
 
-class LUSolver : public CBase_LUSolver {
-  LUConfig luCfg;
-  double startTime;
-  bool solved, LUcomplete;
-  bool sentVectorData;
-  CProxy_LUBlk luArrProxy;
-  CProxy_BlockScheduler bs;
-  int mappingScheme;
-  CkCallback finishedSolve;
-
-public:
-  LUSolver(LUConfig luCfg_, CkCallback finishedSolve)
-  : solved(false)
-  , LUcomplete(false)
-  , sentVectorData(false)
-  , luCfg(luCfg_)
-  , finishedSolve(finishedSolve) {
-
-    // Create a multicast manager group
-    luCfg.mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
-
-    luCfg.traceTrailingUpdate = traceRegisterUserEvent("Trailing Update");
-    luCfg.traceComputeU = traceRegisterUserEvent("Compute U");
-    luCfg.traceComputeL = traceRegisterUserEvent("Compute L");
-    luCfg.traceSolveLocalLU = traceRegisterUserEvent("Solve local LU");
-
-    traceRegisterUserEvent("Local Multicast Deliveries", 10000);
-    traceRegisterUserEvent("Remote Multicast Forwarding - preparing", 10001);
-    traceRegisterUserEvent("Remote Multicast Forwarding - sends", 10002);
-
-    thisProxy.startNextStep();
-  }
-
-  void finishInit() {
-    if (!sentVectorData) {
-      luArrProxy.initVec();
-      sentVectorData = true;
-    } else {
-      luArrProxy.finishInit();
-    }
-  }
-
-  void continueIter() {
-    arrayIsCreated();
-  }
-
-  void arrayIsCreated() {
-    startTime = CmiWallTimer();
-    luArrProxy.factor();
-  }
-
-  void startNextStep() {
-    if (solved && LUcomplete) {
-      outputStats();
-      //Perform validation
-      CkPrintf("starting validation at wall time: %f\n", CmiWallTimer());
-      luArrProxy.startValidation();
-    } else if (!solved && LUcomplete) {
-      CkPrintf("starting solve at wall time: %f\n", CmiWallTimer());
-      luArrProxy.print();
-      #if defined(LU_TRACING)
-      traceToggler::stop();
-      #endif
-      for (int i = 0; i < luCfg.numBlocks; i++)
-        luArrProxy(i, i).forwardSolve();
-      solved = true;
-    } else {
-      CkArrayOptions opts(luCfg.numBlocks, luCfg.numBlocks);
-      opts.setAnytimeMigration(false)
-	  .setStaticInsertion(true);
-      CkGroupID map;
-      switch (mappingScheme) {
-      case 0:
-	map = CProxy_BlockCyclicMap::ckNew();
-	break;
-      case 1:
-        map = CProxy_LUBalancedSnakeMap::ckNew(luCfg.numBlocks, luCfg.blockSize);
-	break;
-      case 2:
-        map = CProxy_RealBlockCyclicMap::ckNew(1, luCfg.numBlocks);
-        break;
-      case 3:
-        map = CProxy_PE2DTilingMap::ckNew(luCfg.peTileRows, luCfg.peTileCols,
-                                          luCfg.peTileRotate, luCfg.peTileStride,
-					  luCfg.numBlocks);
-        break;
-      case 4:
-        map = CProxy_StrongScaling1::ckNew(luCfg.numBlocks);
-        break;
-      default:
-        CkAbort("Unrecognized mapping scheme specified");
-      }
-
-      luCfg.map = map;
-      opts.setMap(map);
-
-      CProxy_LUMgr mgr = CProxy_PrioLU::ckNew(luCfg.blockSize, luCfg.matrixSize);
-
-      luArrProxy = CProxy_LUBlk::ckNew(opts);
-
-      CkArrayOptions bsOpts(CkNumPes());
-      bsOpts.setMap(CProxy_OnePerPE::ckNew());
-      bs = CProxy_BlockScheduler::ckNew(luArrProxy, luCfg, mgr, bsOpts);
-
-      LUcomplete = true;
-
-      luArrProxy.startup(luCfg, mgr, bs, thisProxy);
-    }
-  }
-
-  /// Returns how long a single dgemm of given block size takes
-  double testdgemm(unsigned long blocksize) {
-    double duration = 0;
-    int numTrials = 10;
-
-    /// @note: possible cache warmth/cold issues here bcos we create and initialize just b4 use
-    for (int i=0; i<numTrials; i++) {
-
-    MatGen rnd(0);
-
-    // Touch the output matrix first to avoid keeping it really warm in the cache
-    double *m3 = new double[blocksize*blocksize];
-    rnd.getNRndDoubles(blocksize * blocksize, m3);
-
-    double *m1 = new double[blocksize*blocksize];
-    rnd.getNRndDoubles(blocksize * blocksize, m1);
-    double *m2 = new double[blocksize*blocksize];
-    rnd.getNRndDoubles(blocksize * blocksize, m2);
-
-    double startTest = CmiWallTimer();
-
-#if USE_ESSL || USE_ACML
-    dgemm(BLAS_NOTRANSPOSE, BLAS_NOTRANSPOSE,
-          blocksize, blocksize, blocksize,
-          -1.0, m1,
-          blocksize, m2, blocksize,
-          1.0, m3, blocksize);
-#else
-    cblas_dgemm(CblasRowMajor,
-                CblasNoTrans, CblasNoTrans,
-                blocksize, blocksize, blocksize,
-                -1.0, m1,
-                blocksize, m2, blocksize,
-                1.0, m3, blocksize);
-#endif
-
-    double endTest = CmiWallTimer();
-    duration += endTest-startTest;
-
-    delete[] m1;
-    delete[] m2;
-    delete[] m3;
-    }
-
-    return duration/numTrials;
-  }
-
-  void outputStats() {
-    double endTime = CmiWallTimer();
-    double duration = endTime-startTime;
-
-    double n = luCfg.matrixSize;
-    double HPL_flop_count =  (2.0/3.0*n*n*n+3.0/2.0*n*n)/duration ;
-    double HPL_gflops =	 HPL_flop_count / 1000000000.0; // Giga fp ops per second
-    double gflops_per_core = HPL_gflops / (double)CkNumPes();
-
-    std::cout << "RESULT procs: \t" << CkNumPes()
-              << "\tblock size:\t"  << luCfg.blockSize
-              << "\tTime(s):\t"     << duration
-              << std::endl;
-    std::cout << "HPL flop count gives \t" << HPL_gflops << "\tGFlops" << std::endl;
-
-    struct {
-      const char *machine;
-      double gflops_per_core;
-    } peaks[] = {{"order.cs.uiuc.edu", 7.4585},
-		 {"abe.ncsa.uiuc.edu", 9.332},
-		 {"Kraken", 10.4},
-                 {"Ranger", 9.2},
-                 {"Jaguar XT5", 10.3987},
-		 {"BG/P", 3.4}};
-
-    for (int i = 0; i < sizeof(peaks)/sizeof(peaks[0]); ++i) {
-      double fractionOfPeak = gflops_per_core / peaks[i].gflops_per_core;
-      std::cout << "If ran on " << peaks[i].machine << ", I think you got \t"
-		<< 100.0*fractionOfPeak << "% of peak" << std::endl;
-    }
-    double dgemmDuration    = testdgemm(luCfg.blockSize);
-    double dgemmFlopCount   = (double)luCfg.blockSize * (double)luCfg.blockSize * (double)luCfg.blockSize * 2.0;
-    double dgemmGFlopCount  = dgemmFlopCount / 1000000000.0;
-    double dgemmGFlopPerSec = dgemmGFlopCount / dgemmDuration;
-
-    CkPrintf("The dgemm %d x %d takes %g ms and achieves %g GFlop/sec\n", luCfg.blockSize,
-             luCfg.blockSize, dgemmDuration*1000, dgemmGFlopPerSec);
-    CkPrintf("Percent of DGEMM is: %g%%\n", gflops_per_core / dgemmGFlopPerSec * 100.0);
-    bs.outputStats();
-  }
-
-  void calcScaledResidual(CkReductionMsg *msg) {
-	int reducedArrSize=msg->getSize() / sizeof(double);
-	double *maxvals=(double *) msg->getData();
-
-	double n = luCfg.blockSize * luCfg.numBlocks;
-
-	double r = maxvals[3]/((maxvals[0]*maxvals[2]+maxvals[1])*n*std::numeric_limits<double>::epsilon());
-
-	VERBOSE_VALIDATION("|A|inf = %e\n|b|inf = %e\n|x|inf = %e\n|Ax-b|inf = %e\n",maxvals[0],maxvals[1],maxvals[2],maxvals[3]);
-
-	CkPrintf("epsilon = %e\nresidual = %f\n",std::numeric_limits<double>::epsilon(),r);
-	if(r>16)
-		CkPrintf("=== WARNING: Scaled residual is greater than 16 - OUT OF SPEC ===\n");
-
-	delete msg;
-        CkPrintf("finished validation at wall time: %f\n", CmiWallTimer());
-        finishedSolve.send();
-  }
-};
-
-void LUBlk::finishInit() {
-  contribute(CkCallback(CkIndex_LUSolver::continueIter(), mainProxy));
-}
-
-//VALIDATION
-void LUBlk::startValidation() {
-  // Starting state:
-  // solution sub-vector x is in variable bvec on the diagonals
-  // variable b has the original b vector on the diagonals
-
-  //Diagonals regenerate b and distribute x across entire column
-  if(thisIndex.x == thisIndex.y)
-    {
-
-      CProxySection_LUBlk col =
-        CProxySection_LUBlk::ckNew(thisArrayID, 0, numBlks-1,
-                                   1, thisIndex.y, thisIndex.y, 1);
-
-      col.recvXvec(BLKSIZE, bvec);
-    }
-}
-
-//VALIDATION
-void LUBlk::recvXvec(int size, double* xvec) {
-  //Regenerate A and place into already allocated LU
-  genBlock();
-
-
-  double *partial_b = new double[BLKSIZE];
-
-  //Perform local dgemv
-#if USE_ESSL || USE_ACML
-  dgemv(BLAS_TRANSPOSE, BLKSIZE, BLKSIZE, 1.0, LU, BLKSIZE, xvec, 1, 0.0, partial_b, 1);
-#else
-  cblas_dgemv( CblasRowMajor, CblasNoTrans,
-               BLKSIZE, BLKSIZE, 1.0, LU,
-               BLKSIZE, xvec, 1, 0.0, partial_b, 1);
-#endif
-
-  //sum-reduction of result across row with diagonal element as target
-  thisProxy(thisIndex.x,thisIndex.x).sumBvec(BLKSIZE,partial_b);
-  delete[] partial_b;
-
-  //if you are not the diagonal, find your max A value and contribute
-  if(thisIndex.x != thisIndex.y) {
-    //find local max of A
-    double A_max = infNorm(BLKSIZE * BLKSIZE, LU);
-    VERBOSE_VALIDATION("[%d,%d] A_max  = %e\n",thisIndex.x,thisIndex.y,A_max);
-
-    double maxvals[4];
-    maxvals[0] = A_max;
-    maxvals[1] = -1;
-    maxvals[2] = -1;
-    maxvals[3] = -1;
-
-    contribute(sizeof(maxvals), &maxvals, CkReduction::max_double,
-	       CkCallback(CkIndex_LUSolver::calcScaledResidual(NULL), mainProxy));
-  }
-}
-
-//VALIDATION
-void LUBlk::sumBvec(int size, double* partial_b) {
-
-  //Clear bvec before first message processed for sum-reduction
-  if(msgsRecvd == 0) {
-    Ax = new double[BLKSIZE];
-    memset(Ax, 0, BLKSIZE*sizeof(double));
-  }
-
-  //Sum up messages
-  if(++msgsRecvd <= numBlks) {
-    for (int i = 0; i < size; i++) {
-      Ax[i] += partial_b[i];
-    }
-  }
-
-  //if all messages recieved, calculate the residual
-  if (msgsRecvd == numBlks) {
-    calcResiduals();
-    delete[]  Ax;
-  }
-}
-
-//VALIDATION
-void LUBlk::calcResiduals() {
-  b = new double[BLKSIZE];
-  genVec(b);
-  double *residuals = new double[BLKSIZE];
-
-  //diagonal elements that received sum-reduction perform b - A*x
-  for (int i = 0; i < BLKSIZE; i++) {
-    residuals[i] = b[i] - Ax[i];
-    //		  if(fabs(residuals[i]) > 1e-14 || std::isnan(residuals[i]) || std::isinf(residuals[i]))
-    //			  CkPrintf("WARNING: Large Residual for x[%d]: %f - %f = %e\n", thisIndex.x*BLKSIZE+i, b[i], bvec[i], residuals[i]);
-  }
-
-  //find local max values
-  double A_max = infNorm(BLKSIZE * BLKSIZE, LU);
-  double b_max = infNorm(BLKSIZE, b);
-  delete[] b;
-  double x_max = infNorm(BLKSIZE, bvec);
-  double res_max = infNorm(BLKSIZE, residuals);
-  delete[] residuals;
-  VERBOSE_VALIDATION("[%d,%d] A_max  = %e\n",thisIndex.x,thisIndex.y,A_max);
-  VERBOSE_VALIDATION("[%d,%d] b_max  = %e\n",thisIndex.x,thisIndex.y,b_max);
-  VERBOSE_VALIDATION("[%d,%d] x_max  = %e\n",thisIndex.x,thisIndex.y,x_max);
-  VERBOSE_VALIDATION("[%d,%d] res_max  = %e\n",thisIndex.x,thisIndex.y,res_max);
-
-  double maxvals[4];
-  maxvals[0] = A_max;
-  maxvals[1] = b_max;
-  maxvals[2] = x_max;
-  maxvals[3] = res_max;
-
-  contribute(sizeof(maxvals), &maxvals, CkReduction::max_double,
-	     CkCallback(CkIndex_LUSolver::calcScaledResidual(NULL), mainProxy));
-}
-
 void LUBlk::flushLogs() {
 #if defined(LU_TRACING)
   flushTraceLog();
 #endif
 }
 
-void LUBlk::initVec() {
-  bvec = new double[BLKSIZE];
-
-  seed_b = 9934835;
-  genVec(bvec);
-
-#if defined(PRINT_VECTORS)
-  for (int i = 0; i < BLKSIZE; i++) {
-    CkPrintf("memcpy bvec[%d] = %f\n", i, bvec[i]);
-  }
-#endif
-
-  contribute(CkCallback(CkIndex_LUSolver::finishInit(), mainProxy));
-}
-
-CrnStream blockStream, vecStream;
-
-void LUBlk::genBlock()
-{
-  CrnStream stream;
-  memcpy(&stream, &blockStream, sizeof(CrnStream));
-
-  for (double *d = LU; d < LU + BLKSIZE*BLKSIZE; ++d)
-    *d = CrnDouble(&stream);
-}
-
-void LUBlk::genVec(double *buf)
-{
-  MatGen rnd(seed_b);
-
-  // Skip the blocks before this one
-  rnd.skipNDoubles(thisIndex.x * BLKSIZE);
-  rnd.getNRndDoubles(BLKSIZE, buf);
-}
-
 void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
-                 CProxy_BlockScheduler bs, CProxy_LUSolver solver) {
-  mainProxy = solver;
+                 CProxy_BlockScheduler bs,
+		 CkCallback initialization, CkCallback factorization, CkCallback solution)
+{
   mcastMgrGID = _cfg.mcastMgrGID;
   traceTrailingUpdate = _cfg.traceTrailingUpdate;
   traceComputeU = _cfg.traceComputeU;
@@ -567,22 +104,18 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
   // Set the schedulers memory usage threshold to the one based upon a control point
   schedAdaptMemThresholdMB = cfg.memThreshold;
 
+  initDone = initialization;
+  factorizationDone = factorization;
+  solveDone = solution;
+
   CkAssert(BLKSIZE>0); // If this fails, readonly variables aren't
   // propagated soon enough. I'm assuming they
   // are safe to use here.
-
-  LUmsg = createABlkMsg();
-  LU = LUmsg->data;
 
   internalStep = 0;
 
   traceUserSuppliedData(-1);
   traceMemoryUsage();
-
-  //VALIDATION: saved seed value to use for validation
-  seed_A = 2998389;
-  CrnInitStream(&blockStream, seed_A + thisIndex.x*numBlks + thisIndex.y, 0);
-  genBlock();
 
   this->print("input-generated-LU");
 
@@ -1126,7 +659,7 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
 }
 
 //internal functions for creating messages to encapsulate the priority
-inline blkMsg* LUBlk::createABlkMsg() {
+blkMsg* LUBlk::createABlkMsg() {
   int prioBits = mgr->bitsOfPrio();
   maxRequestingPEs = CProxy_LUMap(cfg.map).ckLocalBranch()->pesInPanel(thisIndex);
   blkMsg *msg = new (BLKSIZE*BLKSIZE, maxRequestingPEs, prioBits) blkMsg(thisIndex);

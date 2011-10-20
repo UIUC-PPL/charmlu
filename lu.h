@@ -40,7 +40,6 @@ struct locval {
 };
 
 /* readonly */
-extern CProxy_LUSolver mainProxy;
 extern int traceTrailingUpdate;
 extern int traceComputeU;
 extern int traceComputeL;
@@ -68,8 +67,9 @@ public:
   bool factored;
   blkMsg *LUmsg;
 
-private:
-  CProxy_LUSolver mainProxy;
+protected:
+  //internal functions for creating messages to encapsulate the priority
+  blkMsg* createABlkMsg();
   int traceTrailingUpdate;
   int traceComputeU;
   int traceComputeL;
@@ -95,20 +95,6 @@ private:
 
   /// Variables used only during solution
   double *bvec;
-  //VALIDATION: variable to hold copy of untouched b vector (allocated during validation)
-  double *b;
-  //VALIDATION: variable to hold Ax
-  double *Ax;
-
-  double* storedVec;
-  int diagRec;
-
-  //VALIDATION: count of the number of point-to-point messages rcvd in a row
-  int msgsRecvd;
-
-  //VALIDATION: seed value used to regenerate A and b for validation
-  int seed_A;
-  int seed_b;
 
   // Timer for each block
   double startTime;
@@ -159,16 +145,15 @@ private:
   /// Pointer to a U msg indicating a pending L sub-block update. Used only in L chares
   UMsg *pendingUmsg;
 
-  // For genBlock
-  CrnStream blockStream, vecStream;
-
   bool updateExecuted;
+
+  CkCallback initDone, factorizationDone, solveDone;
 
   LUBlk_SDAG_CODE
 
   public:
   LUBlk()
-    : factored(false), storedVec(NULL), diagRec(0), msgsRecvd(0),
+    : factored(false),
       blockPulled(0), blocksAfter(0), maxRequestingPEs(0)
   {
     __sdag_init();
@@ -183,23 +168,16 @@ private:
 #endif
   }
 
-  //VALIDATION
-  void startValidation();
-  void recvXvec(int size, double* xvec);
-  void sumBvec(int size, double* partial_b);
-  void calcResiduals();
   void flushLogs();
-  void finishInit();
-  void initVec();
-  void genBlock();
-  void genVec(double *buf);
-  void init(const LUConfig _cfg, CProxy_LUMgr _mgr,
-            CProxy_BlockScheduler bs, CProxy_LUSolver solver);
+  void init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
+	    CkCallback initDone, CkCallback fznDone, CkCallback slnDone);
   void prepareForActivePanel(rednSetupMsg *msg);
   ~LUBlk();
   LUBlk(CkMigrateMessage* m) {}
   //added for migration
   void pup(PUP::er &p) {  }
+
+  /// Factorization
   void computeU(double *givenL);
   void computeL(blkMsg *givenUMsg);
   void updateMatrix(double *incomingL, double *incomingU);
@@ -212,10 +190,13 @@ private:
   void sendBlocks(int);
   void getBlock(int pe, int rx, int ry);
   double *getBlock();
+
+  /// Solution
   void localSolve(double *xvec, double *preVec);
   void localForward(double *xvec);
   void localBackward(double *xvec);
   void offDiagSolve(BVecMsg *m);
+
   void print();
   void print(const char* step);
 private:
@@ -235,8 +216,6 @@ private:
   void announceAgglomeratedPivots();
   /// Given a set of pivot ops, send out participating row chunks that you own
   void sendPendingPivots(const pivotSequencesMsg *msg);
-  //internal functions for creating messages to encapsulate the priority
-  inline blkMsg* createABlkMsg();
   locval findLocVal(int startRow, int col, locval first = locval());
   /// Update the sub-block of this L block starting at specified
   /// offset from the active column
