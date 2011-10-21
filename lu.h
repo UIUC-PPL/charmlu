@@ -54,7 +54,63 @@ static inline void dropRef(void *m) {
 //    CmiUnlock(lock);
 }
 
+
+/**
+ * 2D chare array that embodies a block of the input matrix
+ *
+ * Main participant in the LU factorization and solve phases
+ */
 class LUBlk: public CBase_LUBlk {
+  public:
+    /// Performs the triangular solve required to compute a block of the U matrix (dtrsm)
+    void computeU(double *givenL);
+    /// 
+    void computeL(blkMsg *givenUMsg);
+    /// Perform trailing update based on input matrices (dgemm)
+    void updateMatrix(double *incomingL, double *incomingU);
+    //broadcast the U downwards to the blocks in the same column
+    void setupMsg(bool reverse);
+    void multicastRecvU();
+    void recvU(blkMsg *);
+    //broadcast the L rightwards to the blocks in the same row
+    void multicastRecvL();
+    void sendBlocks(int);
+    void getBlock(int pe, int rx, int ry);
+    double *getBlock();
+
+    /// Solution
+    void localSolve(double *xvec, double *preVec);
+    void localForward(double *xvec);
+    void localBackward(double *xvec);
+    void offDiagSolve(BVecMsg *m);
+
+  LUBlk()
+    : factored(false),
+      blockPulled(0), blocksAfter(0), maxRequestingPEs(0)
+  {
+    __sdag_init();
+#if defined(LU_TRACING)
+    traceEnd();
+#endif
+  }
+
+  void traceOn() {
+#if defined(LU_TRACING)
+    traceBegin();
+#endif
+  }
+
+  void flushLogs();
+  void init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
+	    CkCallback initDone, CkCallback fznDone, CkCallback slnDone);
+  void prepareForActivePanel(rednSetupMsg *msg);
+  ~LUBlk();
+  LUBlk(CkMigrateMessage* m) {}
+  //added for migration
+  void pup(PUP::er &p) {  }
+
+  void print();
+  void print(const char* step);
 public:
   int internalStep;
   bool factored;
@@ -138,54 +194,6 @@ protected:
 
   LUBlk_SDAG_CODE
 
-  public:
-  LUBlk()
-    : factored(false),
-      blockPulled(0), blocksAfter(0), maxRequestingPEs(0)
-  {
-    __sdag_init();
-#if defined(LU_TRACING)
-    traceEnd();
-#endif
-  }
-
-  void traceOn() {
-#if defined(LU_TRACING)
-    traceBegin();
-#endif
-  }
-
-  void flushLogs();
-  void init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
-	    CkCallback initDone, CkCallback fznDone, CkCallback slnDone);
-  void prepareForActivePanel(rednSetupMsg *msg);
-  ~LUBlk();
-  LUBlk(CkMigrateMessage* m) {}
-  //added for migration
-  void pup(PUP::er &p) {  }
-
-  /// Factorization
-  void computeU(double *givenL);
-  void computeL(blkMsg *givenUMsg);
-  void updateMatrix(double *incomingL, double *incomingU);
-  //broadcast the U downwards to the blocks in the same column
-  void setupMsg(bool reverse);
-  void multicastRecvU();
-  void recvU(blkMsg *);
-  //broadcast the L rightwards to the blocks in the same row
-  void multicastRecvL();
-  void sendBlocks(int);
-  void getBlock(int pe, int rx, int ry);
-  double *getBlock();
-
-  /// Solution
-  void localSolve(double *xvec, double *preVec);
-  void localForward(double *xvec);
-  void localBackward(double *xvec);
-  void offDiagSolve(BVecMsg *m);
-
-  void print();
-  void print(const char* step);
 private:
   // Copy received pivot data into its place in this block
   void applySwap(int row, int offset, const double *data, double b);
