@@ -39,13 +39,6 @@ struct locval {
   int loc;
 };
 
-/* readonly */
-extern int traceTrailingUpdate;
-extern int traceComputeU;
-extern int traceComputeL;
-extern int traceSolveLocalLU;
-extern CkGroupID mcastMgrGID;
-
 /// Global that holds the reducer type for locval
 extern CkReduction::reducerType LocValReducer;
 //extern CmiNodeLock lock;
