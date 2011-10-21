@@ -8,6 +8,7 @@
   #define STOP_AFTER -1
 #endif
 
+/// Class the stores configurations relevant to the LU factorization library
 class LUConfig {
 public:
   LUConfig()
@@ -25,6 +26,7 @@ public:
     , numTimesToTrace(1 + 1.0 / tracePeriodFraction)
   { }
 
+  /// Serialization function
   void pup(PUP::er &p) {
     p | blockSize;
     p | numBlocks;
@@ -74,10 +76,15 @@ public:
   int numStepsToTrace;
   /// The number of times when tracing will be active (computed from above two)
   int numTimesToTrace;
+  /// Projections user event ID for trailing updates
   int traceTrailingUpdate;
+  /// Projections user event ID for triangular solves on active row
   int traceComputeU;
+  /// Projections user event ID for triangular solves
   int traceComputeL;
+  /// Projections user event ID for local block factorization
   int traceSolveLocalLU;
+  /// The group ID of the multicast manager
   CkGroupID mcastMgrGID;
 };
 
