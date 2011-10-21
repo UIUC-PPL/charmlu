@@ -63,12 +63,6 @@ public:
 protected:
   //internal functions for creating messages to encapsulate the priority
   blkMsg* createABlkMsg();
-  int traceTrailingUpdate;
-  int traceComputeU;
-  int traceComputeL;
-  int traceSolveLocalLU;
-  CkGroupID mcastMgrGID;
-
   CProxy_BlockScheduler scheduler;
   BlockScheduler *localScheduler;
   int l_block, u_block;
