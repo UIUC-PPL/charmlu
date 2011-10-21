@@ -223,7 +223,7 @@ module lu {
             DEBUG_PRINT("doing triangular solve");
             computeU(m->data);
             delete m;
-            scheduler.releaseActiveColumn(thisIndex.y);
+            scheduler.releaseActiveColumn(thisIndex.y, thisIndex.x);
           }
         } else {
           atomic {
@@ -237,6 +237,7 @@ module lu {
                 computeU(update.L);
                 localScheduler->updateDone(update_ptr);
                 updateExecuted = true;
+                scheduler.releaseActiveColumn(thisIndex.y, thisIndex.x);
               } else {
                 update.triggered = false;
                 localScheduler->updateUntriggered();
@@ -603,7 +604,7 @@ module lu {
     entry void printBlockLimit();
     entry void allRegistered(CkReductionMsg *m);
     entry void scheduleSend(CkIndex2D index, bool onActive);
-    entry void releaseActiveColumn(const int y);
+    entry void releaseActiveColumn(const int y, const int t);
     entry void outputStats();
   }
 

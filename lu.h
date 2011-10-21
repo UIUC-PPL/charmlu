@@ -216,6 +216,7 @@ private:
   void announceAgglomeratedPivots();
   /// Given a set of pivot ops, send out participating row chunks that you own
   void sendPendingPivots(const pivotSequencesMsg *msg);
+  /// Find the local column max
   locval findLocVal(int startRow, int col, locval first = locval());
   /// Update the sub-block of this L block starting at specified
   /// offset from the active column
@@ -224,6 +225,7 @@ private:
   /// received row of U and also find the candidate pivot in
   /// the immediate next column (after updating it simultaneously)
   locval computeMultipliersAndFindColMax(int col, double *U, int startingRow=0);
+  /// Compute linearized array index from 2D matrix index
   inline int getIndex(int i, int j) {
     return i * BLKSIZE + j;
   }

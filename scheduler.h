@@ -15,11 +15,13 @@ enum INPUT_STATE {
   PLANNED, ARRIVED, LOCAL_PLANNED
 };
 
+class Panel;
+
 struct BlockState {
   // Index of block
   int ix, iy;
   // How many of the dependencies for the next update are not yet planned? [0..3]?
-  int pendingDependencies;
+  std::list<Panel*> pendingDependencies;
   // Count of trailing updates completed and planned
   int updatesCompleted, updatesPlanned, updatesEligible;
   // Have pivots been completed for this step?
@@ -100,7 +102,7 @@ public:
   void scheduleSend(CkIndex2D index, bool onActive);
   void updateUntriggered();
   void pumpMessages();
-  void releaseActiveColumn(const int y);
+  void releaseActiveColumn(const int y, const int t);
   void outputStats();
 
 private:
