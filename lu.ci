@@ -94,8 +94,9 @@ module lu {
       }
     };
 
+    entry void amActive(bool isActive);
     // Describes the control flow for all (super, sub and on diagonal) LU chares
-    entry void factor() {
+    entry [local] void updateUntilActive() {
       //-----------------------------------------------------------------------
       // Each chare in the array has to process these many trailing updates
       // before the diagonal chare on its row / column becomes active in the factorization process
@@ -170,7 +171,13 @@ module lu {
             }
           }
       }
+      atomic { thisProxy[thisIndex].amActive(true); }
+    };
 
+    entry void factor() {
+      atomic { thisProxy[thisIndex].updateUntilActive(); }
+
+      when amActive(bool isActive) {
       //-----------------------------------------------------------------------
       // Once the current step of the computation reaches the diagonal chare on your row / column
       //-----------------------------------------------------------------------
@@ -356,6 +363,7 @@ module lu {
       // Swallow excess pivots message broadcast to the entire array
       while (true) {
         when applyPivots(pivotSequencesMsg *msg) { }
+      }
       }
     };
 
