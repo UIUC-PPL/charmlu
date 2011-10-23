@@ -29,7 +29,7 @@ module lu {
   array [2D] LUBlk {
     entry LUBlk(void);
     entry [nokeep] void prepareForPivotRedn(rednSetupMsg *);
-    entry void prepareForActivePanel(rednSetupMsg *);
+    entry [nokeep] void prepareForActivePanel(rednSetupMsg *);
     entry [nokeep] void prepareForRowBeforeDiag(rednSetupMsg *);
     entry [nokeep] void prepareForRowAfterDiag(rednSetupMsg *);
     entry void multicastRedns(int dummy);

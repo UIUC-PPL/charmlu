@@ -164,7 +164,7 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
   // All chares except members of pivot sections are done with init
 }
 
-void LUBlk::prepareForActivePanel(rednSetupMsg *msg) { delete msg; }
+void LUBlk::prepareForActivePanel(rednSetupMsg *msg) {}
 
 LUBlk::~LUBlk() {
   CkPrintf("freeing LUmsg\n");
