@@ -85,8 +85,11 @@ class LUBlk: public CBase_LUBlk {
     void offDiagSolve(BVecMsg *m);
 
   LUBlk()
-    : factored(false),
-      blockPulled(0), blocksAfter(0), maxRequestingPEs(0)
+    : factored(false)
+    , blockPulled(0), blocksAfter(0), maxRequestingPEs(0)
+    , isOnDiagonal   ( thisIndex.x == thisIndex.y)
+    , isAboveDiagonal( thisIndex.x <  thisIndex.y)
+    , isBelowDiagonal( thisIndex.x >  thisIndex.y)
   {
     __sdag_init();
 #if defined(LU_TRACING)
@@ -105,7 +108,7 @@ class LUBlk: public CBase_LUBlk {
 	    CkCallback initDone, CkCallback fznDone, CkCallback slnDone);
   void prepareForActivePanel(rednSetupMsg *msg);
   ~LUBlk();
-  LUBlk(CkMigrateMessage* m) {}
+  LUBlk(CkMigrateMessage* m): isOnDiagonal(false), isAboveDiagonal(false), isBelowDiagonal(false) { CkAbort("LU blocks not migratable yet"); }
   //added for migration
   void pup(PUP::er &p) {  }
 
@@ -224,4 +227,6 @@ private:
   inline int getIndex(int i, int j) {
     return i * BLKSIZE + j;
   }
+
+  const bool isOnDiagonal, isAboveDiagonal, isBelowDiagonal;
 };
