@@ -188,11 +188,16 @@ module lu {
             CkStartQD( CkCallback(CkCallback::ckExit) );
         }
         else {
-            thisProxy(thisIndex.x, thisIndex.y).processLU();
+            thisProxy[thisIndex].processLU();
         }
       }
       // Above diagonal
-      else if (thisIndex.x < thisIndex.y) {
+      else if (thisIndex.x < thisIndex.y) atomic { thisProxy[thisIndex].factorAboveDiagBlock(); }
+      else                                atomic { thisProxy[thisIndex].factorBelowDiagBlock(); }
+      }
+    };
+
+    entry [local] void factorAboveDiagBlock() {
         // Receive and process each pivot selection sent out by the current diagonal block
         while (pivotBatchTag < (internalStep+1)*BLKSIZE) {
           // Wait for msg carrying the next batch of pivot ops
@@ -257,9 +262,14 @@ module lu {
           factored = true;
           localScheduler->factorizationDone(thisIndex);
         }
-      }
+      atomic "abovediag_iteration_completed" { contribute(factorizationDone); }
+      // Swallow excess pivots message broadcast to the entire array
+      while (true) { when applyPivots(pivotSequencesMsg *msg) { } }
+      };
+
+
       // Below diagonal
-      else {
+      entry [local] void factorBelowDiagBlock() {
         atomic {
             // Find the pivot candidate for just the first column in the block
             pivotCandidate = findLocVal(0, 0);
@@ -353,19 +363,10 @@ module lu {
               }
           }
         }
-      }
-      if (thisIndex.x != thisIndex.y) {
-        atomic "offdiag_iteration_completed" {
-          DEBUG_PRINT("contributing");
-	  contribute(factorizationDone);
-        }
-      }
+      atomic "belowdiag_iteration_completed" { contribute(factorizationDone); }
       // Swallow excess pivots message broadcast to the entire array
-      while (true) {
-        when applyPivots(pivotSequencesMsg *msg) { }
-      }
-      }
-    };
+      while (true) { when applyPivots(pivotSequencesMsg *msg) { } }
+      };
 
     entry void processLU() {
       atomic {
