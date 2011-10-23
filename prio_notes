@@ -1,6 +1,6 @@
-In the diagonal chare (processLU):
+In the diagonal chare (factorDiagBlock):
 
-- processLU is critical
+- factoriDiagBlock is critical
 
 - colMax is the target of a reduction, and lies on the critical path in
   the factorization

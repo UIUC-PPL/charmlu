@@ -46,7 +46,7 @@ module lu {
           if (STOP_AFTER == thisIndex.x)
             CkStartQD( CkCallback(CkCallback::ckExit) );
           else
-            thisProxy[thisIndex].processLU();
+            thisProxy[thisIndex].factorDiagBlock();
         }
       }
     };
@@ -344,7 +344,7 @@ module lu {
       while (true) { when applyPivots(pivotSequencesMsg *msg) { } }
       };
 
-    entry void processLU() {
+    entry void factorDiagBlock() {
       atomic {
         CkAssert(pivotBatchTag == thisIndex.x*BLKSIZE);
         pivotRecords.clear();
