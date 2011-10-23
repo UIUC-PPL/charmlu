@@ -87,7 +87,7 @@ module lu {
           atomic "below_recv_remote_pivot" {
             applySwap(pivotRow % BLKSIZE, 0, data, b);
 #if defined(CHARMLU_USEG_FROM_BELOW)
-            thisProxy(thisIndex.x, thisIndex.y).sendUSegment(pendingUmsg);
+            thisProxy[thisIndex].sendUSegment(pendingUmsg);
 #endif
           }
         }
@@ -282,7 +282,7 @@ module lu {
             mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
 #ifndef SCHED_PIVOT_REDN
             void *yuckMsg = CkAllocSysMsg();
-            thisProxy(thisIndex.x, thisIndex.y).performUpdate((CkMarshallMsg*)yuckMsg);
+            thisProxy[thisIndex].performUpdate((CkMarshallMsg*)yuckMsg);
 #endif
           }
 	  when performUpdate(CkMarshallMsg *dummyMsg) atomic "useg_delayed_update" {
@@ -296,7 +296,7 @@ module lu {
               }
 	    }
             ownedPivotThisStep = false;
-            thisProxy(thisIndex.x, thisIndex.y).belowPivot(activeCol);
+            thisProxy[thisIndex].belowPivot(activeCol);
             delete dummyMsg;
 	  }
           // Wait for the post-diagonal U segment from the original owner of the pivot row
