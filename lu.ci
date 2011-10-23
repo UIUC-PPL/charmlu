@@ -28,12 +28,6 @@ module lu {
 
   array [2D] LUBlk {
     entry LUBlk(void);
-    entry [nokeep] void prepareForPivotRedn(rednSetupMsg *);
-    entry [nokeep] void prepareForActivePanel(rednSetupMsg *);
-    entry [nokeep] void prepareForRowBeforeDiag(rednSetupMsg *);
-    entry [nokeep] void prepareForRowAfterDiag(rednSetupMsg *);
-    entry void multicastRedns(int dummy);
-
     entry void colMax(CkReductionMsg *m);
     entry void sendPivotData(int rowIndex, int pivotRow, int size, const double data[size], double b, bool noop);
     entry [nokeep] void applyPivots(pivotSequencesMsg *msg);
@@ -583,6 +577,12 @@ module lu {
     entry void print();
 
     entry void deliverDiagonal(blkMsg* m);
+    entry [nokeep] void prepareForPivotRedn(rednSetupMsg *);
+    entry [nokeep] void prepareForActivePanel(rednSetupMsg *);
+    entry [nokeep] void prepareForRowBeforeDiag(rednSetupMsg *);
+    entry [nokeep] void prepareForRowAfterDiag(rednSetupMsg *);
+    entry void multicastRedns(int dummy);
+
   };
 
   array [1D] BlockScheduler {
