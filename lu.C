@@ -736,4 +736,5 @@ locval LUBlk::computeMultipliersAndFindColMax(int col, double *U, int startingRo
   return maxVal;
 }
 
+#include "luUtils.def.h"
 #include "lu.def.h"

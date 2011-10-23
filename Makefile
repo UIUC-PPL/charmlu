@@ -2,7 +2,7 @@ include config.mk
 
 # The relevant source files for this project
 RAWSRC    = lu.C scheduler.C benchmark.C
-INTF      = lu.ci driver.ci
+INTF      = luUtils.ci lu.ci driver.ci
 
 BENCHSRC = dgerBenchmark.C
 BENCHCI = dgerBenchmark.ci

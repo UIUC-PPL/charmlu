@@ -1,0 +1,59 @@
+module luUtils {
+  include "set";
+  include "traceToggler.h";
+  initproc void traceToggler::registerHandler();
+
+  message BlockReadyMsg;
+
+  message rednSetupMsg;
+
+  // Register the reducer function that handles reductions of locval
+  initnode void registerLocValReducer();
+
+  class LUConfig;
+  class CProxy_BlockScheduler;
+
+  group LUMgr { };
+
+  group PrioLU {
+    entry PrioLU(int BLKSIZE, int matSize);
+  };
+
+  group OnePerPE : CkArrayMap {
+    entry OnePerPE();
+  };
+
+  group LUMap : CkArrayMap {
+    entry LUMap();
+  };
+
+  group BlockCyclicMap : LUMap {
+    entry BlockCyclicMap();
+  };
+
+  group RealBlockCyclicMap : LUMap {
+      entry RealBlockCyclicMap(int r, int num_blocks);
+  };
+
+  group LUSnakeMap : LUMap {
+    entry LUSnakeMap(int, int);
+  };
+
+  group LUBalancedSnakeMap : LUMap {
+    entry LUBalancedSnakeMap(int, int);
+  };
+
+  group LUBalancedSnakeMap2 : LUMap {
+    entry LUBalancedSnakeMap2(int, int);
+  };
+
+  group PE2DTilingMap: LUMap {
+    entry PE2DTilingMap(int _peRows, int _peCols, int _peRotate, int _peStride,
+			int _numBlks);
+  };
+
+  group StrongScaling1: LUMap {
+    entry StrongScaling1(int numBlks_);
+  };
+};
+
