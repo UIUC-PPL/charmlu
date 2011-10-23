@@ -183,7 +183,7 @@ module lu {
       //-----------------------------------------------------------------------
 
       // On chare array diagonal
-      if (thisIndex.x == thisIndex.y) atomic {
+      if (isOnDiagonal) atomic {
         if (STOP_AFTER == thisIndex.x) {
             CkStartQD( CkCallback(CkCallback::ckExit) );
         }
@@ -192,7 +192,7 @@ module lu {
         }
       }
       // Above diagonal
-      else if (thisIndex.x < thisIndex.y) atomic { thisProxy[thisIndex].factorAboveDiagBlock(); }
+      else if (isAboveDiagonal) atomic { thisProxy[thisIndex].factorAboveDiagBlock(); }
       else                                atomic { thisProxy[thisIndex].factorBelowDiagBlock(); }
       }
     };
@@ -484,7 +484,7 @@ module lu {
         // All diagonal chares except the last must continue the factorization
         if (thisIndex.x < numBlks-1 && thisIndex.y < numBlks-1) {
           DEBUG_PRINT("is top,left block this step, multicast L");
-          if (thisIndex.x == thisIndex.y) {
+          if (isOnDiagonal) {
             blkMsg *msg = new (BLKSIZE * BLKSIZE, 0, mgr->bitsOfPrio()) blkMsg(thisIndex);
             memcpy(msg->data, LU, sizeof(double) * BLKSIZE * BLKSIZE);
             thisProxy(thisIndex.x, thisIndex.y + 1).deliverDiagonal(msg);
@@ -511,7 +511,7 @@ module lu {
 	init(luCfg, _mgr, bs, initialized, factored, solved);
       }
       when multicastRedns(int dummy) {
-        if (thisIndex.x >= thisIndex.y) {
+        if (isOnDiagonal || isBelowDiagonal) {
           when prepareForPivotRedn(rednSetupMsg *msg) atomic {
             mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
             CkGetSectionInfo(pivotCookie, msg);
@@ -520,12 +520,12 @@ module lu {
 #endif
           }
         }
-        if (thisIndex.x > thisIndex.y) {
+        if (isBelowDiagonal) {
           when prepareForRowBeforeDiag(rednSetupMsg *msg) atomic {
             mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
             CkGetSectionInfo(rowBeforeCookie, msg);
           }
-        } else if (thisIndex.x < thisIndex.y) {
+        } else if (isAboveDiagonal) {
           when prepareForRowAfterDiag(rednSetupMsg *msg) atomic {
             mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
             CkGetSectionInfo(rowAfterCookie, msg);
