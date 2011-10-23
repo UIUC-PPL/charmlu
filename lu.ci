@@ -27,7 +27,30 @@ module lu {
 
 
   array [2D] LUBlk {
+    ///
     entry LUBlk(void);
+
+
+    /// Each block starts its participation in the factorization here
+    entry void factor() {
+      // Simply keep updating this block until it gets onto the active block row or column
+      atomic { thisProxy[thisIndex].updateUntilActive(); }
+      // Once the current step of the computation reaches the diagonal chare on this block's row / column
+      when amActive(bool isActive) {
+        // If this matrix block is above the matrix diagonal
+        if      (isAboveDiagonal) atomic { thisProxy[thisIndex].factorAboveDiagBlock(); }
+        // else if its below the matrix diagonal
+        else if (isBelowDiagonal) atomic { thisProxy[thisIndex].factorBelowDiagBlock(); }
+        // else, this block is on the matrix diagonal
+        else atomic {
+          if (STOP_AFTER == thisIndex.x)
+            CkStartQD( CkCallback(CkCallback::ckExit) );
+          else
+            thisProxy[thisIndex].processLU();
+        }
+      }
+    };
+
     entry void colMax(CkReductionMsg *m);
     entry void sendPivotData(int rowIndex, int pivotRow, int size, const double data[size], double b, bool noop);
     entry [nokeep] void applyPivots(pivotSequencesMsg *msg);
@@ -148,29 +171,6 @@ module lu {
           }
       }
       atomic { thisProxy[thisIndex].amActive(true); }
-    };
-
-    entry void factor() {
-      atomic { thisProxy[thisIndex].updateUntilActive(); }
-
-      when amActive(bool isActive) {
-      //-----------------------------------------------------------------------
-      // Once the current step of the computation reaches the diagonal chare on your row / column
-      //-----------------------------------------------------------------------
-
-      // On chare array diagonal
-      if (isOnDiagonal) atomic {
-        if (STOP_AFTER == thisIndex.x) {
-            CkStartQD( CkCallback(CkCallback::ckExit) );
-        }
-        else {
-            thisProxy[thisIndex].processLU();
-        }
-      }
-      // Above diagonal
-      else if (isAboveDiagonal) atomic { thisProxy[thisIndex].factorAboveDiagBlock(); }
-      else                                atomic { thisProxy[thisIndex].factorBelowDiagBlock(); }
-      }
     };
 
     entry [local] void factorAboveDiagBlock() {
