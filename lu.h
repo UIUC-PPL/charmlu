@@ -67,8 +67,6 @@ public:
   // Schedule L to be sent rightwards to the blocks in the same row
   void scheduleRightwardL();
   ///
-  void sendBlocks(int);
-  ///
   void requestBlock(int pe, int rx, int ry);
   ///
   double *accessLocalBlock();
