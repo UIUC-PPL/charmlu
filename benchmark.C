@@ -254,7 +254,6 @@ public:
       luArrProxy.startValidation();
     } else if (!solved && LUcomplete) {
       CkPrintf("starting solve at wall time: %f\n", CmiWallTimer());
-      luArrProxy.print();
       #if defined(LU_TRACING)
       traceToggler::stop();
       #endif
@@ -463,12 +462,6 @@ void BenchmarkLUBlk::initVec() {
 
   seed_b = 9934835;
   genVec(bvec);
-
-#if defined(PRINT_VECTORS)
-  for (int i = 0; i < blkSize; i++) {
-    CkPrintf("memcpy bvec[%d] = %f\n", i, bvec[i]);
-  }
-#endif
 }
 
 void BenchmarkLUBlk::genBlock()

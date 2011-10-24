@@ -207,14 +207,14 @@ module lu {
     entry [local] void factorBelowDiagBlock() {
       atomic {
         // Find the pivot candidate for just the first column in the block
-        pivotCandidate = findLocVal(0, 0);
+        pivotCandidate = findMaxElm(0, 0);
         pendingUmsg = NULL;
       }
       // Work in the active column of the chare array proceeds column-by-column through the matrix
       for (activeCol = 0; activeCol < blkSize; activeCol++) {
         atomic "below_find_pivot" {
           // Contribute to a reduction along the active panel to identify the pivot row
-          mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
+          mcastMgr->contribute(sizeof(MaxElm), &pivotCandidate, MaxElmReducer, pivotCookie);
 #ifndef SCHED_PIVOT_REDN
           void *dummyMsg = CkAllocSysMsg();
           thisProxy[thisIndex].updateSubBlock((CkMarshallMsg*)dummyMsg);
@@ -304,7 +304,7 @@ module lu {
         pivotRecords.clear();
         numRowsSinceLastPivotSend = 0;
         // Find the pivot candidate for just the first column in the block
-        pivotCandidate = findLocVal(0, 0);
+        pivotCandidate = findMaxElm(0, 0);
         // Toggle projections tracing when necessary
         if ((cfg.numBlocks > cfg.numTimesToTrace * cfg.numStepsToTrace) &&
             (thisIndex.x % int(cfg.tracePeriodFraction * cfg.numBlocks) == cfg.numStepsToTrace)) {
@@ -317,7 +317,7 @@ module lu {
         atomic "diag_find_colmax" {
           VERBOSE_PROGRESS(" ..col%d ", thisIndex.x*blkSize + activeCol);
           // Contribute to a redn along the pivot section to identify the pivot row
-          mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
+          mcastMgr->contribute(sizeof(MaxElm), &pivotCandidate, MaxElmReducer, pivotCookie);
           if (activeCol % 20 == 0) {
             flushLogs();
           }
@@ -335,7 +335,7 @@ module lu {
               localScheduler->startedActivePanel();
             }
             DEBUG_PRINT("colMax %d happened", activeCol);
-	    pivotCandidate = *(locval *)(m->getData());
+	    pivotCandidate = *(MaxElm *)(m->getData());
             delete m;
 	  }
 	  if (pivotCandidate.loc / blkSize == thisIndex.x) {
@@ -561,7 +561,6 @@ module lu {
     entry void requestBlock(int pe, int rx, int ry);
 
     entry void flushLogs();
-    entry void print();
 
     entry [nokeep] void prepareForPivotRedn(rednSetupMsg *);
     entry [nokeep] void prepareForActivePanel(rednSetupMsg *);

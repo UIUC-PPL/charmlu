@@ -40,26 +40,26 @@ using std::min;
 
 #include <cmath>
 
-CkReductionMsg *maxLocVal(int nMsg, CkReductionMsg **msgs)
-{
+CkReductionMsg *maxMaxElm(int nMsg, CkReductionMsg **msgs) {
   CkAssert(nMsg > 0);
 
-  locval *l = (locval*) msgs[0]->getData();
+  MaxElm *l = (MaxElm*) msgs[0]->getData();
   for (int i = 1; i < nMsg; ++i) {
-      locval *n = (locval *) msgs[i]->getData();
-      if ( fabs(n->val) > fabs(l->val) )
-          l = n;
+    MaxElm *n = (MaxElm *) msgs[i]->getData();
+    if (fabs(n->val) > fabs(l->val))
+      l = n;
   }
 
-  return CkReductionMsg::buildNew(sizeof(locval), l);
+  return CkReductionMsg::buildNew(sizeof(MaxElm), l);
 }
 
-/// Global that holds the reducer type for locval
-CkReduction::reducerType LocValReducer;
+/// Global that holds the reducer type for MaxElm
+CkReduction::reducerType MaxElmReducer;
 
 /// Function that registers this reducer type on every processor
-void registerLocValReducer()
-{ LocValReducer = CkReduction::addReducer(maxLocVal); }
+void registerMaxElmReducer() {
+  MaxElmReducer = CkReduction::addReducer(maxMaxElm);
+}
 
 struct traceLU {
   int step, event;
@@ -83,8 +83,7 @@ void LUBlk::flushLogs() {
 
 void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
                  CProxy_BlockScheduler bs,
-		 CkCallback initialization, CkCallback factorization, CkCallback solution)
-{
+		 CkCallback initialization, CkCallback factorization, CkCallback solution) {
   scheduler = bs;
   localScheduler = scheduler[CkMyPe()].ckLocal();
   CkAssert(localScheduler);
@@ -111,8 +110,6 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
 
   traceUserSuppliedData(-1);
   traceMemoryUsage();
-
-  this->print("input-generated-LU");
 
   CkMulticastMgr *mcastMgr = CProxy_CkMulticastMgr(cfg.mcastMgrGID).ckLocalBranch();
 
@@ -164,7 +161,7 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
   // All chares except members of pivot sections are done with init
 }
 
-void LUBlk::prepareForActivePanel(rednSetupMsg *msg) {}
+void LUBlk::prepareForActivePanel(rednSetupMsg *msg) { }
 
 LUBlk::~LUBlk() {
   CkPrintf("freeing LUmsg\n");
@@ -245,18 +242,17 @@ void LUBlk::setupMsg(bool reverse) {
   requestingPEs.clear();
 }
 
-//broadcast the U downwards to the blocks in the same column
+// Schedule U to be sent downward to the blocks in the same column
 inline void LUBlk::scheduleDownwardU() {
   traceUserSuppliedData(internalStep);
   traceMemoryUsage();
   mgr->setPrio(LUmsg, MULT_RECV_U);
 
   DEBUG_PRINT("Multicast to part of column %d", thisIndex.y);
-
   localScheduler->scheduleSend(thisIndex, internalStep == thisIndex.y - 1);
 }
 
-// Schedule L to be sent rightwards to the blocks in the same row
+// Schedule L to be sent rightward to the blocks in the same row
 inline void LUBlk::scheduleRightwardL() {
   traceUserSuppliedData(internalStep);
   traceMemoryUsage();
@@ -271,7 +267,6 @@ void LUBlk::requestBlock(int pe, int rx, int ry) {
     requestingPEs.push_back(pe);
 
     bool onActive = false;
-
     if (thisIndex.x > thisIndex.y && internalStep == thisIndex.y)
       onActive = true;
     else if (thisIndex.x < thisIndex.y && internalStep == thisIndex.y - 1)
@@ -329,28 +324,6 @@ void LUBlk::offDiagSolve(BVecMsg *m) {
   mcastMgr->contribute(sizeof(double) * blkSize, xvec, CkReduction::sum_double,
 		       m->forward ? rowBeforeCookie : rowAfterCookie, cb, thisIndex.x);
   delete[] xvec;
-}
-
-void LUBlk::print() {
-  this->print("LU-solution");
-}
-
-void LUBlk::print(const char* step) {
-#if defined(PRINT_VECTORS)
-  char buf[200];
-  sprintf(buf, "%s-%d-%d", step, thisIndex.x, thisIndex.y);
-
-  FILE *file = fopen(buf, "w+");
-
-  for (int i = 0; i < blkSize; i++) {
-    for (int j = 0; j < blkSize; j++) {
-      fprintf(file, "%f ", LU[getIndex(i,j)]);
-    }
-    fprintf(file, "\n");
-  }
-
-  fclose(file);
-#endif
 }
 
 // Copy received pivot data into its place in this block
@@ -655,10 +628,10 @@ blkMsg* LUBlk::createABlkMsg() {
   return msg;
 }
 
-locval LUBlk::findLocVal(int startRow, int col, locval first) {
-  locval l = first;
+MaxElm LUBlk::findMaxElm(int startRow, int col, MaxElm first) {
+  MaxElm l = first;
   for (int row = startRow; row < blkSize; row++)
-    if ( fabs(LU[getIndex(row,col)]) > fabs(l.val) ) {
+    if (fabs(LU[getIndex(row,col)]) > fabs(l.val)) {
       l.val = LU[getIndex(row,col)];
       l.loc = row + blkSize * thisIndex.x;
     }
@@ -697,11 +670,10 @@ void LUBlk::updateLsubBlock(int activeCol, double* U, int offset, int startingRo
 /// Compute the multipliers based on the pivot value in the
 /// received row of U and also find the candidate pivot in
 /// the immediate next column (after updating it simultaneously)
-locval LUBlk::computeMultipliersAndFindColMax(int col, double *U, int startingRow)
-{
+MaxElm LUBlk::computeMultipliersAndFindColMax(int col, double *U, int startingRow) {
   // Should only get called on L blocks
   CkAssert(thisIndex.x >= thisIndex.y);
-  locval maxVal;
+  MaxElm maxVal;
   // Check for input edge cases
   if (col >= blkSize || startingRow >= blkSize)
     return maxVal;

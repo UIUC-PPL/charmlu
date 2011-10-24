@@ -11,36 +11,36 @@
 using std::min;
 
 #if CHARMLU_DEBUG >= 1
-    #define DEBUG_PRINT(FORMAT, ...) CkPrintf("(%d: [%d,%d]@%d) " FORMAT "\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep ,##__VA_ARGS__)
-    #define DEBUG_SCHED(FORMAT, ...) CkPrintf("(%d S): " FORMAT "\n", CkMyPe() ,##__VA_ARGS__)
+  #define DEBUG_PRINT(FORMAT, ...) CkPrintf("(%d: [%d,%d]@%d) " FORMAT "\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep ,##__VA_ARGS__)
+  #define DEBUG_SCHED(FORMAT, ...) CkPrintf("(%d S): " FORMAT "\n", CkMyPe() ,##__VA_ARGS__)
 #else
-    #define DEBUG_PRINT(...)
-    #define DEBUG_SCHED(...)
+  #define DEBUG_PRINT(...)
+  #define DEBUG_SCHED(...)
 #endif
 
 #if CHARMLU_DEBUG >= 2
-    #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
-    #define VERBOSE_PROGRESS(...) CkPrintf(__VA_ARGS__)
-    #define VERY_VERBOSE_PIVOT_AGGLOM(...) CkPrintf(__VA_ARGS__)
-    #define VERBOSE_VALIDATION(...) CkPrintf(__VA_ARGS__)
-    #define VERBOSE_PIVOT_RECORDING
-    #define VERBOSE_PIVOT_AGGLOM
+  #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
+  #define VERBOSE_PROGRESS(...) CkPrintf(__VA_ARGS__)
+  #define VERY_VERBOSE_PIVOT_AGGLOM(...) CkPrintf(__VA_ARGS__)
+  #define VERBOSE_VALIDATION(...) CkPrintf(__VA_ARGS__)
+  #define VERBOSE_PIVOT_RECORDING
+  #define VERBOSE_PIVOT_AGGLOM
 #else
-    #define DEBUG_PIVOT(...)
-    #define VERBOSE_PROGRESS(...)
-    #define VERY_VERBOSE_PIVOT_AGGLOM(...)
-    #define VERBOSE_VALIDATION(...)
+  #define DEBUG_PIVOT(...)
+  #define VERBOSE_PROGRESS(...)
+  #define VERY_VERBOSE_PIVOT_AGGLOM(...)
+  #define VERBOSE_VALIDATION(...)
 #endif
 
-struct locval {
-  locval(): val(0.0), loc(-1) {}
-  locval(double _val, int _loc): val(_val), loc(_loc) {}
+struct MaxElm {
   double val;
   int loc;
+  MaxElm(): val(0.0), loc(-1) { }
+  MaxElm(double _val, int _loc): val(_val), loc(_loc) { }
 };
 
-/// Global that holds the reducer type for locval
-extern CkReduction::reducerType LocValReducer;
+/// Global that holds the reducer type for MaxElm
+extern CkReduction::reducerType MaxElmReducer;
 //extern CmiNodeLock lock;
 
 static inline void takeRef(void *m) {
@@ -112,8 +112,6 @@ class LUBlk: public CBase_LUBlk {
   //added for migration
   void pup(PUP::er &p) {  }
 
-  void print();
-  void print(const char* step);
 public:
   int internalStep;
   bool factored;
@@ -150,7 +148,7 @@ protected:
     otherRowIndex, thisLocalRow, globalThisRow, globalOtherRow;
   bool remoteSwap, ownedPivotThisStep;
   // Stores the local column max which is a candidate for that column's pivot element
-  locval pivotCandidate;
+  MaxElm pivotCandidate;
   int pivotBlk;
   /// Tag for all msgs associated with a single batch of pivots
   int pivotBatchTag;
@@ -214,14 +212,14 @@ private:
   /// Given a set of pivot ops, send out participating row chunks that you own
   void sendPendingPivots(const pivotSequencesMsg *msg);
   /// Find the local column max
-  locval findLocVal(int startRow, int col, locval first = locval());
+  MaxElm findMaxElm(int startRow, int col, MaxElm first = MaxElm());
   /// Update the sub-block of this L block starting at specified
   /// offset from the active column
   void updateLsubBlock(int activeCol, double* U, int offset=1, int startingRow=0);
   /// Compute the multipliers based on the pivot value in the
   /// received row of U and also find the candidate pivot in
   /// the immediate next column (after updating it simultaneously)
-  locval computeMultipliersAndFindColMax(int col, double *U, int startingRow=0);
+  MaxElm computeMultipliersAndFindColMax(int col, double *U, int startingRow=0);
   /// Compute linearized array index from 2D matrix index
   inline int getIndex(int i, int j) {
     return i * blkSize + j;

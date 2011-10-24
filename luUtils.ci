@@ -7,8 +7,8 @@ module luUtils {
 
   message rednSetupMsg;
 
-  // Register the reducer function that handles reductions of locval
-  initnode void registerLocValReducer();
+  // Register the reducer function that handles reductions of MaxElm
+  initnode void registerMaxElmReducer();
 
   class LUConfig;
   class CProxy_BlockScheduler;
@@ -32,7 +32,7 @@ module luUtils {
   };
 
   group RealBlockCyclicMap : LUMap {
-      entry RealBlockCyclicMap(int r, int num_blocks);
+    entry RealBlockCyclicMap(int r, int num_blocks);
   };
 
   group LUSnakeMap : LUMap {
