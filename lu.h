@@ -81,10 +81,6 @@ public:
 
   // ------------------------- Solve Phase ------------------------------------
   ///
-  void localForward(double *xvec);
-  ///
-  void localBackward(double *xvec);
-  ///
   void offDiagSolve(BVecMsg *m);
 
   LUBlk()

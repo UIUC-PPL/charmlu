@@ -253,21 +253,6 @@ double* LUBlk::accessLocalBlock() {
   return LU;
 }
 
-void LUBlk::localForward(double *xvec) {
-  for (int i = 0; i < blkSize; i++)
-    for (int j = 0; j < i; j++)
-      xvec[i] -= LU[getIndex(i,j)] * xvec[j];
-}
-
-void LUBlk::localBackward(double *xvec) {
-  for (int i = blkSize-1; i >= 0; i--) {
-    for (int j = i+1; j < blkSize; j++)
-      xvec[i] -= LU[getIndex(i,j)] * xvec[j];
-    xvec[i] /= LU[getIndex(i,i)];
-  }
-}
-
-
 void LUBlk::offDiagSolve(BVecMsg *m) {
   if (isOnDiagonal)
     return;

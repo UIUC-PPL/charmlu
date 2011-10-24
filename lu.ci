@@ -488,7 +488,9 @@ module lu {
         }
       }
       atomic {
-        localForward(bvec);
+  for (int i = 0; i < blkSize; i++)
+    for (int j = 0; j < i; j++)
+      bvec[i] -= LU[getIndex(i,j)] * bvec[j];
         if (thisIndex.x != numBlks-1) {
           // Broadcast downward from diagonal
           BVecMsg *m = new (blkSize) BVecMsg(blkSize, bvec, true);
@@ -510,7 +512,11 @@ module lu {
       }
 
       atomic {
-        localBackward(bvec);
+        for (int i = blkSize-1; i >= 0; i--) {
+          for (int j = i+1; j < blkSize; j++)
+            bvec[i] -= LU[getIndex(i,j)] * bvec[j];
+          bvec[i] /= LU[getIndex(i,i)];
+        }
         if (thisIndex.x == 0) {
           solveDone.send();
         }
