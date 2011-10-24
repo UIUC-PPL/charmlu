@@ -233,9 +233,8 @@ inline void LUBlk::scheduleRightwardL() {
 }
 
 void LUBlk::requestBlock(int pe, int rx, int ry) {
+  requestingPEs.push_back(pe);
   if (factored) {
-    requestingPEs.push_back(pe);
-
     bool onActive = false;
     if (thisIndex.x > thisIndex.y && internalStep == thisIndex.y)
       onActive = true;
@@ -245,7 +244,6 @@ void LUBlk::requestBlock(int pe, int rx, int ry) {
     localScheduler->scheduleSend(thisIndex, onActive);
   } else {
     DEBUG_PRINT("Queueing remote block for pe %d", pe);
-    requestingPEs.push_back(pe);
   }
 }
 
