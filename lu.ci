@@ -75,39 +75,6 @@ module lu {
     entry [nokeep] void applyTrailingPivots(pivotSequencesMsg *msg);
     entry void trailingPivotRowsSwap(pivotRowsMsg *msg);
 
-    entry void belowPivot(int targetCol) {
-      // Wait for the replacement row from the diagonal chare so that you have the updated block
-      when pivotRowSwap[internalStep*BLKSIZE + targetCol](int rowIndex, int pivotRow, int len, double data[len],
-                                                          double b, bool noop) {
-        if (!noop) {
-          atomic "below_send_remote_pivot" {
-	    ownedPivotThisStep = true;
-            CkAssert(pivotRow / BLKSIZE == thisIndex.x);
-            CkEntryOptions opts;
-            thisProxy(thisIndex.y, thisIndex.y)
-              .pivotRowSwap(internalStep*BLKSIZE + targetCol, pivotRow, BLKSIZE,
-                             &LU[getIndex(pivotRow % BLKSIZE,0)], bvec[pivotRow % BLKSIZE], false,
-                             &(mgr->setPrio(SEND_PIVOT_DATA, opts)));
-          }
-          atomic "below_send_useg" {
-#if defined(CHARMLU_USEG_FROM_BELOW)
-            UMsg *anUmsg = new(BLKSIZE - targetCol, sizeof(int)*8) UMsg(BLKSIZE - targetCol, &LU[getIndex(pivotRow % BLKSIZE,targetCol)]);
-            mgr->setPrio(anUmsg, BELOW_SEND_USEG, internalStep*BLKSIZE + targetCol);
-            CkSetRefNum(anUmsg, internalStep*BLKSIZE + targetCol);
-            pendingUmsg = (UMsg*)CkCopyMsg((void**)(&anUmsg));
-            activePanel.USegCompute(anUmsg);
-#endif
-          }
-          atomic "below_recv_remote_pivot" {
-            applySwap(pivotRow % BLKSIZE, 0, data, b);
-#if defined(CHARMLU_USEG_FROM_BELOW)
-            thisProxy[thisIndex].USegCompute(pendingUmsg);
-#endif
-          }
-        }
-      }
-    };
-
     entry void amActive(bool isActive);
     // Describes the control flow for all (super, sub and on diagonal) LU chares
     entry [local] void updateUntilActive() {
@@ -485,6 +452,39 @@ module lu {
 	DEBUG_PRINT("contributing");
         contribute(factorizationDone);
         VERBOSE_PROGRESS("\n");
+      }
+    };
+
+    entry void belowPivot(int targetCol) {
+      // Wait for the replacement row from the diagonal chare so that you have the updated block
+      when pivotRowSwap[internalStep*BLKSIZE + targetCol](int rowIndex, int pivotRow, int len, double data[len],
+                                                          double b, bool noop) {
+        if (!noop) {
+          atomic "below_send_remote_pivot" {
+	    ownedPivotThisStep = true;
+            CkAssert(pivotRow / BLKSIZE == thisIndex.x);
+            CkEntryOptions opts;
+            thisProxy(thisIndex.y, thisIndex.y)
+              .pivotRowSwap(internalStep*BLKSIZE + targetCol, pivotRow, BLKSIZE,
+                             &LU[getIndex(pivotRow % BLKSIZE,0)], bvec[pivotRow % BLKSIZE], false,
+                             &(mgr->setPrio(SEND_PIVOT_DATA, opts)));
+          }
+          atomic "below_send_useg" {
+#if defined(CHARMLU_USEG_FROM_BELOW)
+            UMsg *anUmsg = new(BLKSIZE - targetCol, sizeof(int)*8) UMsg(BLKSIZE - targetCol, &LU[getIndex(pivotRow % BLKSIZE,targetCol)]);
+            mgr->setPrio(anUmsg, BELOW_SEND_USEG, internalStep*BLKSIZE + targetCol);
+            CkSetRefNum(anUmsg, internalStep*BLKSIZE + targetCol);
+            pendingUmsg = (UMsg*)CkCopyMsg((void**)(&anUmsg));
+            activePanel.USegCompute(anUmsg);
+#endif
+          }
+          atomic "below_recv_remote_pivot" {
+            applySwap(pivotRow % BLKSIZE, 0, data, b);
+#if defined(CHARMLU_USEG_FROM_BELOW)
+            thisProxy[thisIndex].USegCompute(pendingUmsg);
+#endif
+          }
+        }
       }
     };
 
