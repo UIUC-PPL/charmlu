@@ -205,6 +205,13 @@ module lu {
     // Method for delivering triangular solve data
     entry void triangularSolve(blkMsg* m);
 
+    // These process* entry methods are invoked locally on each block
+    // by the BlockScheduler with varying priorities, to let the
+    // scheduler decide when the work they represent (the bulk of the
+    // computation) should execute.
+    entry void processTrailingUpdate(int step, intptr_t update_ptr);
+    entry void processComputeU(intptr_t update_ptr);
+
     // Below diagonal
     entry [local] void factorBelowDiagBlock() {
       atomic {
@@ -272,6 +279,9 @@ module lu {
       // Swallow excess pivots message broadcast to the entire array
       while (true) { when applyTrailingPivots(pivotSequencesMsg *msg) { } }
     };
+    // Indicate when this block has been used for remote calculations,
+    // to let subsequent pivoting go ahead
+    entry void blockUsed(int count);
 
     entry void factorDiagBlock() {
       atomic {
@@ -423,10 +433,68 @@ module lu {
       }
     };
 
+    entry void forwardSolve() {
+      if (thisIndex.x > 0) {
+        // All except the first diag chare have to wait for their row reductions
+        when recvSolveData[thisIndex.x](CkReductionMsg *m) atomic {
+          double *preVec = (double*) ( m->getData() );
+          for (int i = 0; i < blkSize; i++)
+            bvec[i] -= preVec[i];
+          delete m;
+        }
+      }
+      atomic {
+        for (int i = 0; i < blkSize; i++)
+          for (int j = 0; j < i; j++)
+            bvec[i] -= LU[getIndex(i,j)] * bvec[j];
+
+        if (thisIndex.x != numBlks-1) {
+          // Broadcast downward from diagonal
+          BVecMsg *m = new (blkSize) BVecMsg(blkSize, bvec, true);
+          activePanel.offDiagSolve(m);
+        }
+        thisProxy(thisIndex).backwardSolve();
+      }
+    };
+    entry void backwardSolve() {
+      if (thisIndex.x < numBlks-1) {
+        // All except the last diag chare have to wait for their row reductions
+        when recvSolveData[thisIndex.x](CkReductionMsg *m) atomic {
+          double *preVec = (double*) ( m->getData() );
+          for (int i = 0; i < blkSize; i++)
+            bvec[i] -= preVec[i];
+          delete m;
+        }
+      }
+
+      atomic {
+        for (int i = blkSize-1; i >= 0; i--) {
+          for (int j = i+1; j < blkSize; j++)
+            bvec[i] -= LU[getIndex(i,j)] * bvec[j];
+          bvec[i] /= LU[getIndex(i,i)];
+        }
+        if (thisIndex.x == 0) {
+          solveDone.send();
+        }
+        else {
+          // Broadcast upward from diagonal
+          CProxySection_LUBlk col = CProxySection_LUBlk::ckNew(thisArrayID,
+                                                               0, thisIndex.x-1, 1,
+                                                               thisIndex.y, thisIndex.y, 1);
+          col.ckSectionDelegate(mcastMgr);
+          BVecMsg *m = new (blkSize) BVecMsg(blkSize, bvec, false);
+          col.offDiagSolve(m);
+        }
+      }
+    };
     entry [nokeep] void offDiagSolve(BVecMsg *m);
     entry void recvSolveData(CkReductionMsg *m);
-    entry void schedulerReady(CkReductionMsg *m);
-    entry void dataReady(int);
+
+    // A remote BlockScheduler wants this block for a triangular solve
+    // or trailing update
+    entry void requestBlock(int pe, int rx, int ry);
+
+    entry void flushLogs();
 
     entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
                        CkCallback initialized, CkCallback factored, CkCallback solved) {
@@ -460,83 +528,13 @@ module lu {
 	}
       }
     };
-
-    entry void forwardSolve() {
-      if (thisIndex.x > 0) {
-        // All except the first diag chare have to wait for their row reductions
-        when recvSolveData[thisIndex.x](CkReductionMsg *m) atomic {
-          double *preVec = (double*) ( m->getData() );
-          for (int i = 0; i < blkSize; i++)
-            bvec[i] -= preVec[i];
-          delete m;
-        }
-      }
-      atomic {
-        for (int i = 0; i < blkSize; i++)
-          for (int j = 0; j < i; j++)
-            bvec[i] -= LU[getIndex(i,j)] * bvec[j];
-
-        if (thisIndex.x != numBlks-1) {
-          // Broadcast downward from diagonal
-          BVecMsg *m = new (blkSize) BVecMsg(blkSize, bvec, true);
-          activePanel.offDiagSolve(m);
-        }
-        thisProxy(thisIndex).backwardSolve();
-      }
-    };
-
-    entry void backwardSolve() {
-      if (thisIndex.x < numBlks-1) {
-        // All except the last diag chare have to wait for their row reductions
-        when recvSolveData[thisIndex.x](CkReductionMsg *m) atomic {
-          double *preVec = (double*) ( m->getData() );
-          for (int i = 0; i < blkSize; i++)
-            bvec[i] -= preVec[i];
-          delete m;
-        }
-      }
-
-      atomic {
-        for (int i = blkSize-1; i >= 0; i--) {
-          for (int j = i+1; j < blkSize; j++)
-            bvec[i] -= LU[getIndex(i,j)] * bvec[j];
-          bvec[i] /= LU[getIndex(i,i)];
-        }
-        if (thisIndex.x == 0) {
-          solveDone.send();
-        }
-        else {
-          // Broadcast upward from diagonal
-          CProxySection_LUBlk col = CProxySection_LUBlk::ckNew(thisArrayID,
-                                                               0, thisIndex.x-1, 1,
-                                                               thisIndex.y, thisIndex.y, 1);
-          col.ckSectionDelegate(mcastMgr);
-          BVecMsg *m = new (blkSize) BVecMsg(blkSize, bvec, false);
-          col.offDiagSolve(m);
-        }
-      }
-    };
-
-    // These process* entry methods are invoked locally on each block
-    // by the BlockScheduler with varying priorities, to let the
-    // scheduler decide when the work they represent (the bulk of the
-    // computation) should execute.
-    entry void processTrailingUpdate(int step, intptr_t update_ptr);
-    entry void processComputeU(intptr_t update_ptr);
-
-    // Inform the BlockScheduler when a block for a trailing update has be consumed
-    entry void blockUsed(int);
-    // Ask the BlockScheduler for a certain block for a trailing update
-    entry void requestBlock(int pe, int rx, int ry);
-
-    entry void flushLogs();
-
+    entry void schedulerReady(CkReductionMsg *m);
+    entry void dataReady(int);
     entry [nokeep] void prepareForPivotRedn(rednSetupMsg *);
     entry [nokeep] void prepareForActivePanel(rednSetupMsg *);
     entry [nokeep] void prepareForRowBeforeDiag(rednSetupMsg *);
     entry [nokeep] void prepareForRowAfterDiag(rednSetupMsg *);
     entry void multicastRedns(int dummy);
-
   };
 
   array [1D] BlockScheduler {
