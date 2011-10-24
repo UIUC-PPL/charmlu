@@ -27,19 +27,19 @@ public:
   MatGen(int seed) {
     curRnd = seed;
     rndA = 48271;
-    rndQ = MAXINT/rndA;
-    rndR = MAXINT%rndA;
+    rndQ = MAXINT / rndA;
+    rndR = MAXINT % rndA;
   }
 
   int nextRndInt() {
-    curRnd = rndA*(curRnd%rndQ) - rndR*(curRnd/rndQ);
-    if (curRnd<0) curRnd += MAXINT;
+    curRnd = rndA * (curRnd % rndQ) - rndR * (curRnd / rndQ);
+    if (curRnd < 0) curRnd += MAXINT;
     return curRnd;
   }
 
   //The range of the returned double random number is [-0.5, 0.5]
   double toRndDouble(int rndInt) {
-    return (double)rndInt/MAXINT - 0.5;
+    return (double)rndInt / MAXINT - 0.5;
   }
 
   double nextRndDouble() {
@@ -47,17 +47,17 @@ public:
   }
 
   void getNRndInts(int num, int *d) {
-    for (int i=0; i<num; i++)
+    for (int i = 0; i < num; i++)
       d[i] = nextRndInt();
   }
 
   void getNRndDoubles(int num, double *d) {
-    for (int i=0; i<num; i++)
+    for (int i = 0; i < num; i++)
       d[i] = nextRndDouble();
   }
 
   void skipNDoubles(int num) {
-    for (int i=0; i<num; i++)
+    for (int i = 0; i < num; i++)
       nextRndDouble();
   }
 };
