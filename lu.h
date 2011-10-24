@@ -211,7 +211,7 @@ protected:
     return i * blkSize + j;
   }
 
-  bool isOnDiagonal()    { return thisindex.x == thisIndex.y; }
+  bool isOnDiagonal()    { return thisIndex.x == thisIndex.y; }
   bool isAboveDiagonal() { return thisIndex.x <  thisIndex.y; }
   bool isBelowDiagonal() { return thisIndex.x >  thisIndex.y; }
 };

@@ -397,20 +397,13 @@ module lu {
       atomic "diag_multicast_L" {
         ckout << "Block " << thisIndex.x << " finished local LU at internalStep "
               << internalStep << ", time = " << CmiWallTimer() - startTime << endl;
-        // Toggle projections tracing when necessary
-        if (cfg.numBlocks < 1 / cfg.tracePeriodFraction ||
-            (thisIndex.x + 1) % int(cfg.tracePeriodFraction * cfg.numBlocks) == 0 ||
-            (cfg.numBlocks - 1 - thisIndex.x) == cfg.numStepsToTrace) {
-          traceToggler::start();
-          DEBUG_PRINT("Resuming projections tracing");
-        }
 
         localScheduler->factorizationDone(thisIndex);
         factored = true;
         // All diagonal chares except the last must continue the factorization
         if (thisIndex.x < numBlks-1 && thisIndex.y < numBlks-1) {
           DEBUG_PRINT("is top,left block this step, multicast L");
-          if (isOnDiagonal) {
+          if (isOnDiagonal()) {
             blkMsg *msg = new (blkSize * blkSize, 0, mgr->bitsOfPrio()) blkMsg(thisIndex);
             memcpy(msg->data, LU, sizeof(double) * blkSize * blkSize);
             thisProxy(thisIndex.x, thisIndex.y + 1).triangularSolve(msg);
@@ -470,7 +463,7 @@ module lu {
 	init(luCfg, _mgr, bs, initialized, factored, solved);
       }
       when multicastRedns(int dummy) {
-        if (isOnDiagonal || isBelowDiagonal) {
+        if (isOnDiagonal() || isBelowDiagonal()) {
           when prepareForPivotRedn(rednSetupMsg *msg) atomic {
             mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
             CkGetSectionInfo(pivotCookie, msg);
@@ -479,12 +472,12 @@ module lu {
 #endif
           }
         }
-        if (isBelowDiagonal) {
+        if (isBelowDiagonal()) {
           when prepareForRowBeforeDiag(rednSetupMsg *msg) atomic {
             mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
             CkGetSectionInfo(rowBeforeCookie, msg);
           }
-        } else if (isAboveDiagonal) {
+        } else if (isAboveDiagonal()) {
           when prepareForRowAfterDiag(rednSetupMsg *msg) atomic {
             mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
             CkGetSectionInfo(rowAfterCookie, msg);
