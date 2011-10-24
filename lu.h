@@ -132,7 +132,7 @@ protected:
   /// Variables used during factorization
   double *LU;
 
-  int BLKSIZE, numBlks;
+  int blkSize, numBlks;
   blkMsg *U;
   //BlockReadyMsg *mL, *mU;
   int activeCol, ind;
@@ -225,7 +225,7 @@ private:
   locval computeMultipliersAndFindColMax(int col, double *U, int startingRow=0);
   /// Compute linearized array index from 2D matrix index
   inline int getIndex(int i, int j) {
-    return i * BLKSIZE + j;
+    return i * blkSize + j;
   }
 
   const bool isOnDiagonal, isAboveDiagonal, isBelowDiagonal;

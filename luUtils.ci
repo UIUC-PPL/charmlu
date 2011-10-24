@@ -16,7 +16,7 @@ module luUtils {
   group LUMgr { };
 
   group PrioLU {
-    entry PrioLU(int BLKSIZE, int matSize);
+    entry PrioLU(int blkSize, int matSize);
   };
 
   group OnePerPE : CkArrayMap {

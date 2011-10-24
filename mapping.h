@@ -15,8 +15,8 @@ struct LUMap : public CkArrayMap {
 /** do a space filling curve style allocation from the bottom right to the upper left. */
 class LUSnakeMap: public LUMap {
 public:
-  int numBlks, BLKSIZE;
-  LUSnakeMap(int _numBlks, int _BLKSIZE) : numBlks(_numBlks), BLKSIZE(_BLKSIZE) {}
+  int numBlks, blkSize;
+  LUSnakeMap(int _numBlks, int _blkSize) : numBlks(_numBlks), blkSize(_blkSize) {}
   int procNum(int arrayHdl, const CkArrayIndex &idx) {
     int *coor = (int *)idx.data();
     int x = coor[0];
@@ -65,7 +65,7 @@ public:
   int mappingSize;
   int *mapping;
   int *peLoads;
-  int numBlks, BLKSIZE;
+  int numBlks, blkSize;
   
 
   void setMapping(int x, int y, int pe){
@@ -80,7 +80,7 @@ public:
   }
 
   /** build and store the mapping once */
-  LUBalancedSnakeMap(int _numBlks, int _BLKSIZE) : numBlks(_numBlks), BLKSIZE(_BLKSIZE) {
+  LUBalancedSnakeMap(int _numBlks, int _blkSize) : numBlks(_numBlks), blkSize(_blkSize) {
     int numProcs = CkNumPes();
 
     mappingSize = numBlks*numBlks;
@@ -135,7 +135,7 @@ public:
   int *mapping;
   int *peLoads;
   int stateN;
-  int numBlks, BLKSIZE;
+  int numBlks, blkSize;
 
   void setMapping(int x, int y, int pe){
     CkAssert(y*numBlks+x < mappingSize);
@@ -149,7 +149,7 @@ public:
   }
 
   /** build and store the mapping once */
-  LUBalancedSnakeMap2(int _numBlks, int _BLKSIZE) : numBlks(_numBlks), BLKSIZE(_BLKSIZE) {
+  LUBalancedSnakeMap2(int _numBlks, int _blkSize) : numBlks(_numBlks), blkSize(_blkSize) {
     stateN = 0;
     int numProcs = CkNumPes();
 

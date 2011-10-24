@@ -18,11 +18,11 @@ enum PrioType {
 class LUMgr : public CBase_LUMgr
 {
 protected:
-  int BLKSIZE;
+  int blkSize;
   int matSize;
   int numBlks;
-  LUMgr(int BLKSIZE_, int matSize_) : BLKSIZE(BLKSIZE_), matSize(matSize_) {
-    numBlks = matSize / BLKSIZE;
+  LUMgr(int blkSize_, int matSize_) : blkSize(blkSize_), matSize(matSize_) {
+    numBlks = matSize / blkSize;
   }
 
 public:
@@ -34,7 +34,7 @@ public:
 
 struct PrioLU : public LUMgr
 {
-  PrioLU(int BLKSIZE, int matSize) : LUMgr(BLKSIZE, matSize) {}
+  PrioLU(int blkSize, int matSize) : LUMgr(blkSize, matSize) {}
 
   int bitsOfPrio() { return sizeof(int) * 8; }
 
@@ -57,7 +57,7 @@ struct PrioLU : public LUMgr
       if (y == t + 1)
         prio = 0;
       else
-        prio = t * numBlks * BLKSIZE + y * BLKSIZE;
+        prio = t * numBlks * blkSize + y * blkSize;
       break;
     }
     opts.setPriority(prio);
@@ -74,13 +74,13 @@ struct PrioLU : public LUMgr
       prio = -1;
       break;
     case PIVOT_LEFT_SEC:
-      prio = BLKSIZE * numBlks * numBlks + 1;
+      prio = blkSize * numBlks * numBlks + 1;
       break;
     case PIVOT_CRITICAL:
       prio = -1;
       break;
     case PIVOT_NOT_CRITICAL:
-      prio = numBlks * numBlks * BLKSIZE;
+      prio = numBlks * numBlks * blkSize;
       break;
     }
     *(int*)CkPriorityPtr(msg) = prio;

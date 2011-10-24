@@ -91,7 +91,7 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
   localScheduler->registerBlock(thisIndex);
   contribute(CkCallback(CkIndex_BlockScheduler::allRegistered(NULL), bs));
   cfg = _cfg;
-  BLKSIZE = cfg.blockSize;
+  blkSize = cfg.blockSize;
   numBlks = cfg.numBlocks;
   mgr = _mgr.ckLocalBranch();
   suggestedPivotBatchSize = cfg.pivotBatchSize;
@@ -103,7 +103,7 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
   factorizationDone = factorization;
   solveDone = solution;
 
-  CkAssert(BLKSIZE>0); // If this fails, readonly variables aren't
+  CkAssert(blkSize>0); // If this fails, readonly variables aren't
   // propagated soon enough. I'm assuming they
   // are safe to use here.
 
@@ -198,9 +198,9 @@ void LUBlk::computeU(double *givenL) {
   // givenL is implicitly transposed by telling dtrsm that it is a
   // right, upper matrix. Since this also switches the order of
   // multiplication, the transpose is output to LU.
-  dtrsm(BLAS_RIGHT, BLAS_UPPER, BLAS_NOTRANSPOSE, BLAS_UNIT, BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU, BLKSIZE);
+  dtrsm(BLAS_RIGHT, BLAS_UPPER, BLAS_NOTRANSPOSE, BLAS_UNIT, blkSize, blkSize, 1.0, givenL, blkSize, LU, blkSize);
 #else
-  cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, BLKSIZE, BLKSIZE, 1.0, givenL, BLKSIZE, LU, BLKSIZE);
+  cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, blkSize, blkSize, 1.0, givenL, blkSize, LU, blkSize);
 #endif
 }
 
@@ -211,17 +211,17 @@ void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
   // By switching the order of incomingU and incomingL the transpose
   // is applied implicitly: C' = B*A
   dgemm( BLAS_NOTRANSPOSE, BLAS_NOTRANSPOSE,
-         BLKSIZE, BLKSIZE, BLKSIZE,
+         blkSize, blkSize, blkSize,
          -1.0, incomingU,
-         BLKSIZE, incomingL, BLKSIZE,
-         1.0, LU, BLKSIZE);
+         blkSize, incomingL, blkSize,
+         1.0, LU, blkSize);
 #else
   cblas_dgemm( CblasRowMajor,
                CblasNoTrans, CblasNoTrans,
-               BLKSIZE, BLKSIZE, BLKSIZE,
+               blkSize, blkSize, blkSize,
                -1.0, incomingL,
-               BLKSIZE, incomingU, BLKSIZE,
-               1.0, LU, BLKSIZE);
+               blkSize, incomingU, blkSize,
+               1.0, LU, blkSize);
 #endif
 }
 
@@ -297,19 +297,19 @@ double* LUBlk::accessLocalBlock() {
 }
 
 void LUBlk::localSolve(double *xvec, double *preVec) {
-  for (int i = 0; i < BLKSIZE; i++) {
+  for (int i = 0; i < blkSize; i++) {
     xvec[i] = 0.0;
   }
 
-  for (int i = 0; i < BLKSIZE; i++) {
-    for (int j = 0; j < BLKSIZE; j++) {
+  for (int i = 0; i < blkSize; i++) {
+    for (int j = 0; j < blkSize; j++) {
       xvec[i] += LU[getIndex(i,j)] * preVec[j];
     }
   }
 }
 
 void LUBlk::localForward(double *xvec) {
-  for (int i = 0; i < BLKSIZE; i++) {
+  for (int i = 0; i < blkSize; i++) {
     for (int j = 0; j < i; j++) {
       xvec[i] -= LU[getIndex(i,j)] * xvec[j];
     }
@@ -317,8 +317,8 @@ void LUBlk::localForward(double *xvec) {
 }
 
 void LUBlk::localBackward(double *xvec) {
-  for (int i = BLKSIZE-1; i >= 0; i--) {
-    for (int j = i+1; j < BLKSIZE; j++) {
+  for (int i = blkSize-1; i >= 0; i--) {
+    for (int j = i+1; j < blkSize; j++) {
       xvec[i] -= LU[getIndex(i,j)] * xvec[j];
     }
     xvec[i] /= LU[getIndex(i,i)];
@@ -331,10 +331,10 @@ void LUBlk::offDiagSolve(BVecMsg *m) {
     return;
 
   // Perform local solve and reduce left-of-diagonal row to diagonal
-  double *xvec = new double[BLKSIZE];
+  double *xvec = new double[blkSize];
   localSolve(xvec, m->data);
   CkCallback cb(CkIndex_LUBlk::recvSolveData(0), thisProxy(thisIndex.x, thisIndex.x));
-  mcastMgr->contribute(sizeof(double) * BLKSIZE, xvec, CkReduction::sum_double,
+  mcastMgr->contribute(sizeof(double) * blkSize, xvec, CkReduction::sum_double,
 		       m->forward ? rowBeforeCookie : rowAfterCookie, cb, thisIndex.x);
   delete[] xvec;
 }
@@ -350,8 +350,8 @@ void LUBlk::print(const char* step) {
 
   FILE *file = fopen(buf, "w+");
 
-  for (int i = 0; i < BLKSIZE; i++) {
-    for (int j = 0; j < BLKSIZE; j++) {
+  for (int i = 0; i < blkSize; i++) {
+    for (int j = 0; j < blkSize; j++) {
       fprintf(file, "%f ", LU[getIndex(i,j)]);
     }
     fprintf(file, "\n");
@@ -365,7 +365,7 @@ void LUBlk::print(const char* step) {
 void LUBlk::applySwap(int row, int offset, const double *data, double b) {
   DEBUG_PIVOT("(%d, %d): remote pivot inserted at %d\n", thisIndex.x, thisIndex.y, row);
   bvec[row] = b;
-  memcpy( &(LU[getIndex(row,offset)]), data, sizeof(double)*(BLKSIZE-offset) );
+  memcpy( &(LU[getIndex(row,offset)]), data, sizeof(double)*(blkSize-offset) );
 }
 
 // Exchange local data
@@ -373,16 +373,16 @@ void LUBlk::swapLocal(int row1, int row2, int offset) {
   if (row1 == row2) return;
   std::swap(bvec[row1], bvec[row2]);
   /// @todo: Is this better or is it better to do 3 memcpys
-  std::swap_ranges( &(LU[getIndex(row1,offset)]), &(LU[getIndex(row1,BLKSIZE)]), &(LU[getIndex(row2,offset)]) );
+  std::swap_ranges( &(LU[getIndex(row1,offset)]), &(LU[getIndex(row1,blkSize)]), &(LU[getIndex(row2,offset)]) );
 }
 
 void LUBlk::doPivotLocal(int row1, int row2) {
   // The chare indices where the two rows are located
-  row1Index = row1 / BLKSIZE;
-  row2Index = row2 / BLKSIZE;
+  row1Index = row1 / blkSize;
+  row2Index = row2 / blkSize;
   // The local indices of the two rows within their blocks
-  localRow1 = row1 % BLKSIZE;
-  localRow2 = row2 % BLKSIZE;
+  localRow1 = row1 % blkSize;
+  localRow2 = row2 % blkSize;
   remoteSwap = false;
 
   // If I hold portions of both the current row and pivot row, its a local swap
@@ -508,13 +508,13 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
     {
       for (int j=idx[i]; j<idx[i+1]; j++)
         {
-          int recverIdx = pivotSequence[j]/BLKSIZE;
+          int recverIdx = pivotSequence[j]/blkSize;
           int senderIdx =-1;
           // circular traversal of pivot sequence
           if (j < idx[i+1]-1)
-            senderIdx = pivotSequence[j+1]/BLKSIZE;
+            senderIdx = pivotSequence[j+1]/blkSize;
           else
-            senderIdx = pivotSequence[idx[i]]/BLKSIZE;
+            senderIdx = pivotSequence[idx[i]]/blkSize;
           // If I am the sending to another chare
           if (thisIndex.x == senderIdx && thisIndex.x != recverIdx)
             numMsgsTo[recverIdx]++;
@@ -530,8 +530,8 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
       if ( numMsgsTo[i] > 0)
         {
           // Create a big enough msg to carry all the rows I'll be sending to this chare
-          outgoingPivotMsgs[i] = new(numMsgsTo[i], numMsgsTo[i]*BLKSIZE, numMsgsTo[i], sizeof(int)*8)
-            pivotRowsMsg(BLKSIZE, pivotBatchTag);
+          outgoingPivotMsgs[i] = new(numMsgsTo[i], numMsgsTo[i]*blkSize, numMsgsTo[i], sizeof(int)*8)
+            pivotRowsMsg(blkSize, pivotBatchTag);
           // Set a priority thats a function of your location wrt to the critical path
           if (thisIndex.y < internalStep)
             mgr->setPrio(outgoingPivotMsgs[i], PIVOT_NOT_CRITICAL);
@@ -558,7 +558,7 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
       // Identify a remote row in the pivot sequence as a point at which to
       // start and stop processing the circular pivot sequence
       const int *ringStart = first;
-      while ( (*ringStart / BLKSIZE == thisIndex.x) && (ringStart < beyondLast) )
+      while ( (*ringStart / blkSize == thisIndex.x) && (ringStart < beyondLast) )
         ringStart++;
       const int *ringStop = ringStart;
 
@@ -571,9 +571,9 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
           ringStart = first;
           ringStop  = beyondLast - 1;
 
-          if (NULL == tmpBuf) tmpBuf = new double[BLKSIZE];
-          memcpy(tmpBuf, &LU[getIndex(*ringStart%BLKSIZE,0)], BLKSIZE*sizeof(double));
-          tmpB = bvec[*ringStart%BLKSIZE];
+          if (NULL == tmpBuf) tmpBuf = new double[blkSize];
+          memcpy(tmpBuf, &LU[getIndex(*ringStart%blkSize,0)], blkSize*sizeof(double));
+          tmpB = bvec[*ringStart%blkSize];
 #ifdef VERBOSE_PIVOT_AGGLOM
           pivotLog<<"tmp <-cpy- "<<*ringStart<<"; ";
 #endif
@@ -584,16 +584,16 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
       do
         {
           const int *from        = (to+1 == beyondLast) ? first : to + 1;
-          int fromChareIdx = *from / BLKSIZE;
+          int fromChareIdx = *from / blkSize;
           // If the current source row in the pivot sequence belongs to me, send it
           if (fromChareIdx == thisIndex.x)
             {
-              int toChareIdx = *to / BLKSIZE;
-              int fromLocal  = *from % BLKSIZE;
+              int toChareIdx = *to / blkSize;
+              int fromLocal  = *from % blkSize;
               // If you're sending to yourself, memcopy
               if (toChareIdx == thisIndex.x)
                 {
-                  applySwap(*to%BLKSIZE, 0, &LU[getIndex(fromLocal,0)], bvec[fromLocal]);
+                  applySwap(*to%blkSize, 0, &LU[getIndex(fromLocal,0)], bvec[fromLocal]);
 #ifdef VERBOSE_PIVOT_AGGLOM
                   pivotLog<<*to<<" <-cpy- "<<*from<<"; ";
 #endif
@@ -601,7 +601,7 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
               // else, copy the data into the appropriate msg
               else
                 {
-                  outgoingPivotMsgs[*to/BLKSIZE]->copyRow(*to, &LU[getIndex(fromLocal,0)], bvec[fromLocal]);
+                  outgoingPivotMsgs[*to/blkSize]->copyRow(*to, &LU[getIndex(fromLocal,0)], bvec[fromLocal]);
 #ifdef VERBOSE_PIVOT_AGGLOM
                   pivotLog<<*to<<" <-msg- "<<*from<<"; ";
 #endif
@@ -611,7 +611,7 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
           else
             {
               // if the current destination row belongs to me, make sure I expect the remote data
-              if (*to / BLKSIZE == thisIndex.x)
+              if (*to / blkSize == thisIndex.x)
                 {
                   pendingIncomingPivots++;
 #ifdef VERBOSE_PIVOT_AGGLOM
@@ -635,7 +635,7 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
       // by copying the temp buffer back into the matrix block
       if (isSequenceLocal)
         {
-          applySwap(*(beyondLast-1)%BLKSIZE, 0, tmpBuf, tmpB);
+          applySwap(*(beyondLast-1)%blkSize, 0, tmpBuf, tmpB);
 #ifdef VERBOSE_PIVOT_AGGLOM
           pivotLog<<*(beyondLast-1)<<"<-cpy- tmp "<<"; ";
 #endif
@@ -658,17 +658,17 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
 blkMsg* LUBlk::createABlkMsg() {
   int prioBits = mgr->bitsOfPrio();
   maxRequestingPEs = CProxy_LUMap(cfg.map).ckLocalBranch()->pesInPanel(thisIndex);
-  blkMsg *msg = new (BLKSIZE*BLKSIZE, maxRequestingPEs, prioBits) blkMsg(thisIndex);
+  blkMsg *msg = new (blkSize*blkSize, maxRequestingPEs, prioBits) blkMsg(thisIndex);
   memset(msg->pes, -1, maxRequestingPEs*sizeof(int));
   return msg;
 }
 
 locval LUBlk::findLocVal(int startRow, int col, locval first) {
   locval l = first;
-  for (int row = startRow; row < BLKSIZE; row++)
+  for (int row = startRow; row < blkSize; row++)
     if ( fabs(LU[getIndex(row,col)]) > fabs(l.val) ) {
       l.val = LU[getIndex(row,col)];
-      l.loc = row + BLKSIZE * thisIndex.x;
+      l.loc = row + blkSize * thisIndex.x;
     }
   return l;
 }
@@ -679,25 +679,25 @@ void LUBlk::updateLsubBlock(int activeCol, double* U, int offset, int startingRo
   // Should only get called on L blocks
   CkAssert(thisIndex.x >= thisIndex.y);
   // Check for input edge cases
-  if ( (activeCol + offset) >= BLKSIZE || startingRow >= BLKSIZE )
+  if ( (activeCol + offset) >= blkSize || startingRow >= blkSize )
     return;
 #if USE_ESSL || USE_ACML
-  dger(BLKSIZE-(activeCol+offset), BLKSIZE-startingRow,
+  dger(blkSize-(activeCol+offset), blkSize-startingRow,
        -1.0,
        U+offset, 1,
-       &LU[getIndex(startingRow,activeCol)], BLKSIZE,
-       &LU[getIndex(startingRow,activeCol+offset)], BLKSIZE);
+       &LU[getIndex(startingRow,activeCol)], blkSize,
+       &LU[getIndex(startingRow,activeCol+offset)], blkSize);
 #elif USE_ACCELERATE_BLAS
-  for(int j = startingRow; j < BLKSIZE; j++)
-    for(int k = activeCol+offset; k<BLKSIZE; k++)
+  for(int j = startingRow; j < blkSize; j++)
+    for(int k = activeCol+offset; k<blkSize; k++)
       LU[getIndex(j,k)] -=  LU[getIndex(j,activeCol)] * U[k-activeCol];
 #else
   cblas_dger(CblasRowMajor,
-             BLKSIZE-startingRow, BLKSIZE-(activeCol+offset),
+             blkSize-startingRow, blkSize-(activeCol+offset),
              -1.0,
-             &LU[getIndex(startingRow,activeCol)], BLKSIZE,
+             &LU[getIndex(startingRow,activeCol)], blkSize,
              U+offset, 1,
-             &LU[getIndex(startingRow,activeCol+offset)], BLKSIZE);
+             &LU[getIndex(startingRow,activeCol+offset)], blkSize);
 #endif
 }
 
@@ -711,11 +711,11 @@ locval LUBlk::computeMultipliersAndFindColMax(int col, double *U, int startingRo
   CkAssert(thisIndex.x >= thisIndex.y);
   locval maxVal;
   // Check for input edge cases
-  if (col >= BLKSIZE || startingRow >= BLKSIZE)
+  if (col >= blkSize || startingRow >= blkSize)
     return maxVal;
 
-  if (col < BLKSIZE -1) {
-    for (int j = startingRow; j < BLKSIZE; j++) {
+  if (col < blkSize -1) {
+    for (int j = startingRow; j < blkSize; j++) {
       // Compute the multiplier
       LU[getIndex(j,col)]    = LU[getIndex(j,col)] / U[0];
       // Update the immediate next column
@@ -727,10 +727,10 @@ locval LUBlk::computeMultipliersAndFindColMax(int col, double *U, int startingRo
       }
     }
     // Convert local row num to global rownum
-    maxVal.loc += thisIndex.x*BLKSIZE;
+    maxVal.loc += thisIndex.x*blkSize;
   }
   else {
-    for (int j = startingRow; j < BLKSIZE; j++)
+    for (int j = startingRow; j < blkSize; j++)
       LU[getIndex(j,col)]    = LU[getIndex(j,col)] / U[0];
   }
 

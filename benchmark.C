@@ -463,13 +463,13 @@ void BenchmarkLUBlk::initVec() {
   CrnInitStream(&blockStream, seed_A + thisIndex.x*numBlks + thisIndex.y, 0);
   genBlock();
 
-  bvec = new double[BLKSIZE];
+  bvec = new double[blkSize];
 
   seed_b = 9934835;
   genVec(bvec);
 
 #if defined(PRINT_VECTORS)
-  for (int i = 0; i < BLKSIZE; i++) {
+  for (int i = 0; i < blkSize; i++) {
     CkPrintf("memcpy bvec[%d] = %f\n", i, bvec[i]);
   }
 #endif
@@ -480,7 +480,7 @@ void BenchmarkLUBlk::genBlock()
   CrnStream stream;
   memcpy(&stream, &blockStream, sizeof(CrnStream));
 
-  for (double *d = LU; d < LU + BLKSIZE*BLKSIZE; ++d)
+  for (double *d = LU; d < LU + blkSize*blkSize; ++d)
     *d = CrnDouble(&stream);
 }
 
@@ -489,8 +489,8 @@ void BenchmarkLUBlk::genVec(double *buf)
   MatGen rnd(seed_b);
 
   // Skip the blocks before this one
-  rnd.skipNDoubles(thisIndex.x * BLKSIZE);
-  rnd.getNRndDoubles(BLKSIZE, buf);
+  rnd.skipNDoubles(thisIndex.x * blkSize);
+  rnd.getNRndDoubles(blkSize, buf);
 }
 
 void BenchmarkLUBlk::startValidation() {
@@ -506,7 +506,7 @@ void BenchmarkLUBlk::startValidation() {
         CProxySection_BenchmarkLUBlk::ckNew(thisArrayID, 0, numBlks-1,
                                    1, thisIndex.y, thisIndex.y, 1);
 
-      col.recvXvec(BLKSIZE, bvec);
+      col.recvXvec(blkSize, bvec);
     }
 }
 
@@ -524,25 +524,25 @@ void BenchmarkLUBlk::recvXvec(int size, double* xvec) {
   //Regenerate A and place into already allocated LU
   genBlock();
 
-  double *partial_b = new double[BLKSIZE];
+  double *partial_b = new double[blkSize];
 
   //Perform local dgemv
 #if USE_ESSL || USE_ACML
-  dgemv(BLAS_TRANSPOSE, BLKSIZE, BLKSIZE, 1.0, LU, BLKSIZE, xvec, 1, 0.0, partial_b, 1);
+  dgemv(BLAS_TRANSPOSE, blkSize, blkSize, 1.0, LU, blkSize, xvec, 1, 0.0, partial_b, 1);
 #else
   cblas_dgemv( CblasRowMajor, CblasNoTrans,
-               BLKSIZE, BLKSIZE, 1.0, LU,
-               BLKSIZE, xvec, 1, 0.0, partial_b, 1);
+               blkSize, blkSize, 1.0, LU,
+               blkSize, xvec, 1, 0.0, partial_b, 1);
 #endif
 
   //sum-reduction of result across row with diagonal element as target
-  thisProxy(thisIndex.x,thisIndex.x).sumBvec(BLKSIZE,partial_b);
+  thisProxy(thisIndex.x,thisIndex.x).sumBvec(blkSize,partial_b);
   delete[] partial_b;
 
   //if you are not the diagonal, find your max A value and contribute
   if(thisIndex.x != thisIndex.y) {
     //find local max of A
-    double A_max = infNorm(BLKSIZE * BLKSIZE, LU);
+    double A_max = infNorm(blkSize * blkSize, LU);
     VERBOSE_VALIDATION("[%d,%d] A_max  = %e\n",thisIndex.x,thisIndex.y,A_max);
 
     double maxvals[4];
@@ -560,8 +560,8 @@ void BenchmarkLUBlk::sumBvec(int size, double* partial_b) {
 
   //Clear bvec before first message processed for sum-reduction
   if(msgsRecvd == 0) {
-    Ax = new double[BLKSIZE];
-    memset(Ax, 0, BLKSIZE*sizeof(double));
+    Ax = new double[blkSize];
+    memset(Ax, 0, blkSize*sizeof(double));
   }
 
   //Sum up messages
@@ -579,23 +579,23 @@ void BenchmarkLUBlk::sumBvec(int size, double* partial_b) {
 }
 
 void BenchmarkLUBlk::calcResiduals() {
-  b = new double[BLKSIZE];
+  b = new double[blkSize];
   genVec(b);
-  double *residuals = new double[BLKSIZE];
+  double *residuals = new double[blkSize];
 
   //diagonal elements that received sum-reduction perform b - A*x
-  for (int i = 0; i < BLKSIZE; i++) {
+  for (int i = 0; i < blkSize; i++) {
     residuals[i] = b[i] - Ax[i];
     //		  if(fabs(residuals[i]) > 1e-14 || std::isnan(residuals[i]) || std::isinf(residuals[i]))
-    //			  CkPrintf("WARNING: Large Residual for x[%d]: %f - %f = %e\n", thisIndex.x*BLKSIZE+i, b[i], bvec[i], residuals[i]);
+    //			  CkPrintf("WARNING: Large Residual for x[%d]: %f - %f = %e\n", thisIndex.x*blkSize+i, b[i], bvec[i], residuals[i]);
   }
 
   //find local max values
-  double A_max = infNorm(BLKSIZE * BLKSIZE, LU);
-  double b_max = infNorm(BLKSIZE, b);
+  double A_max = infNorm(blkSize * blkSize, LU);
+  double b_max = infNorm(blkSize, b);
   delete[] b;
-  double x_max = infNorm(BLKSIZE, bvec);
-  double res_max = infNorm(BLKSIZE, residuals);
+  double x_max = infNorm(blkSize, bvec);
+  double res_max = infNorm(blkSize, residuals);
   delete[] residuals;
   VERBOSE_VALIDATION("[%d,%d] A_max  = %e\n",thisIndex.x,thisIndex.y,A_max);
   VERBOSE_VALIDATION("[%d,%d] b_max  = %e\n",thisIndex.x,thisIndex.y,b_max);

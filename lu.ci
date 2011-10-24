@@ -87,7 +87,7 @@ module lu {
       }
       for (internalStep = 0; internalStep < min(thisIndex.x, thisIndex.y); internalStep++) {
         // Receive and process batches of pivot operations sent out by the current active diagonal chare
-        while (pivotBatchTag < (internalStep+1)*BLKSIZE) {
+        while (pivotBatchTag < (internalStep+1)*blkSize) {
           // Wait for msg carrying the next batch of pivot ops
           when applyTrailingPivots[pivotBatchTag](pivotSequencesMsg *msg) {
             // Send out any pivot data owned by this chare
@@ -99,8 +99,8 @@ module lu {
             while (pendingIncomingPivots > 0) {
               when trailingPivotRowsSwap[pivotBatchTag](pivotRowsMsg *aMsg) atomic "acceptIncomingPivots_trailingChare" {
                 for (int i = 0; i < aMsg->nRows; i++) {
-                  CkAssert(thisIndex.x == aMsg->rowNum[i]/BLKSIZE);
-                  applySwap(aMsg->rowNum[i]%BLKSIZE, 0, &(aMsg->rows[i*BLKSIZE]), aMsg->rhs[i]);
+                  CkAssert(thisIndex.x == aMsg->rowNum[i]/blkSize);
+                  applySwap(aMsg->rowNum[i]%blkSize, 0, &(aMsg->rows[i*blkSize]), aMsg->rhs[i]);
                   pendingIncomingPivots--;
                   VERY_VERBOSE_PIVOT_AGGLOM("[%d,%d] received pivot row %d for batch %d. %d pending\n",
                                             thisIndex.x, thisIndex.y, aMsg->rowNum[i], pivotBatchTag, pendingIncomingPivots);
@@ -150,7 +150,7 @@ module lu {
 
     entry [local] void factorAboveDiagBlock() {
       // Receive and process each pivot selection sent out by the current diagonal block
-      while (pivotBatchTag < (internalStep+1)*BLKSIZE) {
+      while (pivotBatchTag < (internalStep+1)*blkSize) {
         // Wait for msg carrying the next batch of pivot ops
         when applyTrailingPivots[pivotBatchTag](pivotSequencesMsg *msg) {
           // Send out any pivot data owned by this chare
@@ -162,8 +162,8 @@ module lu {
           while (pendingIncomingPivots > 0) {
             when trailingPivotRowsSwap[pivotBatchTag](pivotRowsMsg *aMsg) atomic "acceptIncomingPivots_activeRowChare" {
               for (int i = 0; i < aMsg->nRows; i++) {
-                CkAssert(thisIndex.x == aMsg->rowNum[i]/BLKSIZE);
-                applySwap(aMsg->rowNum[i]%BLKSIZE, 0, &(aMsg->rows[i*BLKSIZE]), aMsg->rhs[i]);
+                CkAssert(thisIndex.x == aMsg->rowNum[i]/blkSize);
+                applySwap(aMsg->rowNum[i]%blkSize, 0, &(aMsg->rows[i*blkSize]), aMsg->rhs[i]);
                 pendingIncomingPivots--;
                 VERY_VERBOSE_PIVOT_AGGLOM("[%d,%d] received pivot row %d for batch %d. %d pending\n",
                                           thisIndex.x, thisIndex.y, aMsg->rowNum[i], pivotBatchTag, pendingIncomingPivots);
@@ -222,7 +222,7 @@ module lu {
         pendingUmsg = NULL;
       }
       // Work in the active column of the chare array proceeds column-by-column through the matrix
-      for (activeCol = 0; activeCol < BLKSIZE; activeCol++) {
+      for (activeCol = 0; activeCol < blkSize; activeCol++) {
         atomic "below_find_pivot" {
           // Contribute to a reduction along the active panel to identify the pivot row
           mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
@@ -249,7 +249,7 @@ module lu {
         when USegCompute(UMsg* anUmsg) atomic "below_recv_useg" {
           // Release the pivotRowSwap trigger to free memory
           if (!ownedPivotThisStep)
-            thisProxy(thisIndex).pivotRowSwap(internalStep*BLKSIZE + activeCol, -1, 0, NULL, -1, true);
+            thisProxy(thisIndex).pivotRowSwap(internalStep*blkSize + activeCol, -1, 0, NULL, -1, true);
           if (activeCol == 0) {
             DEBUG_PRINT("startedActivePanel");
             localScheduler->startedActivePanel();
@@ -267,7 +267,7 @@ module lu {
         multicastRecvL();
         factored = true;
         localScheduler->factorizationDone(thisIndex);
-        pivotBatchTag += BLKSIZE;
+        pivotBatchTag += blkSize;
       }
 
       while (blockPulled < numBlks-thisIndex.y-1) {
@@ -276,7 +276,7 @@ module lu {
 
       for (internalStep++; internalStep <= thisIndex.x; internalStep++) {
         // Receive and process batches of pivot operations sent out by the current active diagonal chare
-        while (pivotBatchTag < (internalStep+1)*BLKSIZE) {
+        while (pivotBatchTag < (internalStep+1)*blkSize) {
           // Wait for msg carrying the next batch of pivot ops
           when applyTrailingPivots[pivotBatchTag](pivotSequencesMsg *msg) {
             // Send out any pivot data owned by this chare
@@ -288,8 +288,8 @@ module lu {
             while (pendingIncomingPivots > 0) {
               when trailingPivotRowsSwap[pivotBatchTag](pivotRowsMsg *aMsg) atomic "acceptIncomingPivots_leftSectionChare" {
                 for (int i = 0; i < aMsg->nRows; i++) {
-                  CkAssert(thisIndex.x == aMsg->rowNum[i]/BLKSIZE);
-                  applySwap(aMsg->rowNum[i]%BLKSIZE, 0, &(aMsg->rows[i*BLKSIZE]), aMsg->rhs[i]);
+                  CkAssert(thisIndex.x == aMsg->rowNum[i]/blkSize);
+                  applySwap(aMsg->rowNum[i]%blkSize, 0, &(aMsg->rows[i*blkSize]), aMsg->rhs[i]);
                   pendingIncomingPivots--;
                   VERY_VERBOSE_PIVOT_AGGLOM("[%d,%d] received pivot row %d for batch %d. %d pending\n",
                                             thisIndex.x, thisIndex.y, aMsg->rowNum[i], pivotBatchTag, pendingIncomingPivots);
@@ -312,7 +312,7 @@ module lu {
 
     entry void factorDiagBlock() {
       atomic {
-        CkAssert(pivotBatchTag == thisIndex.x*BLKSIZE);
+        CkAssert(pivotBatchTag == thisIndex.x*blkSize);
         pivotRecords.clear();
         numRowsSinceLastPivotSend = 0;
         // Find the pivot candidate for just the first column in the block
@@ -325,9 +325,9 @@ module lu {
         }
       }
       // Process matrix column-by-column
-      for (activeCol = 0; activeCol < BLKSIZE; ++activeCol) {
+      for (activeCol = 0; activeCol < blkSize; ++activeCol) {
         atomic "diag_find_colmax" {
-          VERBOSE_PROGRESS(" ..col%d ", thisIndex.x*BLKSIZE + activeCol);
+          VERBOSE_PROGRESS(" ..col%d ", thisIndex.x*blkSize + activeCol);
           // Contribute to a redn along the pivot section to identify the pivot row
           mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
           if (activeCol % 20 == 0) {
@@ -350,34 +350,34 @@ module lu {
 	    pivotCandidate = *(locval *)(m->getData());
             delete m;
 	  }
-	  if (pivotCandidate.loc / BLKSIZE == thisIndex.x) {
+	  if (pivotCandidate.loc / blkSize == thisIndex.x) {
 	    // Now, send the post-diagonal portion of the pivot row (a segment of U) to all active panel brethren
 	    // so that they can start updating their sub-blocks right away
 	    atomic "diag_send_useg" {
-	      UMsg *anUmsg = new(BLKSIZE - activeCol, sizeof(int)*8) UMsg(BLKSIZE - activeCol, &LU[getIndex(pivotCandidate.loc%BLKSIZE,activeCol)]);
+	      UMsg *anUmsg = new(blkSize - activeCol, sizeof(int)*8) UMsg(blkSize - activeCol, &LU[getIndex(pivotCandidate.loc%blkSize,activeCol)]);
               mgr->setPrio(anUmsg, DIAG_SEND_USEG);
 	      activePanel.USegCompute(anUmsg);
 	    }
 	    // Perform the local pivoting
-	    atomic "diag_local_pivot" { swapLocal(activeCol, pivotCandidate.loc % BLKSIZE); }
+	    atomic "diag_local_pivot" { swapLocal(activeCol, pivotCandidate.loc % blkSize); }
 	  } else {
 	    // Send pivot data to remote chare in active panel
 	    atomic "diag_send_remote_pivot" {
 	      // Trigger swap of data
 	      CkEntryOptions opts;
-	      thisProxy(pivotCandidate.loc / BLKSIZE, thisIndex.y)
-		.pivotRowSwap(internalStep*BLKSIZE + activeCol, pivotCandidate.loc, BLKSIZE,
-			      &LU[getIndex((activeCol + BLKSIZE * thisIndex.y) % BLKSIZE,0)],
-			      bvec[(activeCol + BLKSIZE * thisIndex.y) % BLKSIZE], false,
+	      thisProxy(pivotCandidate.loc / blkSize, thisIndex.y)
+		.pivotRowSwap(internalStep*blkSize + activeCol, pivotCandidate.loc, blkSize,
+			      &LU[getIndex((activeCol + blkSize * thisIndex.y) % blkSize,0)],
+			      bvec[(activeCol + blkSize * thisIndex.y) % blkSize], false,
                               &(mgr->setPrio(DIAG_SEND_PIVOT, opts)));
 	    }
-	    when pivotRowSwap[internalStep*BLKSIZE + activeCol](int rowIndex, int pivotRow, int len,
+	    when pivotRowSwap[internalStep*blkSize + activeCol](int rowIndex, int pivotRow, int len,
                                                                 const double data[len], double b, bool noop)
             atomic "diag_receive_remote_pivot" {
               CkAssert(!noop);
 
 #if !defined(CHARMLU_USEG_FROM_BELOW)
-	      UMsg *anUmsg = new(BLKSIZE - activeCol, sizeof(int)*8) UMsg(BLKSIZE - activeCol, data + activeCol);
+	      UMsg *anUmsg = new(blkSize - activeCol, sizeof(int)*8) UMsg(blkSize - activeCol, data + activeCol);
               mgr->setPrio(anUmsg, DIAG_SEND_USEG);
 	      activePanel.USegCompute(anUmsg);
 #endif
@@ -388,9 +388,9 @@ module lu {
 
         atomic "diag_agglomerate_pivots" {
           // Store the pivot information
-          recordPivot(thisIndex.y*BLKSIZE + activeCol, pivotCandidate.loc);
+          recordPivot(thisIndex.y*blkSize + activeCol, pivotCandidate.loc);
           // at opportune steps, send out the agglomerated pivot ops
-          if (shouldSendPivots() || activeCol == BLKSIZE-1)
+          if (shouldSendPivots() || activeCol == blkSize-1)
             announceAgglomeratedPivots();
         }
 
@@ -423,8 +423,8 @@ module lu {
         if (thisIndex.x < numBlks-1 && thisIndex.y < numBlks-1) {
           DEBUG_PRINT("is top,left block this step, multicast L");
           if (isOnDiagonal) {
-            blkMsg *msg = new (BLKSIZE * BLKSIZE, 0, mgr->bitsOfPrio()) blkMsg(thisIndex);
-            memcpy(msg->data, LU, sizeof(double) * BLKSIZE * BLKSIZE);
+            blkMsg *msg = new (blkSize * blkSize, 0, mgr->bitsOfPrio()) blkMsg(thisIndex);
+            memcpy(msg->data, LU, sizeof(double) * blkSize * blkSize);
             thisProxy(thisIndex.x, thisIndex.y + 1).triangularSolve(msg);
           }
           // Multicast the local block of L rightwards to the blocks in the same row
@@ -439,29 +439,29 @@ module lu {
 
     entry void belowPivot(int targetCol) {
       // Wait for the replacement row from the diagonal chare so that you have the updated block
-      when pivotRowSwap[internalStep*BLKSIZE + targetCol](int rowIndex, int pivotRow, int len, double data[len],
+      when pivotRowSwap[internalStep*blkSize + targetCol](int rowIndex, int pivotRow, int len, double data[len],
                                                           double b, bool noop) {
         if (!noop) {
           atomic "below_send_remote_pivot" {
 	    ownedPivotThisStep = true;
-            CkAssert(pivotRow / BLKSIZE == thisIndex.x);
+            CkAssert(pivotRow / blkSize == thisIndex.x);
             CkEntryOptions opts;
             thisProxy(thisIndex.y, thisIndex.y)
-              .pivotRowSwap(internalStep*BLKSIZE + targetCol, pivotRow, BLKSIZE,
-                            &LU[getIndex(pivotRow % BLKSIZE,0)], bvec[pivotRow % BLKSIZE], false,
+              .pivotRowSwap(internalStep*blkSize + targetCol, pivotRow, blkSize,
+                            &LU[getIndex(pivotRow % blkSize,0)], bvec[pivotRow % blkSize], false,
                             &(mgr->setPrio(SEND_PIVOT_DATA, opts)));
           }
           atomic "below_send_useg" {
 #if defined(CHARMLU_USEG_FROM_BELOW)
-            UMsg *anUmsg = new(BLKSIZE - targetCol, sizeof(int)*8) UMsg(BLKSIZE - targetCol, &LU[getIndex(pivotRow % BLKSIZE,targetCol)]);
-            mgr->setPrio(anUmsg, BELOW_SEND_USEG, internalStep*BLKSIZE + targetCol);
-            CkSetRefNum(anUmsg, internalStep*BLKSIZE + targetCol);
+            UMsg *anUmsg = new(blkSize - targetCol, sizeof(int)*8) UMsg(blkSize - targetCol, &LU[getIndex(pivotRow % blkSize,targetCol)]);
+            mgr->setPrio(anUmsg, BELOW_SEND_USEG, internalStep*blkSize + targetCol);
+            CkSetRefNum(anUmsg, internalStep*blkSize + targetCol);
             pendingUmsg = (UMsg*)CkCopyMsg((void**)(&anUmsg));
             activePanel.USegCompute(anUmsg);
 #endif
           }
           atomic "below_recv_remote_pivot" {
-            applySwap(pivotRow % BLKSIZE, 0, data, b);
+            applySwap(pivotRow % blkSize, 0, data, b);
 #if defined(CHARMLU_USEG_FROM_BELOW)
             thisProxy[thisIndex].USegCompute(pendingUmsg);
 #endif
@@ -513,7 +513,7 @@ module lu {
         // All except the first diag chare have to wait for their row reductions
         when recvSolveData[thisIndex.x](CkReductionMsg *m) atomic {
           double *preVec = (double*) ( m->getData() );
-          for (int i = 0; i < BLKSIZE; i++)
+          for (int i = 0; i < blkSize; i++)
             bvec[i] -= preVec[i];
           delete m;
         }
@@ -522,7 +522,7 @@ module lu {
         localForward(bvec);
         if (thisIndex.x != numBlks-1) {
           // Broadcast downward from diagonal
-          BVecMsg *m = new (BLKSIZE) BVecMsg(BLKSIZE, bvec, true);
+          BVecMsg *m = new (blkSize) BVecMsg(blkSize, bvec, true);
           activePanel.offDiagSolve(m);
         }
         thisProxy(thisIndex).backwardSolve();
@@ -534,7 +534,7 @@ module lu {
         // All except the last diag chare have to wait for their row reductions
         when recvSolveData[thisIndex.x](CkReductionMsg *m) atomic {
           double *preVec = (double*) ( m->getData() );
-          for (int i = 0; i < BLKSIZE; i++)
+          for (int i = 0; i < blkSize; i++)
             bvec[i] -= preVec[i];
           delete m;
         }
@@ -551,7 +551,7 @@ module lu {
                                                                0, thisIndex.x-1, 1,
                                                                thisIndex.y, thisIndex.y, 1);
           col.ckSectionDelegate(mcastMgr);
-          BVecMsg *m = new (BLKSIZE) BVecMsg(BLKSIZE, bvec, false);
+          BVecMsg *m = new (blkSize) BVecMsg(blkSize, bvec, false);
           col.offDiagSolve(m);
         }
       }
