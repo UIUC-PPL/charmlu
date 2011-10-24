@@ -21,9 +21,6 @@ public:
     , peTileStride(0)
     , memThreshold(0)
     , mappingScheme(0)
-    , tracePeriodFraction(0.25)
-    , numStepsToTrace(3)
-    , numTimesToTrace(1 + 1.0 / tracePeriodFraction)
   { }
 
   /// Serialization function
@@ -38,9 +35,6 @@ public:
     p | peTileStride;
     p | memThreshold;
     p | mappingScheme;
-    p | tracePeriodFraction;
-    p | numStepsToTrace;
-    p | numTimesToTrace;
     p | traceTrailingUpdate;
     p | traceComputeU;
     p | traceComputeL;
@@ -70,12 +64,6 @@ public:
   int memThreshold;
   /// The mapping scheme
   int mappingScheme;
-  /// The period (as a fraction of numBlocks) with which to toggle tracing
-  double tracePeriodFraction;
-  /// The number of active panels to trace each time
-  int numStepsToTrace;
-  /// The number of times when tracing will be active (computed from above two)
-  int numTimesToTrace;
   /// Projections user event ID for trailing updates
   int traceTrailingUpdate;
   /// Projections user event ID for triangular solves on active row

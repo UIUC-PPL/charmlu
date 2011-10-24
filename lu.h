@@ -89,12 +89,6 @@ public:
 #endif
   }
 
-  void traceOn() {
-#if defined(LU_TRACING)
-    traceBegin();
-#endif
-  }
-
   void flushLogs();
   void init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
 	    CkCallback initDone, CkCallback fznDone, CkCallback slnDone);

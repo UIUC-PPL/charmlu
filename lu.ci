@@ -45,12 +45,7 @@ module lu {
         // else if its below the matrix diagonal
         else if (isBelowDiagonal()) atomic { thisProxy[thisIndex].factorBelowDiagBlock(); }
         // else, this block is on the matrix diagonal
-        else atomic {
-          if (STOP_AFTER == thisIndex.x)
-            CkStartQD(CkCallback(CkCallback::ckExit));
-          else
-            thisProxy[thisIndex].factorDiagBlock();
-        }
+        else                        atomic { thisProxy[thisIndex].factorDiagBlock(); }
       }
     };
 
@@ -81,7 +76,6 @@ module lu {
       // before the diagonal chare on its row / column becomes active in the factorization process
       //-----------------------------------------------------------------------
       atomic {
-        traceOn();
         startTime = CmiWallTimer();
         pivotBatchTag = 0;
       }
@@ -305,12 +299,6 @@ module lu {
         numRowsSinceLastPivotSend = 0;
         // Find the pivot candidate for just the first column in the block
         pivotCandidate = findMaxElm(0, 0);
-        // Toggle projections tracing when necessary
-        if ((cfg.numBlocks > cfg.numTimesToTrace * cfg.numStepsToTrace) &&
-            (thisIndex.x % int(cfg.tracePeriodFraction * cfg.numBlocks) == cfg.numStepsToTrace)) {
-          traceToggler::stop();
-          DEBUG_PRINT("Suspending projections tracing");
-        }
       }
       // Process matrix column-by-column
       for (activeCol = 0; activeCol < blkSize; ++activeCol) {
