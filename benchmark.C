@@ -413,18 +413,16 @@ public:
   }
 };
 
-struct BenchmarkLUBlk : public CBase_BenchmarkLUBlk
-{
+struct BenchmarkLUBlk : public CBase_BenchmarkLUBlk {
   BenchmarkLUBlk(CProxy_LUSolver solver) : mainProxy(solver), msgsRecvd(0) { }
   BenchmarkLUBlk(CkMigrateMessage *) { }
 
   CProxy_LUSolver mainProxy;
 
-  //VALIDATION: count of the number of point-to-point messages rcvd in a row
+  /// Validation: count of the number of messages received in a row
   int msgsRecvd;
-  //VALIDATION: variable to hold Ax
   double *Ax;
-  //VALIDATION: variable to hold copy of untouched b vector (allocated during validation)
+  /// Copy of untouched 'b' vector (allocated during validation)
   double *b;
 
   /// Random data generation
@@ -436,7 +434,6 @@ struct BenchmarkLUBlk : public CBase_BenchmarkLUBlk
   void genVec(double *buf);
 
   /// Validation
-
   void startValidation();
   void recvXvec(int size, double* xvec);
   void sumBvec(int size, double* partial_b);
@@ -453,7 +450,7 @@ void BenchmarkLUBlk::initVec() {
   LU = LUmsg->data;
   thisProxy(thisIndex).dataReady(0);
 
-  //VALIDATION: saved seed value to use for validation
+  // Save seed value to use for validation
   seed_A = 2998389;
   CrnInitStream(&blockStream, seed_A + thisIndex.x*numBlks + thisIndex.y, 0);
   genBlock();
@@ -473,8 +470,7 @@ void BenchmarkLUBlk::genBlock()
     *d = CrnDouble(&stream);
 }
 
-void BenchmarkLUBlk::genVec(double *buf)
-{
+void BenchmarkLUBlk::genVec(double *buf) {
   MatGen rnd(seed_b);
 
   // Skip the blocks before this one
