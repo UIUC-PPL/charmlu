@@ -236,7 +236,7 @@ void LUBlk::requestBlock(int pe, int rx, int ry) {
   requestingPEs.push_back(pe);
   if (factored) {
     bool onActive = false;
-    if      (isBelowDiagonal() && internalStep == thisIndex.y)
+    if (isBelowDiagonal() && internalStep == thisIndex.y)
       onActive = true;
     else if (isAboveDiagonal() && internalStep == thisIndex.y - 1)
       onActive = true;
