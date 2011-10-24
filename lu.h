@@ -48,24 +48,13 @@ static inline void dropRef(void *m) {
  */
 class LUBlk: public CBase_LUBlk {
 public:
-  //------------------------- Factorization Phase -----------------------------
-  /// Perform trailing update based on input matrices (dgemm)
-  void updateMatrix(double *incomingL, double *incomingU);
-  /// Performs the triangular solve required to compute a block of the U matrix (dtrsm)
-  void computeU(double *LMsg);
   /// Broadcast the U downwards to the blocks in the same column
   void setupMsg(bool reverse);
-  /// Schedule U to be sent downward to the blocks in the same column
-  void scheduleDownwardU();
-  // Schedule L to be sent rightwards to the blocks in the same row
-  void scheduleRightwardL();
-  ///
+  /// Sends out the block to requesting PE if / when this block has been factored
   void requestBlock(int pe, int rx, int ry);
-  ///
+  /// Gives the local scheduler object access to this block's data
   double *accessLocalBlock();
-
-  // ------------------------- Solve Phase ------------------------------------
-  ///
+  /// For off-diagonal blocks, this performs the computations required for fwd and bkwd solves
   void offDiagSolve(BVecMsg *m);
 
   LUBlk()
@@ -165,6 +154,14 @@ protected:
   LUBlk_SDAG_CODE
 
   private:
+  /// Perform trailing update based on input matrices (dgemm)
+  void updateMatrix(double *incomingL, double *incomingU);
+  /// Performs the triangular solve required to compute a block of the U matrix (dtrsm)
+  void computeU(double *LMsg);
+  /// Schedule U to be sent downward to the blocks in the same column
+  void scheduleDownwardU();
+  // Schedule L to be sent rightwards to the blocks in the same row
+  void scheduleRightwardL();
   // Copy received pivot data into its place in this block
   void applySwap(int row, int offset, const double *data, double b);
   // Exchange local data
