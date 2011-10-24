@@ -155,8 +155,7 @@ struct Benchmark : public CBase_Benchmark {
              SEND_LIM,
              luCfg.mappingScheme,
              luCfg.mappingScheme == 1 ? "Balanced Snake" :
-             (luCfg.mappingScheme==2 ? "Block Cyclic" :
-              (luCfg.mappingScheme == 3 ? "2D Tiling" : "Strong Scaling"))
+             (luCfg.mappingScheme == 2 ? "Block Cyclic" : "2D Tiling")
              );
     if (luCfg.mappingScheme == 3)
       CkPrintf("\tMapping PE tile size: %d x %d"
@@ -281,9 +280,6 @@ public:
         map = CProxy_PE2DTilingMap::ckNew(luCfg.peTileRows, luCfg.peTileCols,
                                           luCfg.peTileRotate, luCfg.peTileStride,
 					  luCfg.numBlocks);
-        break;
-      case 4:
-        map = CProxy_StrongScaling1::ckNew(luCfg.numBlocks);
         break;
       default:
         CkAbort("Unrecognized mapping scheme specified");

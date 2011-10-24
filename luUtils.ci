@@ -51,9 +51,5 @@ module luUtils {
     entry PE2DTilingMap(int _peRows, int _peCols, int _peRotate, int _peStride,
 			int _numBlks);
   };
-
-  group StrongScaling1: LUMap {
-    entry StrongScaling1(int numBlks_);
-  };
 };
 
