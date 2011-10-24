@@ -115,7 +115,9 @@ module lu {
     entry void trailingPivotRowsSwap(pivotRowsMsg *msg);
     entry [local] void pivotBatchDone(int tag);
 
-    // Describes the control flow for all (super, sub and on diagonal) LU chares
+    // Describes the control flow of alternating pivoting and trailing
+    // updates for all LUBlk chares before they become part of the
+    // active panel.
     entry [local] void updateUntilActive() {
       //-----------------------------------------------------------------------
       // Each chare in the array has to process these many trailing
@@ -131,9 +133,10 @@ module lu {
 
         // After a panel's worth of pivots have arrived, this block is
         // ready to execute a trailing update. We let the local
-        // scheduler dictate when that should happen, to avoid
-        // interfering with another local block working in the
-        // latency-sensitive active panel.
+        // scheduler dictate when that should happen, to let it
+        // control memory consumption and avoid interfering with
+        // another local block working in the latency-sensitive active
+        // panel.
         when pivotBatchDone[0](int tag) atomic { updateExecuted = false; }
         while (!updateExecuted) {
           when processTrailingUpdate[internalStep](int step, intptr_t update_ptr)
@@ -154,21 +157,26 @@ module lu {
       atomic { thisProxy[thisIndex].amActive(true); }
     };
 
+    // Describes the control flow of above-diagonal blocks after
+    // they've completed their prescribed trailing updates.
     entry [local] void factorAboveDiagBlock() {
+      // Do one last batch of pivots, from the diagonal on this row
       atomic { thisProxy[thisIndex].pivotBatch(1); }
 
       // After the associated panel's pivots have all arrived, this
-      // block can perform its triangular solve. If the next active
-      // panel depends on these results, execute eagerly to avoid
-      // delaying the work-exposing critical path. Otherwise, let the
-      // local scheduler control that, to avoid invonceniencing an
-      // active panel factorization.
+      // block can perform its triangular solve.
+      //
+      // If the next active panel depends on these results, execute
+      // eagerly to avoid delaying the work-exposing critical path.
       when pivotBatchDone[1](int tag) if (thisIndex.y == thisIndex.x + 1) {
         when triangularSolve(blkMsg* m) atomic "triangular_solve" {
           computeU(m->data);
           delete m;
         }
       } else {
+        // Otherwise, let the local scheduler direct execution, to
+        // let it limit memory consumption and avoid inconveniencing
+        // an active panel factorization.
         atomic { updateExecuted = false; }
         while (!updateExecuted) {
           when processComputeU(intptr_t update_ptr) atomic "process_compute_U" {
