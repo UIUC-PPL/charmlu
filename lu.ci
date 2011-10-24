@@ -202,6 +202,8 @@ module lu {
       // Swallow excess pivots message broadcast to the entire array
       while (true) { when applyTrailingPivots(pivotSequencesMsg *msg) { } }
     };
+    // Method for delivering triangular solve data
+    entry void triangularSolve(blkMsg* m);
 
     // Below diagonal
     entry [local] void factorBelowDiagBlock() {
@@ -521,9 +523,6 @@ module lu {
     // computation) should execute.
     entry void processTrailingUpdate(int step, intptr_t update_ptr);
     entry void processComputeU(intptr_t update_ptr);
-
-    // Method for delivering triangular solve data
-    entry void triangularSolve(blkMsg* m);
 
     // Inform the BlockScheduler when a block for a trailing update has be consumed
     entry void blockUsed(int);
