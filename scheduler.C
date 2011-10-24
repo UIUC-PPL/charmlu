@@ -49,7 +49,6 @@ BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMg
 
 void BlockScheduler::scheduleSend(blkMsg *msg, bool onActive) {
   list<blkMsg *>::iterator iter = find(scheduledSends.begin(), scheduledSends.end(), msg);
-  DEBUG_SCHED("scheduling a new send (%d, %d)", msg->src.x, msg->src.y);
   if (iter == scheduledSends.end()) {
     scheduledSends.push_back(msg);
   }
@@ -100,7 +99,6 @@ void BlockScheduler::pumpMessages() {
     CkAssert(ref > 0 && ref <= 2);
     if (ref == 1) {
       if (!msg->firstHalfSent) {
-        DEBUG_SCHED("%p calling propagate on second half", *iter);
         msg->firstHalfSent = true;
         propagateBlkMsg(msg);
       } else {
@@ -130,7 +128,6 @@ void BlockScheduler::pumpMessages() {
     if (find(sendsInFlight.begin(), sendsInFlight.end(), *iter) ==
         sendsInFlight.end()) {
       sendsInFlight.push_back(*iter);
-      DEBUG_SCHED("%p calling propagate on first half", *iter);
       propagateBlkMsg(*iter);
       iter = scheduledSends.erase(iter);
     }
@@ -138,8 +135,6 @@ void BlockScheduler::pumpMessages() {
 
   if (sendsInFlight.size() != 0 || scheduledSends.size() != 0) {
     CcdCallOnCondition(CcdPROCESSOR_STILL_IDLE, pumpOnIdle, this);
-  } else {
-    DEBUG_SCHED("finished all sends");
   }
 
   inPumpMessages = false;
@@ -273,12 +268,8 @@ void BlockScheduler::getBlock(int srcx, int srcy, double *&data,
   LUBlk *local = luArr(srcx, srcy).ckLocal();
   if (local) {
     if (local->factored) {
-      DEBUG_SCHED("Found block (%d, %d) ready locally for update to (%d,%d)",
-		  srcx, srcy, update->target->ix, update->target->iy);
       data = local->accessLocalBlock();
     } else {
-      DEBUG_SCHED("Found block (%d, %d) pending locally for update to (%d,%d)",
-		  srcx, srcy, update->target->ix, update->target->iy);
       localWantedBlocks[make_pair(srcx, srcy)].push_back(update);
     }
     return;
@@ -291,21 +282,17 @@ void BlockScheduler::getBlock(int srcx, int srcy, double *&data,
 
   if (block.refs.size() == 1 && !block.isSending) {
     // First reference to this block, so ask for it
-    DEBUG_SCHED("requesting getBlock from (%d, %d)", srcx, srcy);
     CkEntryOptions opts;
     luArr(src.first, src.second).requestBlock(CkMyPe(), update->target->ix, update->target->iy,
                                               &(mgr->setPrio(GET_BLOCK, opts)));
   }
 
   if (block.m) {
-    DEBUG_SCHED("already ARRIVED from (%d, %d)", srcx, srcy);
     update->tryDeliver(srcx, srcy, block.data);
   }
 }
 
 void BlockScheduler::deliverBlock(blkMsg *m) {
-  DEBUG_SCHED("deliverBlock src (%d, %d)", m->src.x, m->src.y);
-
   CkAssert(wantedBlocks.find(make_pair(m->src)) != wantedBlocks.end());
   wantedBlock &block = wantedBlocks[make_pair(m->src)];
   block.m = m;
@@ -313,8 +300,6 @@ void BlockScheduler::deliverBlock(blkMsg *m) {
 
   for (list<Update*>::iterator update = block.refs.begin();
        update != block.refs.end(); ++update) {
-    DEBUG_SCHED("tryDeliver of (%d,%d) to (%d,%d) @ %d", m->src.x, m->src.y,
-		(*update)->target->ix, (*update)->target->iy, (*update)->t);
     (*update)->tryDeliver(m->src.x, m->src.y, m->data);
   }
 
@@ -344,9 +329,6 @@ void BlockScheduler::propagateBlkMsg(blkMsg *m) {
     }
   }
 
-  DEBUG_SCHED("(%d, %d): propagateBlkMsg npes = %p, firstHalfSent = %s",
-              m->src.x, m->src.y, m->pes, m->firstHalfSent ? "true" : "false");
-
   if (!m->firstHalfSent) {
     LUBlk *block = luArr[m->src].ckLocal();
     if (block != NULL) {
@@ -361,11 +343,6 @@ void BlockScheduler::propagateBlkMsg(blkMsg *m) {
     m->offset += m->npes_receiver;
     m->npes_receiver = secondHalf;
   }
-
-  DEBUG_SCHED("Delivering to processors, offset = %d, num = %d",
-              m->offset, m->npes_receiver);
-  for (int i = 0; i < m->npes_receiver; ++i)
-    DEBUG_SCHED("\t%d", m->pes[i + m->offset]);
 
   if (m->npes_receiver >= 1) {
     takeRef(m);
@@ -415,7 +392,6 @@ void BlockScheduler::runUpdate(list<Update>::iterator iter) {
 void BlockScheduler::updateDone(intptr_t update_ptr) {
   Update &update = *(Update *)update_ptr;
   int tx = update.target->ix, ty = update.target->iy;
-  DEBUG_SCHED("updateDone on (%d,%d)", tx, ty);
 
   dropRef(tx, update.t, &update);
   if (!update.isComputeU())
@@ -447,8 +423,6 @@ bool BlockScheduler::shouldExecute() {
 }
 
 void BlockScheduler::factorizationDone(CkIndex2D index) {
-  DEBUG_SCHED("factorizationDone on (%d,%d)", index.x, index.y);
-
   if (index.x >= index.y)
     numActive--;
 
@@ -460,8 +434,6 @@ void BlockScheduler::factorizationDone(CkIndex2D index) {
 
     for (list<Update*>::iterator wanter = wantList.begin();
 	 wanter != wantList.end(); ++wanter) {
-      DEBUG_SCHED("tryDeliver of (%d,%d) to (%d,%d) @ %d", index.x, index.y,
-		  (*wanter)->target->ix, (*wanter)->target->iy, (*wanter)->t);
       (*wanter)->tryDeliver(index.x, index.y, luArr(index).ckLocal()->accessLocalBlock());
     }
 
@@ -480,7 +452,6 @@ bool eligibilityYOrder(const BlockState& block1, const BlockState& block2) {
 }
 
 void BlockScheduler::progress() {
-  DEBUG_SCHED("Called progress, already? %s", inProgress? "true" : "false" );
   // Prevent re-entrance
   if (inProgress) return;
   inProgress = true;
@@ -493,14 +464,6 @@ void BlockScheduler::progress() {
     while (wantedBlocks.size() < blockLimit && plannedAnything) {
       plannedAnything = false;
       if (localBlocks.size() > 0) {
-	DEBUG_SCHED("Local Blocks: ");
-	for (StateList::iterator block = localBlocks.begin(); block != localBlocks.end();
-	     ++block) {
-	  DEBUG_SCHED("\t(%d,%d), deps: %d, updatesCompleted %d, updatesPlanned %d",
-		      block->ix, block->iy, block->pendingDependencies.size(),
-		      block->updatesCompleted, block->updatesPlanned);
-	}
-
         localBlocks.sort(eligibilityYOrder);
 
 	CkAssert(localBlocks.front().pendingDependencies.size() == 0);
