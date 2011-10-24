@@ -45,10 +45,11 @@ module lu {
 
     /// Each block starts its participation in the factorization here
     entry void factor() {
-      // Keep executing trailing updates on this block until it is on the active
-      // block row or column
+      // Keep executing trailing updates on this block until it is on
+      // the active block row or column
       atomic { thisProxy[thisIndex].updateUntilActive(); }
-      // Once the current step of the computation reaches the diagonal chare on this block's row / column
+      // Once the current step of the computation reaches the diagonal
+      // chare on this block's row / column
       when amActive(bool isActive) {
         // If this matrix block is above the matrix diagonal
         if      (isAboveDiagonal()) atomic { thisProxy[thisIndex].factorAboveDiagBlock(); }
@@ -67,7 +68,8 @@ module lu {
     // The reduction to find the maximum element in the column
     entry void colMax(CkReductionMsg *m);
     // Pivot data to swap along with row index
-    entry void pivotRowSwap(int rowIndex, int pivotRow, int len, const double data[len], double b, bool noop);
+    entry void pivotRowSwap(int rowIndex, int pivotRow, int len,
+                            const double data[len], double b, bool noop);
     // U-Segment for the next computation
     entry [nokeep] void USegCompute(UMsg* msg);
     // Using the U-Segment previously received, update the sub-block
@@ -82,15 +84,17 @@ module lu {
     // Describes the control flow for all (super, sub and on diagonal) LU chares
     entry [local] void updateUntilActive() {
       //-----------------------------------------------------------------------
-      // Each chare in the array has to process these many trailing updates
-      // before the diagonal chare on its row / column becomes active in the factorization process
-      //-----------------------------------------------------------------------
+      // Each chare in the array has to process these many trailing
+      // updates before the diagonal chare on its row / column becomes
+      // active in the factorization process.
+      // -----------------------------------------------------------------------
       atomic {
         startTime = CmiWallTimer();
         pivotBatchTag = 0;
       }
       for (internalStep = 0; internalStep < min(thisIndex.x, thisIndex.y); internalStep++) {
-        // Receive and process batches of pivot operations sent out by the current active diagonal chare
+        // Receive and process batches of pivot operations sent out by
+        // the current active diagonal chare
         while (pivotBatchTag < (internalStep+1)*blkSize) {
           // Wait for msg carrying the next batch of pivot ops
           when applyTrailingPivots[pivotBatchTag](pivotSequencesMsg *msg) {
@@ -101,10 +105,12 @@ module lu {
             }
             // Wait for all incoming pivot data from this batch
             while (pendingIncomingPivots > 0) {
-              when trailingPivotRowsSwap[pivotBatchTag](pivotRowsMsg *aMsg) atomic "acceptIncomingPivots_trailingChare" {
+              when trailingPivotRowsSwap[pivotBatchTag](pivotRowsMsg *aMsg)
+                atomic "acceptIncomingPivots_trailingChare" {
                 for (int i = 0; i < aMsg->nRows; i++) {
                   CkAssert(thisIndex.x == aMsg->rowNum[i]/blkSize);
-                  applySwap(aMsg->rowNum[i]%blkSize, 0, &(aMsg->rows[i*blkSize]), aMsg->rhs[i]);
+                  applySwap(aMsg->rowNum[i] % blkSize, 0,
+                            &(aMsg->rows[i * blkSize]), aMsg->rhs[i]);
                   pendingIncomingPivots--;
                 }
                 delete aMsg;
@@ -150,10 +156,12 @@ module lu {
           }
           // Wait for all incoming pivot data from this batch
           while (pendingIncomingPivots > 0) {
-            when trailingPivotRowsSwap[pivotBatchTag](pivotRowsMsg *aMsg) atomic "acceptIncomingPivots_activeRowChare" {
+            when trailingPivotRowsSwap[pivotBatchTag](pivotRowsMsg *aMsg)
+              atomic "acceptIncomingPivots_activeRowChare" {
               for (int i = 0; i < aMsg->nRows; i++) {
                 CkAssert(thisIndex.x == aMsg->rowNum[i]/blkSize);
-                applySwap(aMsg->rowNum[i]%blkSize, 0, &(aMsg->rows[i*blkSize]), aMsg->rhs[i]);
+                applySwap(aMsg->rowNum[i] % blkSize, 0,
+                          &(aMsg->rows[i * blkSize]), aMsg->rhs[i]);
                 pendingIncomingPivots--;
               }
               delete aMsg;
@@ -207,7 +215,8 @@ module lu {
         pivotCandidate = findMaxElm(0, 0);
         pendingUmsg = NULL;
       }
-      // Work in the active column of the chare array proceeds column-by-column through the matrix
+      // Work in the active column of the chare array proceeds
+      // column-by-column through the matrix
       for (activeCol = 0; activeCol < blkSize; activeCol++) {
         atomic "below_find_pivot" {
           // Contribute to a reduction along the active panel to identify the pivot row
@@ -259,7 +268,8 @@ module lu {
       }
 
       for (internalStep++; internalStep <= thisIndex.x; internalStep++) {
-        // Receive and process batches of pivot operations sent out by the current active diagonal chare
+        // Receive and process batches of pivot operations sent out by
+        // the current active diagonal chare
         while (pivotBatchTag < (internalStep+1)*blkSize) {
           // Wait for msg carrying the next batch of pivot ops
           when applyTrailingPivots[pivotBatchTag](pivotSequencesMsg *msg) {
@@ -270,10 +280,12 @@ module lu {
             }
             // Wait for all incoming pivot data from this batch
             while (pendingIncomingPivots > 0) {
-              when trailingPivotRowsSwap[pivotBatchTag](pivotRowsMsg *aMsg) atomic "acceptIncomingPivots_leftSectionChare" {
+              when trailingPivotRowsSwap[pivotBatchTag](pivotRowsMsg *aMsg)
+                atomic "acceptIncomingPivots_leftSectionChare" {
                 for (int i = 0; i < aMsg->nRows; i++) {
                   CkAssert(thisIndex.x == aMsg->rowNum[i]/blkSize);
-                  applySwap(aMsg->rowNum[i]%blkSize, 0, &(aMsg->rows[i*blkSize]), aMsg->rhs[i]);
+                  applySwap(aMsg->rowNum[i] % blkSize, 0,
+                            &(aMsg->rows[i * blkSize]), aMsg->rhs[i]);
                   pendingIncomingPivots--;
                 }
                 delete aMsg;
@@ -324,10 +336,13 @@ module lu {
             delete m;
 	  }
 	  if (pivotCandidate.loc / blkSize == thisIndex.x) {
-	    // Now, send the post-diagonal portion of the pivot row (a segment of U) to all active panel brethren
-	    // so that they can start updating their sub-blocks right away
+	    // Now, send the post-diagonal portion of the pivot row (a
+	    // segment of U) to all active panel brethren so that they
+	    // can start updating their sub-blocks right away
 	    atomic "diag_send_useg" {
-	      UMsg *anUmsg = new(blkSize - activeCol, sizeof(int)*8) UMsg(blkSize - activeCol, &LU[getIndex(pivotCandidate.loc%blkSize,activeCol)]);
+	      UMsg *anUmsg = new (blkSize - activeCol, sizeof(int)*8)
+                UMsg(blkSize - activeCol,
+                     &LU[getIndex(pivotCandidate.loc % blkSize, activeCol)]);
               mgr->setPrio(anUmsg, DIAG_SEND_USEG);
 	      activePanel.USegCompute(anUmsg);
 	    }
@@ -369,11 +384,15 @@ module lu {
 
         /// Compute the multipliers and update the trailing sub-block
         atomic "diag_update" {
-          // Pivoting is done, so the diagonal entry better not be zero; else the matrix is singular
-          if (fabs(LU[getIndex(activeCol,activeCol)]) <= 100 * std::numeric_limits<double>::epsilon() )
+          // Pivoting is done, so the diagonal entry better not be
+          // (near-)zero; else the matrix is singular
+          if (fabs(LU[getIndex(activeCol,activeCol)])
+              <= 100 * std::numeric_limits<double>::epsilon())
             CkAbort("Diagonal element very small despite pivoting. Is the matrix singular??");
           // Compute the multipliers and find the next local pivot candidate
-          pivotCandidate = computeMultipliersAndFindColMax(activeCol, &LU[getIndex(activeCol,activeCol)], activeCol+1);
+          pivotCandidate =
+            computeMultipliersAndFindColMax(activeCol, &LU[getIndex(activeCol,activeCol)],
+                                            activeCol + 1);
           // Update the sub-block
           updateLsubBlock(activeCol, &LU[getIndex(activeCol,activeCol)], 2, activeCol+1);
         }
@@ -395,13 +414,15 @@ module lu {
           // Multicast the local block of L rightwards to the blocks in the same row
           scheduleRightwardL();
         }
-        // Contribute to a reduction indicating that this chare is done with its factorization work
+        // Contribute to a reduction indicating that this chare is
+        // done with its factorization work
         contribute(factorizationDone);
       }
     };
 
     entry void belowPivot(int targetCol) {
-      // Wait for the replacement row from the diagonal chare so that you have the updated block
+      // Wait for the replacement row from the diagonal chare so that
+      // you have the updated block
       when pivotRowSwap[internalStep*blkSize + targetCol](int rowIndex, int pivotRow, int len, double data[len],
                                                           double b, bool noop) {
         if (!noop) {
@@ -438,8 +459,8 @@ module lu {
     entry void schedulerReady(CkReductionMsg *m);
     entry void dataReady(int);
 
-    entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr,
-                       CProxy_BlockScheduler bs, CkCallback initialized, CkCallback factored, CkCallback solved) {
+    entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
+                       CkCallback initialized, CkCallback factored, CkCallback solved) {
       when schedulerReady(CkReductionMsg *m) atomic {
 	delete m;
 	init(luCfg, _mgr, bs, initialized, factored, solved);
