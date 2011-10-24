@@ -167,7 +167,6 @@ module lu {
         when triangularSolve(blkMsg* m) atomic "triangular_solve" {
           computeU(m->data);
           delete m;
-          scheduler.releaseActiveColumn(thisIndex.y, thisIndex.x);
         }
       } else {
         atomic { updateExecuted = false; }
@@ -178,7 +177,6 @@ module lu {
               computeU(update.L);
               localScheduler->updateDone(update_ptr);
               updateExecuted = true;
-              scheduler.releaseActiveColumn(thisIndex.y, thisIndex.x);
             } else {
               update.triggered = false;
               localScheduler->updateUntriggered();
@@ -187,6 +185,7 @@ module lu {
         }
       }
       atomic "finish_U" {
+        scheduler.releaseActiveColumn(thisIndex.y, thisIndex.x);
         scheduleDownwardU();
         factored = true;
         localScheduler->factorizationDone(thisIndex);
