@@ -209,7 +209,6 @@ struct Benchmark : public CBase_Benchmark {
   }
 };
 
-
 class LUSolver : public CBase_LUSolver {
   LUConfig luCfg;
   double startTime;
@@ -225,7 +224,6 @@ public:
   , LUcomplete(false)
   , luCfg(luCfg_)
   , finishedSolve(finishedSolve) {
-
     // Create a multicast manager group
     luCfg.mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
 
@@ -310,46 +308,45 @@ public:
     double duration = 0;
     int numTrials = 10;
 
-    /// @note: possible cache warmth/cold issues here bcos we create and initialize just b4 use
+    /// Possible cache warmth/cold issues here because we create and initialize just before use
     for (int i=0; i<numTrials; i++) {
+      MatGen rnd(0);
 
-    MatGen rnd(0);
+      // Touch the output matrix first to avoid keeping it really warm in the cache
+      double *m3 = new double[blocksize*blocksize];
+      rnd.getNRndDoubles(blocksize * blocksize, m3);
 
-    // Touch the output matrix first to avoid keeping it really warm in the cache
-    double *m3 = new double[blocksize*blocksize];
-    rnd.getNRndDoubles(blocksize * blocksize, m3);
+      double *m1 = new double[blocksize*blocksize];
+      rnd.getNRndDoubles(blocksize * blocksize, m1);
+      double *m2 = new double[blocksize*blocksize];
+      rnd.getNRndDoubles(blocksize * blocksize, m2);
 
-    double *m1 = new double[blocksize*blocksize];
-    rnd.getNRndDoubles(blocksize * blocksize, m1);
-    double *m2 = new double[blocksize*blocksize];
-    rnd.getNRndDoubles(blocksize * blocksize, m2);
-
-    double startTest = CmiWallTimer();
+      double startTest = CmiWallTimer();
 
 #if USE_ESSL || USE_ACML
-    dgemm(BLAS_NOTRANSPOSE, BLAS_NOTRANSPOSE,
-          blocksize, blocksize, blocksize,
-          -1.0, m1,
-          blocksize, m2, blocksize,
-          1.0, m3, blocksize);
+      dgemm(BLAS_NOTRANSPOSE, BLAS_NOTRANSPOSE,
+            blocksize, blocksize, blocksize,
+            -1.0, m1,
+            blocksize, m2, blocksize,
+            1.0, m3, blocksize);
 #else
-    cblas_dgemm(CblasRowMajor,
-                CblasNoTrans, CblasNoTrans,
-                blocksize, blocksize, blocksize,
-                -1.0, m1,
-                blocksize, m2, blocksize,
-                1.0, m3, blocksize);
+      cblas_dgemm(CblasRowMajor,
+                  CblasNoTrans, CblasNoTrans,
+                  blocksize, blocksize, blocksize,
+                  -1.0, m1,
+                  blocksize, m2, blocksize,
+                  1.0, m3, blocksize);
 #endif
 
-    double endTest = CmiWallTimer();
-    duration += endTest-startTest;
+      double endTest = CmiWallTimer();
+      duration += endTest-startTest;
 
-    delete[] m1;
-    delete[] m2;
-    delete[] m3;
+      delete[] m1;
+      delete[] m2;
+      delete[] m3;
     }
 
-    return duration/numTrials;
+    return duration / numTrials;
   }
 
   void outputStats() {
@@ -357,7 +354,7 @@ public:
     double duration = endTime-startTime;
 
     double n = luCfg.matrixSize;
-    double HPL_flop_count =  (2.0/3.0*n*n*n+3.0/2.0*n*n)/duration ;
+    double HPL_flop_count =  (2.0 / 3.0 * n * n * n + 3.0 / 2.0 * n * n) / duration ;
     double HPL_gflops =	 HPL_flop_count / 1000000000.0; // Giga fp ops per second
     double gflops_per_core = HPL_gflops / (double)CkNumPes();
 
@@ -370,11 +367,10 @@ public:
     struct {
       const char *machine;
       double gflops_per_core;
-    } peaks[] = {{"order.cs.uiuc.edu", 7.4585},
-		 {"abe.ncsa.uiuc.edu", 9.332},
-		 {"Kraken", 10.4},
+    } peaks[] = {{"Order", 7.4585},
+		 {"Abe", 9.332},
                  {"Ranger", 9.2},
-                 {"Jaguar XT5", 10.3987},
+                 {"Jaguar/Kraken XT5", 10.3987},
 		 {"BG/P", 3.4}};
 
     for (int i = 0; i < sizeof(peaks)/sizeof(peaks[0]); ++i) {
@@ -394,22 +390,20 @@ public:
   }
 
   void calcScaledResidual(CkReductionMsg *msg) {
-	int reducedArrSize=msg->getSize() / sizeof(double);
-	double *maxvals=(double *) msg->getData();
+    int reducedArrSize=msg->getSize() / sizeof(double);
+    double *maxvals=(double *) msg->getData();
 
-	double n = luCfg.blockSize * luCfg.numBlocks;
+    double n = luCfg.blockSize * luCfg.numBlocks;
+    double r = maxvals[3]/((maxvals[0]*maxvals[2]+maxvals[1])*n*std::numeric_limits<double>::epsilon());
 
-	double r = maxvals[3]/((maxvals[0]*maxvals[2]+maxvals[1])*n*std::numeric_limits<double>::epsilon());
+    VERBOSE_VALIDATION("|A|inf = %e\n|b|inf = %e\n|x|inf = %e\n|Ax-b|inf = %e\n",maxvals[0],maxvals[1],maxvals[2],maxvals[3]);
 
-	VERBOSE_VALIDATION("|A|inf = %e\n|b|inf = %e\n|x|inf = %e\n|Ax-b|inf = %e\n",maxvals[0],maxvals[1],maxvals[2],maxvals[3]);
+    CkPrintf("epsilon = %e\nresidual = %f\n",std::numeric_limits<double>::epsilon(),r);
+    if (r > 16) CkPrintf("=== WARNING: Scaled residual is greater than 16 - OUT OF SPEC ===\n");
 
-	CkPrintf("epsilon = %e\nresidual = %f\n",std::numeric_limits<double>::epsilon(),r);
-	if(r>16)
-		CkPrintf("=== WARNING: Scaled residual is greater than 16 - OUT OF SPEC ===\n");
-
-	delete msg;
-        CkPrintf("finished validation at wall time: %f\n", CmiWallTimer());
-        finishedSolve.send();
+    delete msg;
+    CkPrintf("finished validation at wall time: %f\n", CmiWallTimer());
+    finishedSolve.send();
   }
 };
 
@@ -461,12 +455,11 @@ void BenchmarkLUBlk::initVec() {
   genVec(bvec);
 }
 
-void BenchmarkLUBlk::genBlock()
-{
+void BenchmarkLUBlk::genBlock() {
   CrnStream stream;
   memcpy(&stream, &blockStream, sizeof(CrnStream));
 
-  for (double *d = LU; d < LU + blkSize*blkSize; ++d)
+  for (double *d = LU; d < LU + blkSize * blkSize; ++d)
     *d = CrnDouble(&stream);
 }
 
@@ -483,35 +476,30 @@ void BenchmarkLUBlk::startValidation() {
   // solution sub-vector x is in variable bvec on the diagonals
   // variable b has the original b vector on the diagonals
 
-  //Diagonals regenerate b and distribute x across entire column
-  if(thisIndex.x == thisIndex.y)
-    {
-
-      CProxySection_BenchmarkLUBlk col =
-        CProxySection_BenchmarkLUBlk::ckNew(thisArrayID, 0, numBlks-1,
-                                   1, thisIndex.y, thisIndex.y, 1);
-
-      col.recvXvec(blkSize, bvec);
-    }
+  // Diagonals regenerate b and distribute x across entire column
+  if(thisIndex.x == thisIndex.y) {
+    CProxySection_BenchmarkLUBlk col =
+      CProxySection_BenchmarkLUBlk::ckNew(thisArrayID, 0, numBlks-1,
+                                          1, thisIndex.y, thisIndex.y, 1);
+    col.recvXvec(blkSize, bvec);
+  }
 }
 
-double infNorm(int size, double * array)
-{
-	  double maxval = fabs(array[0]);
-	  for(int i = 1; i < size; i++) {
-	      if(fabs(array[i]) > maxval)
-	          maxval = fabs(array[i]);
-	  }
-	  return maxval;
+double infNorm(int size, double * array) {
+  double maxval = fabs(array[0]);
+  for (int i = 1; i < size; i++) {
+    if (fabs(array[i]) > maxval)
+      maxval = fabs(array[i]);
+  }
+  return maxval;
 }
 
 void BenchmarkLUBlk::recvXvec(int size, double* xvec) {
-  //Regenerate A and place into already allocated LU
+  // Regenerate A and place into already allocated LU
   genBlock();
-
   double *partial_b = new double[blkSize];
 
-  //Perform local dgemv
+  // Perform local dgemv
 #if USE_ESSL || USE_ACML
   dgemv(BLAS_TRANSPOSE, blkSize, blkSize, 1.0, LU, blkSize, xvec, 1, 0.0, partial_b, 1);
 #else
@@ -520,13 +508,13 @@ void BenchmarkLUBlk::recvXvec(int size, double* xvec) {
                blkSize, xvec, 1, 0.0, partial_b, 1);
 #endif
 
-  //sum-reduction of result across row with diagonal element as target
-  thisProxy(thisIndex.x,thisIndex.x).sumBvec(blkSize,partial_b);
-  delete[] partial_b;
+  // Sum-reduction of result across row with diagonal element as target
+  thisProxy(thisIndex.x, thisIndex.x).sumBvec(blkSize, partial_b);
+  delete [] partial_b;
 
-  //if you are not the diagonal, find your max A value and contribute
-  if(thisIndex.x != thisIndex.y) {
-    //find local max of A
+  // If the block is not the diagonal, find the max A value and contribute
+  if (thisIndex.x != thisIndex.y) {
+    // Find local max of A
     double A_max = infNorm(blkSize * blkSize, LU);
     VERBOSE_VALIDATION("[%d,%d] A_max  = %e\n",thisIndex.x,thisIndex.y,A_max);
 
@@ -542,24 +530,23 @@ void BenchmarkLUBlk::recvXvec(int size, double* xvec) {
 }
 
 void BenchmarkLUBlk::sumBvec(int size, double* partial_b) {
-
-  //Clear bvec before first message processed for sum-reduction
+  // Clear bvec before first message processed for sum-reduction
   if(msgsRecvd == 0) {
     Ax = new double[blkSize];
     memset(Ax, 0, blkSize*sizeof(double));
   }
 
-  //Sum up messages
+  // Sum up messages
   if(++msgsRecvd <= numBlks) {
     for (int i = 0; i < size; i++) {
       Ax[i] += partial_b[i];
     }
   }
 
-  //if all messages received, calculate the residual
+  // If all messages received, calculate the residual
   if (msgsRecvd == numBlks) {
     calcResiduals();
-    delete[]  Ax;
+    delete []  Ax;
   }
 }
 
@@ -571,17 +558,17 @@ void BenchmarkLUBlk::calcResiduals() {
   //diagonal elements that received sum-reduction perform b - A*x
   for (int i = 0; i < blkSize; i++) {
     residuals[i] = b[i] - Ax[i];
-    //		  if(fabs(residuals[i]) > 1e-14 || std::isnan(residuals[i]) || std::isinf(residuals[i]))
-    //			  CkPrintf("WARNING: Large Residual for x[%d]: %f - %f = %e\n", thisIndex.x*blkSize+i, b[i], bvec[i], residuals[i]);
+    // if(fabs(residuals[i]) > 1e-14 || std::isnan(residuals[i]) || std::isinf(residuals[i]))
+    // CkPrintf("WARNING: Large Residual for x[%d]: %f - %f = %e\n", thisIndex.x*blkSize+i, b[i], bvec[i], residuals[i]);
   }
 
-  //find local max values
+  // Find local max values
   double A_max = infNorm(blkSize * blkSize, LU);
   double b_max = infNorm(blkSize, b);
-  delete[] b;
+  delete [] b;
   double x_max = infNorm(blkSize, bvec);
   double res_max = infNorm(blkSize, residuals);
-  delete[] residuals;
+  delete [] residuals;
   VERBOSE_VALIDATION("[%d,%d] A_max  = %e\n",thisIndex.x,thisIndex.y,A_max);
   VERBOSE_VALIDATION("[%d,%d] b_max  = %e\n",thisIndex.x,thisIndex.y,b_max);
   VERBOSE_VALIDATION("[%d,%d] x_max  = %e\n",thisIndex.x,thisIndex.y,x_max);
