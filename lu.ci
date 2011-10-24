@@ -119,11 +119,9 @@ module lu {
         /// Preserved for RDMA variant
         // overlap {
         //   when readyL[internalStep](BlockReadyMsg *mL) atomic {
-        //     DEBUG_PRINT("readyL");
 	//     localScheduler->dataReady(thisIndex, mL);
         //   }
         //   when readyU[internalStep](BlockReadyMsg *mU) atomic {
-        //     DEBUG_PRINT("readyU");
         //     localScheduler->dataReady(thisIndex, mU);
         //   }
         // }
@@ -133,7 +131,7 @@ module lu {
           atomic "trailing_update" {
             Update &update = *(Update *)update_ptr;
             if (localScheduler->shouldExecute()) {
-              DEBUG_PRINT("doing trailing update");
+              DEBUG_PRINT("Executing trailing update");
               updateMatrix(update.L, update.U);
               thisProxy(thisIndex.x, internalStep).blockUsed(1);
               localScheduler->updateDone(update_ptr);
@@ -181,7 +179,7 @@ module lu {
 
       if (thisIndex.y == thisIndex.x + 1) {
         when triangularSolve(blkMsg* m) atomic "triangular_solve" {
-          DEBUG_PRINT("doing triangular solve");
+          DEBUG_PRINT("Executing triangular solve");
           computeU(m->data);
           delete m;
           scheduler.releaseActiveColumn(thisIndex.y, thisIndex.x);
@@ -192,7 +190,7 @@ module lu {
           when processComputeU(intptr_t update_ptr) atomic "process_compute_U" {
             Update &update = *(Update *)update_ptr;
             if (localScheduler->shouldExecute()) {
-              DEBUG_PRINT("doing triangular solve");
+              DEBUG_PRINT("Executing triangular solve");
               computeU(update.L);
               localScheduler->updateDone(update_ptr);
               updateExecuted = true;
@@ -205,7 +203,7 @@ module lu {
         }
       }
       atomic "finish_U" {
-        multicastRecvU();
+        scheduleDownwardU();
         factored = true;
         localScheduler->factorizationDone(thisIndex);
       }
@@ -251,7 +249,6 @@ module lu {
           if (!ownedPivotThisStep)
             thisProxy(thisIndex).pivotRowSwap(internalStep*blkSize + activeCol, -1, 0, NULL, -1, true);
           if (activeCol == 0) {
-            DEBUG_PRINT("startedActivePanel");
             localScheduler->startedActivePanel();
           }
           // Compute multipliers and update just one column to find the next candidate pivot
@@ -263,8 +260,8 @@ module lu {
       }
       atomic "below_send_L" {
         if (pendingUmsg) dropRef(pendingUmsg);
-        DEBUG_PRINT("done computing L");
-        multicastRecvL();
+        DEBUG_PRINT("Finished computing L");
+        scheduleRightwardL();
         factored = true;
         localScheduler->factorizationDone(thisIndex);
         pivotBatchTag += blkSize;
@@ -428,7 +425,7 @@ module lu {
             thisProxy(thisIndex.x, thisIndex.y + 1).triangularSolve(msg);
           }
           // Multicast the local block of L rightwards to the blocks in the same row
-          multicastRecvL();
+          scheduleRightwardL();
         }
         // Contribute to a reduction indicating that this chare is done with its factorization work
 	DEBUG_PRINT("contributing");

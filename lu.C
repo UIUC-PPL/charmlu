@@ -246,7 +246,7 @@ void LUBlk::setupMsg(bool reverse) {
 }
 
 //broadcast the U downwards to the blocks in the same column
-inline void LUBlk::multicastRecvU() {
+inline void LUBlk::scheduleDownwardU() {
   traceUserSuppliedData(internalStep);
   traceMemoryUsage();
   mgr->setPrio(LUmsg, MULT_RECV_U);
@@ -260,8 +260,8 @@ inline void LUBlk::multicastRecvU() {
   // oneCol.readyU(mU);
 }
 
-//broadcast the L rightwards to the blocks in the same row
-inline void LUBlk::multicastRecvL() {
+// Schedule L to be sent rightwards to the blocks in the same row
+inline void LUBlk::scheduleRightwardL() {
   traceUserSuppliedData(internalStep);
   traceMemoryUsage();
   mgr->setPrio(LUmsg, MULT_RECV_L);

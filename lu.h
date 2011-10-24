@@ -70,10 +70,10 @@ class LUBlk: public CBase_LUBlk {
     void updateMatrix(double *incomingL, double *incomingU);
     //broadcast the U downwards to the blocks in the same column
     void setupMsg(bool reverse);
-    void multicastRecvU();
+    void scheduleDownwardU();
     void recvU(blkMsg *);
-    //broadcast the L rightwards to the blocks in the same row
-    void multicastRecvL();
+    // Schedule L to be sent rightwards to the blocks in the same row
+    void scheduleRightwardL();
     void sendBlocks(int);
     void requestBlock(int pe, int rx, int ry);
     double *accessLocalBlock();
