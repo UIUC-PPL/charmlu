@@ -51,12 +51,9 @@ module lu {
       // Once the current step of the computation reaches the diagonal
       // chare on this block's row / column
       when amActive(bool isActive) {
-        // If this matrix block is above the matrix diagonal
         if      (isAboveDiagonal()) atomic { thisProxy[thisIndex].factorAboveDiagBlock(); }
-        // else if its below the matrix diagonal
         else if (isBelowDiagonal()) atomic { thisProxy[thisIndex].factorBelowDiagBlock(); }
-        // else, this block is on the matrix diagonal
-        else                        atomic { thisProxy[thisIndex].factorDiagBlock(); }
+        else     /* on diagonal */  atomic { thisProxy[thisIndex].factorDiagBlock(); }
       }
     };
 
@@ -76,9 +73,11 @@ module lu {
     entry void updateSubBlock(CkMarshallMsg *dummyMsg);
 
     /**
-     * Methods for handling trailing pivots
+     * Methods for handling pivots in the trailing submatrix
      */
+    // Indicate a set of rows which need to be swapped
     entry [nokeep] void applyTrailingPivots(pivotSequencesMsg *msg);
+    // Exchange pivot row contents
     entry void trailingPivotRowsSwap(pivotRowsMsg *msg);
 
     // Describes the control flow for all (super, sub and on diagonal) LU chares
@@ -124,6 +123,11 @@ module lu {
           }
         }
 
+        // After a panel's worth of pivots have arrived, this block is
+        // ready to execute a trailing update. We let the local
+        // scheduler dictate when that should happen, to avoid
+        // interfering with another local block working in the
+        // latency-sensitive active panel.
         atomic { updateExecuted = false; }
         while (!updateExecuted) {
           when processTrailingUpdate[internalStep](int step, intptr_t update_ptr)
@@ -175,6 +179,12 @@ module lu {
         }
       }
 
+      // After the associated panel's pivots have all arrived, this
+      // block can perform its triangular solve. If the next active
+      // panel depends on these results, execute eagerly to avoid
+      // delaying the work-exposing critical path. Otherwise, let the
+      // local scheduler control that, to avoid invonceniencing an
+      // active panel factorization.
       if (thisIndex.y == thisIndex.x + 1) {
         when triangularSolve(blkMsg* m) atomic "triangular_solve" {
           computeU(m->data);
