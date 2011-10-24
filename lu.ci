@@ -96,8 +96,6 @@ module lu {
                   CkAssert(thisIndex.x == aMsg->rowNum[i]/blkSize);
                   applySwap(aMsg->rowNum[i]%blkSize, 0, &(aMsg->rows[i*blkSize]), aMsg->rhs[i]);
                   pendingIncomingPivots--;
-                  VERY_VERBOSE_PIVOT_AGGLOM("[%d,%d] received pivot row %d for batch %d. %d pending\n",
-                                            thisIndex.x, thisIndex.y, aMsg->rowNum[i], pivotBatchTag, pendingIncomingPivots);
                 }
                 delete aMsg;
               }
@@ -116,7 +114,6 @@ module lu {
           atomic "trailing_update" {
             Update &update = *(Update *)update_ptr;
             if (localScheduler->shouldExecute()) {
-              DEBUG_PRINT("Executing trailing update");
               updateMatrix(update.L, update.U);
               thisProxy(thisIndex.x, internalStep).blockUsed(1);
               localScheduler->updateDone(update_ptr);
@@ -148,8 +145,6 @@ module lu {
                 CkAssert(thisIndex.x == aMsg->rowNum[i]/blkSize);
                 applySwap(aMsg->rowNum[i]%blkSize, 0, &(aMsg->rows[i*blkSize]), aMsg->rhs[i]);
                 pendingIncomingPivots--;
-                VERY_VERBOSE_PIVOT_AGGLOM("[%d,%d] received pivot row %d for batch %d. %d pending\n",
-                                          thisIndex.x, thisIndex.y, aMsg->rowNum[i], pivotBatchTag, pendingIncomingPivots);
               }
               delete aMsg;
             }
@@ -164,7 +159,6 @@ module lu {
 
       if (thisIndex.y == thisIndex.x + 1) {
         when triangularSolve(blkMsg* m) atomic "triangular_solve" {
-          DEBUG_PRINT("Executing triangular solve");
           computeU(m->data);
           delete m;
           scheduler.releaseActiveColumn(thisIndex.y, thisIndex.x);
@@ -175,7 +169,6 @@ module lu {
           when processComputeU(intptr_t update_ptr) atomic "process_compute_U" {
             Update &update = *(Update *)update_ptr;
             if (localScheduler->shouldExecute()) {
-              DEBUG_PRINT("Executing triangular solve");
               computeU(update.L);
               localScheduler->updateDone(update_ptr);
               updateExecuted = true;
@@ -245,7 +238,6 @@ module lu {
       }
       atomic "below_send_L" {
         if (pendingUmsg) dropRef(pendingUmsg);
-        DEBUG_PRINT("Finished computing L");
         scheduleRightwardL();
         factored = true;
         localScheduler->factorizationDone(thisIndex);
@@ -273,8 +265,6 @@ module lu {
                   CkAssert(thisIndex.x == aMsg->rowNum[i]/blkSize);
                   applySwap(aMsg->rowNum[i]%blkSize, 0, &(aMsg->rows[i*blkSize]), aMsg->rhs[i]);
                   pendingIncomingPivots--;
-                  VERY_VERBOSE_PIVOT_AGGLOM("[%d,%d] received pivot row %d for batch %d. %d pending\n",
-                                            thisIndex.x, thisIndex.y, aMsg->rowNum[i], pivotBatchTag, pendingIncomingPivots);
                 }
                 delete aMsg;
               }
@@ -303,7 +293,6 @@ module lu {
       // Process matrix column-by-column
       for (activeCol = 0; activeCol < blkSize; ++activeCol) {
         atomic "diag_find_colmax" {
-          VERBOSE_PROGRESS(" ..col%d ", thisIndex.x*blkSize + activeCol);
           // Contribute to a redn along the pivot section to identify the pivot row
           mcastMgr->contribute(sizeof(MaxElm), &pivotCandidate, MaxElmReducer, pivotCookie);
           if (activeCol % 20 == 0) {
@@ -319,10 +308,8 @@ module lu {
                     << "Block " << thisIndex.x << " queueing local LU at internalStep "
                     << internalStep << ", start time = " << CmiWallTimer() << ", time = "
                     << CmiWallTimer() - startTime << endl;
-              DEBUG_PRINT("startedActivePanel");
               localScheduler->startedActivePanel();
             }
-            DEBUG_PRINT("colMax %d happened", activeCol);
 	    pivotCandidate = *(MaxElm *)(m->getData());
             delete m;
 	  }
@@ -390,7 +377,6 @@ module lu {
         factored = true;
         // All diagonal chares except the last must continue the factorization
         if (thisIndex.x < numBlks-1 && thisIndex.y < numBlks-1) {
-          DEBUG_PRINT("is top,left block this step, multicast L");
           if (isOnDiagonal()) {
             blkMsg *msg = new (blkSize * blkSize, 0, mgr->bitsOfPrio()) blkMsg(thisIndex);
             memcpy(msg->data, LU, sizeof(double) * blkSize * blkSize);
@@ -400,9 +386,7 @@ module lu {
           scheduleRightwardL();
         }
         // Contribute to a reduction indicating that this chare is done with its factorization work
-	DEBUG_PRINT("contributing");
         contribute(factorizationDone);
-        VERBOSE_PROGRESS("\n");
       }
     };
 
@@ -567,4 +551,3 @@ module lu {
     entry void outputStats();
   }
 };
-
