@@ -54,43 +54,41 @@ static inline void dropRef(void *m) {
 //    CmiUnlock(lock);
 }
 
-
 /**
  * 2D chare array that embodies a block of the input matrix
  *
  * Main participant in the LU factorization and solve phases
  */
 class LUBlk: public CBase_LUBlk {
-  public:
-    /// Performs the triangular solve required to compute a block of the U matrix (dtrsm)
-    void computeU(double *givenL);
-    /// 
-    void computeL(blkMsg *givenUMsg);
-    /// Perform trailing update based on input matrices (dgemm)
-    void updateMatrix(double *incomingL, double *incomingU);
-    //broadcast the U downwards to the blocks in the same column
-    void setupMsg(bool reverse);
-    void scheduleDownwardU();
-    void recvU(blkMsg *);
-    // Schedule L to be sent rightwards to the blocks in the same row
-    void scheduleRightwardL();
-    void sendBlocks(int);
-    void requestBlock(int pe, int rx, int ry);
-    double *accessLocalBlock();
+public:
+  /// Performs the triangular solve required to compute a block of the U matrix (dtrsm)
+  void computeU(double *givenL);
+  /// 
+  void computeL(blkMsg *givenUMsg);
+  /// Perform trailing update based on input matrices (dgemm)
+  void updateMatrix(double *incomingL, double *incomingU);
+  //broadcast the U downwards to the blocks in the same column
+  void setupMsg(bool reverse);
+  void scheduleDownwardU();
+  void recvU(blkMsg *);
+  // Schedule L to be sent rightwards to the blocks in the same row
+  void scheduleRightwardL();
+  void sendBlocks(int);
+  void requestBlock(int pe, int rx, int ry);
+  double *accessLocalBlock();
 
-    /// Solution
-    void localSolve(double *xvec, double *preVec);
-    void localForward(double *xvec);
-    void localBackward(double *xvec);
-    void offDiagSolve(BVecMsg *m);
+  /// Solution
+  void localSolve(double *xvec, double *preVec);
+  void localForward(double *xvec);
+  void localBackward(double *xvec);
+  void offDiagSolve(BVecMsg *m);
 
   LUBlk()
     : factored(false)
     , blockPulled(0), blocksAfter(0), maxRequestingPEs(0)
     , isOnDiagonal   ( thisIndex.x == thisIndex.y)
     , isAboveDiagonal( thisIndex.x <  thisIndex.y)
-    , isBelowDiagonal( thisIndex.x >  thisIndex.y)
-  {
+    , isBelowDiagonal( thisIndex.x >  thisIndex.y) {
     __sdag_init();
 #if defined(LU_TRACING)
     traceEnd();
@@ -109,7 +107,7 @@ class LUBlk: public CBase_LUBlk {
   void prepareForActivePanel(rednSetupMsg *msg);
   ~LUBlk();
   LUBlk(CkMigrateMessage* m): isOnDiagonal(false), isAboveDiagonal(false), isBelowDiagonal(false) { CkAbort("LU blocks not migratable yet"); }
-  //added for migration
+  // Added for migration
   void pup(PUP::er &p) {  }
 
 public:
@@ -118,18 +116,17 @@ public:
   blkMsg *LUmsg;
 
 protected:
-  //internal functions for creating messages to encapsulate the priority
+  // Internal functions for creating messages to encapsulate the priority
   blkMsg* createABlkMsg();
   CProxy_BlockScheduler scheduler;
   BlockScheduler *localScheduler;
   int l_block, u_block;
 
-  /// configuration settings
+  /// Configuration settings
   LUConfig cfg;
 
   /// Variables used during factorization
   double *LU;
-
   int blkSize, numBlks;
   blkMsg *U;
   int activeCol, ind;
@@ -142,8 +139,7 @@ protected:
   // Timer for each block
   double startTime;
 
-  //Variables for pivoting SDAG code
-
+  // Variables for pivoting SDAG code
   int row1Index, row2Index, localRow1, localRow2,
     otherRowIndex, thisLocalRow, globalThisRow, globalOtherRow;
   bool remoteSwap, ownedPivotThisStep;
@@ -176,7 +172,6 @@ protected:
 
   // The panel of blocks below the active diagonal chare
   CProxySection_LUBlk activePanel;
-
   CProxySection_LUBlk rowBeforeDiag;
   CProxySection_LUBlk rowAfterDiag;
   CkSectionInfo rowBeforeCookie;
@@ -189,12 +184,12 @@ protected:
   UMsg *pendingUmsg;
 
   bool updateExecuted;
-
   CkCallback initDone, factorizationDone, solveDone;
 
+  // System-generated macro for SDAG code
   LUBlk_SDAG_CODE
 
-private:
+  private:
   // Copy received pivot data into its place in this block
   void applySwap(int row, int offset, const double *data, double b);
   // Exchange local data
@@ -202,10 +197,7 @@ private:
   void doPivotLocal(int row1, int row2);
   /// Record the effect of a pivot operation in terms of actual row numbers
   void recordPivot(const int r1, const int r2);
-  /** Is it time to send out the next batch of pivots
-   *
-   * @note: Any runtime adaptivity should be plugged here
-   */
+  // Is it time to send out the next batch of pivots
   bool shouldSendPivots();
   /// Periodically send out the agglomerated pivot operations
   void announceAgglomeratedPivots();
