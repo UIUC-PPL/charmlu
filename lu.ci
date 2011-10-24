@@ -57,20 +57,48 @@ module lu {
       }
     };
 
-    /**
-     * Active panel methods
-     */
-    // Block is ready for active panel work
+    // Describes the control flow of alternating pivoting and trailing
+    // updates for all LUBlk chares before they become part of the
+    // active panel.
+    entry [local] void updateUntilActive() {
+      //-----------------------------------------------------------------------
+      // Each chare in the array has to process these many trailing
+      // updates before the diagonal chare on its row / column becomes
+      // active in the factorization process.
+      // -----------------------------------------------------------------------
+      atomic {
+        startTime = CmiWallTimer();
+        pivotBatchTag = 0;
+      }
+      for (internalStep = 0; internalStep < min(thisIndex.x, thisIndex.y); internalStep++) {
+        atomic { thisProxy[thisIndex].pivotBatch(0); }
+
+        // After a panel's worth of pivots have arrived, this block is
+        // ready to execute a trailing update. We let the local
+        // scheduler dictate when that should happen, to let it
+        // control memory consumption and avoid interfering with
+        // another local block working in the latency-sensitive active
+        // panel.
+        when pivotBatchDone[0](int tag) atomic { updateExecuted = false; }
+        while (!updateExecuted) {
+          when processTrailingUpdate[internalStep](int step, intptr_t update_ptr)
+          atomic "trailing_update" {
+            Update &update = *(Update *)update_ptr;
+            if (localScheduler->shouldExecute()) {
+              updateMatrix(update.L, update.U);
+              thisProxy(thisIndex.x, internalStep).blockUsed(1);
+              localScheduler->updateDone(update_ptr);
+              updateExecuted = true;
+            } else {
+              update.triggered = false;
+              localScheduler->updateUntriggered();
+            }
+          }
+        }
+      }
+      atomic { thisProxy[thisIndex].amActive(true); }
+    };
     entry void amActive(bool isActive);
-    // The reduction to find the maximum element in the column
-    entry void colMax(CkReductionMsg *m);
-    // Pivot data to swap along with row index
-    entry void pivotRowSwap(int rowIndex, int pivotRow, int len,
-                            const double data[len], double b, bool noop);
-    // U-Segment for the next computation
-    entry [nokeep] void USegCompute(UMsg* msg);
-    // Using the U-Segment previously received, update the sub-block
-    entry void updateSubBlock(CkMarshallMsg *dummyMsg);
 
     /**
      * Methods for handling pivots in the trailing submatrix
@@ -114,48 +142,6 @@ module lu {
     // Exchange pivot row contents
     entry void trailingPivotRowsSwap(pivotRowsMsg *msg);
     entry [local] void pivotBatchDone(int tag);
-
-    // Describes the control flow of alternating pivoting and trailing
-    // updates for all LUBlk chares before they become part of the
-    // active panel.
-    entry [local] void updateUntilActive() {
-      //-----------------------------------------------------------------------
-      // Each chare in the array has to process these many trailing
-      // updates before the diagonal chare on its row / column becomes
-      // active in the factorization process.
-      // -----------------------------------------------------------------------
-      atomic {
-        startTime = CmiWallTimer();
-        pivotBatchTag = 0;
-      }
-      for (internalStep = 0; internalStep < min(thisIndex.x, thisIndex.y); internalStep++) {
-        atomic { thisProxy[thisIndex].pivotBatch(0); }
-
-        // After a panel's worth of pivots have arrived, this block is
-        // ready to execute a trailing update. We let the local
-        // scheduler dictate when that should happen, to let it
-        // control memory consumption and avoid interfering with
-        // another local block working in the latency-sensitive active
-        // panel.
-        when pivotBatchDone[0](int tag) atomic { updateExecuted = false; }
-        while (!updateExecuted) {
-          when processTrailingUpdate[internalStep](int step, intptr_t update_ptr)
-          atomic "trailing_update" {
-            Update &update = *(Update *)update_ptr;
-            if (localScheduler->shouldExecute()) {
-              updateMatrix(update.L, update.U);
-              thisProxy(thisIndex.x, internalStep).blockUsed(1);
-              localScheduler->updateDone(update_ptr);
-              updateExecuted = true;
-            } else {
-              update.triggered = false;
-              localScheduler->updateUntriggered();
-            }
-          }
-        }
-      }
-      atomic { thisProxy[thisIndex].amActive(true); }
-    };
 
     // Describes the control flow of above-diagonal blocks after
     // they've completed their prescribed trailing updates.
@@ -433,6 +419,22 @@ module lu {
       }
     };
 
+    /**
+     * Active panel methods
+     */
+    // The reduction to find the maximum element in the column
+    entry void colMax(CkReductionMsg *m);
+    // Pivot data to swap along with row index
+    entry void pivotRowSwap(int rowIndex, int pivotRow, int len,
+                            const double data[len], double b, bool noop);
+    // U-Segment for the next computation
+    entry [nokeep] void USegCompute(UMsg* msg);
+    // Using the U-Segment previously received, update the sub-block
+    entry void updateSubBlock(CkMarshallMsg *dummyMsg);
+
+    /**
+     * Solve methods
+     */
     entry void forwardSolve() {
       if (thisIndex.x > 0) {
         // All except the first diag chare have to wait for their row reductions
@@ -496,6 +498,9 @@ module lu {
 
     entry void flushLogs();
 
+    /**
+     * Initialization methods
+     */
     entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
                        CkCallback initialized, CkCallback factored, CkCallback solved) {
       when schedulerReady(CkReductionMsg *m) atomic {
