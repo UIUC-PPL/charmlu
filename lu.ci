@@ -75,10 +75,45 @@ module lu {
     /**
      * Methods for handling pivots in the trailing submatrix
      */
+    // Receive and process batches of pivot operations sent out by
+    // the current active diagonal chare
+    entry [local] void pivotBatch(int tag) {
+      while (pivotBatchTag < (internalStep+1)*blkSize) {
+        // Wait for msg carrying the next batch of pivot ops
+        when applyTrailingPivots[pivotBatchTag](pivotSequencesMsg *msg) {
+          // Send out any pivot data owned by this chare
+          atomic "sendOutgoingPivots" {
+            sendPendingPivots(msg);
+            CmiReference(UsrToEnv(msg));
+          }
+          // Wait for all incoming pivot data from this batch
+          while (pendingIncomingPivots > 0) {
+            when trailingPivotRowsSwap[pivotBatchTag](pivotRowsMsg *aMsg)
+              atomic "acceptIncomingPivots" {
+              for (int i = 0; i < aMsg->nRows; i++) {
+                CkAssert(thisIndex.x == aMsg->rowNum[i]/blkSize);
+                applySwap(aMsg->rowNum[i] % blkSize, 0,
+                          &(aMsg->rows[i * blkSize]), aMsg->rhs[i]);
+                pendingIncomingPivots--;
+              }
+              delete aMsg;
+            }
+          }
+          // Increment the batch tag to the next expected
+          atomic {
+            pivotBatchTag += msg->numRowsProcessed;
+            CmiFree(UsrToEnv(msg));
+          }
+        }
+      }
+
+      atomic { thisProxy[thisIndex].pivotBatchDone(tag); }
+    };
     // Indicate a set of rows which need to be swapped
     entry [nokeep] void applyTrailingPivots(pivotSequencesMsg *msg);
     // Exchange pivot row contents
     entry void trailingPivotRowsSwap(pivotRowsMsg *msg);
+    entry [local] void pivotBatchDone(int tag);
 
     // Describes the control flow for all (super, sub and on diagonal) LU chares
     entry [local] void updateUntilActive() {
@@ -92,43 +127,14 @@ module lu {
         pivotBatchTag = 0;
       }
       for (internalStep = 0; internalStep < min(thisIndex.x, thisIndex.y); internalStep++) {
-        // Receive and process batches of pivot operations sent out by
-        // the current active diagonal chare
-        while (pivotBatchTag < (internalStep+1)*blkSize) {
-          // Wait for msg carrying the next batch of pivot ops
-          when applyTrailingPivots[pivotBatchTag](pivotSequencesMsg *msg) {
-            // Send out any pivot data owned by this chare
-            atomic "sendOutgoingPivots_trailingChare" {
-              sendPendingPivots(msg);
-              CmiReference(UsrToEnv(msg));
-            }
-            // Wait for all incoming pivot data from this batch
-            while (pendingIncomingPivots > 0) {
-              when trailingPivotRowsSwap[pivotBatchTag](pivotRowsMsg *aMsg)
-                atomic "acceptIncomingPivots_trailingChare" {
-                for (int i = 0; i < aMsg->nRows; i++) {
-                  CkAssert(thisIndex.x == aMsg->rowNum[i]/blkSize);
-                  applySwap(aMsg->rowNum[i] % blkSize, 0,
-                            &(aMsg->rows[i * blkSize]), aMsg->rhs[i]);
-                  pendingIncomingPivots--;
-                }
-                delete aMsg;
-              }
-            }
-            // Increment the batch tag to the next expected
-            atomic {
-              pivotBatchTag += msg->numRowsProcessed;
-              CmiFree(UsrToEnv(msg));
-            }
-          }
-        }
+        atomic { thisProxy[thisIndex].pivotBatch(0); }
 
         // After a panel's worth of pivots have arrived, this block is
         // ready to execute a trailing update. We let the local
         // scheduler dictate when that should happen, to avoid
         // interfering with another local block working in the
         // latency-sensitive active panel.
-        atomic { updateExecuted = false; }
+        when pivotBatchDone[0](int tag) atomic { updateExecuted = false; }
         while (!updateExecuted) {
           when processTrailingUpdate[internalStep](int step, intptr_t update_ptr)
           atomic "trailing_update" {
@@ -149,35 +155,7 @@ module lu {
     };
 
     entry [local] void factorAboveDiagBlock() {
-      // Receive and process each pivot selection sent out by the current diagonal block
-      while (pivotBatchTag < (internalStep+1)*blkSize) {
-        // Wait for msg carrying the next batch of pivot ops
-        when applyTrailingPivots[pivotBatchTag](pivotSequencesMsg *msg) {
-          // Send out any pivot data owned by this chare
-          atomic "sendOutgoingPivots_activeRowChare" {
-            sendPendingPivots(msg);
-            CmiReference(UsrToEnv(msg));
-          }
-          // Wait for all incoming pivot data from this batch
-          while (pendingIncomingPivots > 0) {
-            when trailingPivotRowsSwap[pivotBatchTag](pivotRowsMsg *aMsg)
-              atomic "acceptIncomingPivots_activeRowChare" {
-              for (int i = 0; i < aMsg->nRows; i++) {
-                CkAssert(thisIndex.x == aMsg->rowNum[i]/blkSize);
-                applySwap(aMsg->rowNum[i] % blkSize, 0,
-                          &(aMsg->rows[i * blkSize]), aMsg->rhs[i]);
-                pendingIncomingPivots--;
-              }
-              delete aMsg;
-            }
-          }
-          // Increment the batch tag to the next expected
-          atomic {
-            pivotBatchTag += msg->numRowsProcessed;
-            CmiFree(UsrToEnv(msg));
-          }
-        }
-      }
+      atomic { thisProxy[thisIndex].pivotBatch(1); }
 
       // After the associated panel's pivots have all arrived, this
       // block can perform its triangular solve. If the next active
@@ -185,7 +163,7 @@ module lu {
       // delaying the work-exposing critical path. Otherwise, let the
       // local scheduler control that, to avoid invonceniencing an
       // active panel factorization.
-      if (thisIndex.y == thisIndex.x + 1) {
+      when pivotBatchDone[1](int tag) if (thisIndex.y == thisIndex.x + 1) {
         when triangularSolve(blkMsg* m) atomic "triangular_solve" {
           computeU(m->data);
           delete m;
@@ -278,36 +256,8 @@ module lu {
       }
 
       for (internalStep++; internalStep <= thisIndex.x; internalStep++) {
-        // Receive and process batches of pivot operations sent out by
-        // the current active diagonal chare
-        while (pivotBatchTag < (internalStep+1)*blkSize) {
-          // Wait for msg carrying the next batch of pivot ops
-          when applyTrailingPivots[pivotBatchTag](pivotSequencesMsg *msg) {
-            // Send out any pivot data owned by this chare
-            atomic "sendOutgoingPivots_leftSectionChare" {
-              sendPendingPivots(msg);
-              CmiReference(UsrToEnv(msg));
-            }
-            // Wait for all incoming pivot data from this batch
-            while (pendingIncomingPivots > 0) {
-              when trailingPivotRowsSwap[pivotBatchTag](pivotRowsMsg *aMsg)
-                atomic "acceptIncomingPivots_leftSectionChare" {
-                for (int i = 0; i < aMsg->nRows; i++) {
-                  CkAssert(thisIndex.x == aMsg->rowNum[i]/blkSize);
-                  applySwap(aMsg->rowNum[i] % blkSize, 0,
-                            &(aMsg->rows[i * blkSize]), aMsg->rhs[i]);
-                  pendingIncomingPivots--;
-                }
-                delete aMsg;
-              }
-            }
-            // Increment the batch tag to the next expected
-            atomic {
-              pivotBatchTag += msg->numRowsProcessed;
-              CmiFree(UsrToEnv(msg));
-            }
-          }
-        }
+        atomic { thisProxy[thisIndex].pivotBatch(2); }
+        when pivotBatchDone[2](int tag) { }
       }
       atomic "belowdiag_iteration_completed" { contribute(factorizationDone); }
       // Swallow excess pivots message broadcast to the entire array
