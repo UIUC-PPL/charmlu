@@ -11,7 +11,6 @@ struct LUMap : public CkArrayMap {
   int procNum(int arrayHdl, const CkArrayIndex &idx) { return 0; }
 };
 
-
 /** do a space filling curve style allocation from the bottom right to the upper left. */
 class LUSnakeMap: public LUMap {
 public:
@@ -26,28 +25,27 @@ public:
 
     const int numsteps=numBlks;
    
-    int p=0;
-    for(int step=numsteps-1;step>=0;step--){
-      
+    int p = 0;
+    for(int step = numsteps-1; step >= 0; step--){
       // go along row
-      for(int i=1;i<numsteps-step;i++){
+      for(int i = 1; i < numsteps - step; i++){
 	int curr_x = i + step;
 	int curr_y = step;
-	if(x==curr_x && y==curr_y)
+	if(x == curr_x && y == curr_y)
 	  return p % numProcs;
 	p++;
       }
       
       // visit corner
-      if(x==step && y==step)
+      if (x == step && y == step)
 	return p % numProcs;
       p++;
       
       // go along column
-      for(int i=1;i<numsteps-step;i++){
+      for(int i = 1; i < numsteps - step; i++){
 	int curr_y = i + step;
 	int curr_x = step;
-	if(x==curr_x && y==curr_y)
+	if(x == curr_x && y == curr_y)
 	  return p % numProcs;
 	p++;
       }
@@ -61,12 +59,10 @@ public:
 /** do an allocation that results in almost identical numbers of trailing updates per PE */
 class LUBalancedSnakeMap: public LUMap {
 public:
-  
   int mappingSize;
   int *mapping;
   int *peLoads;
   int numBlks, blkSize;
-  
 
   void setMapping(int x, int y, int pe){
     CkAssert(x*numBlks+y < mappingSize);
@@ -91,12 +87,12 @@ public:
       peLoads[i]=0;
     
     for(int step = numBlks-1; step >= 0; step--) {
-        // visit corner & column
-        for(int x = step; x < numBlks; x++)
-            setMapping(x, step, minLoadedPE() );
-        // go along row
-        for(int y = step+1; y < numBlks; y++)
-            setMapping(step, y, minLoadedPE() );
+      // visit corner & column
+      for(int x = step; x < numBlks; x++)
+        setMapping(x, step, minLoadedPE() );
+      // go along row
+      for(int y = step+1; y < numBlks; y++)
+        setMapping(step, y, minLoadedPE() );
     }
   }
   
@@ -125,7 +121,6 @@ public:
     int y = coor[1];
     return getMapping(x,y);
   }
-
 };
 
 /** do an allocation that results in almost identical numbers of trailing updates per PE */
@@ -200,8 +195,8 @@ public:
   int minLoadedPE() {
     int minLoadFound = 1000000000;
     int minPEFound = CkNumPes()-1;
-    for(int p = CkNumPes() - 1; p >= 0; p--){
-      if(peLoads[p] < minLoadFound) {
+    for (int p = CkNumPes() - 1; p >= 0; p--){
+      if (peLoads[p] < minLoadFound) {
 	minPEFound = p;
 	minLoadFound = peLoads[p];
       }
@@ -230,7 +225,6 @@ public:
     int y = coor[1];
     return getMapping(x,y);
   }
-
 };
 
 class BlockCyclicMap: public LUMap {
@@ -243,28 +237,25 @@ public:
 
     int numProcs = CkNumPes();
     int numNodes = CkNumNodes();
-    //int numNodes = numProcs/4;
 
     int procPerNode = numProcs/numNodes;
-    //int procPerNode = 4;
     CkAssert(numProcs%numNodes==0);
 
-    //assume a procPerNode X numNodes grid of processors
-
-    int penum = (x%procPerNode)*numNodes+(y%numNodes);
+    // Assume a procPerNode X numNodes grid of processors
+    int penum = (x % procPerNode) * numNodes + (y % numNodes);
     return penum;
   }
 };
 
 class RealBlockCyclicMap : public LUMap {
-    int r, num_blocks;
+  int r, num_blocks;
 public:
-    RealBlockCyclicMap(int r_, int num_blocks_) : r(r_), num_blocks(num_blocks_) {}
-    int procNum(int arrayHdl, const CkArrayIndex &idx) {
-	int *coor = (int *)idx.data();
-	int m = coor[1]*num_blocks + coor[0];
-	return (m % (r*CkNumPes()))/r;
-    }
+  RealBlockCyclicMap(int r_, int num_blocks_) : r(r_), num_blocks(num_blocks_) {}
+  int procNum(int arrayHdl, const CkArrayIndex &idx) {
+    int *coor = (int *)idx.data();
+    int m = coor[1] * num_blocks + coor[0];
+    return (m % (r * CkNumPes())) / r;
+  }
 };
 
 #include <set>
@@ -272,9 +263,9 @@ public:
 // Implement a mapping that tiles a 2D processor tile in the 2D chare array
 class PE2DTilingMap: public LUMap {
 public:
-PE2DTilingMap(int _peRows, int _peCols, int _peRotate, int _peStride, int _numBlks)
-  : peRows(_peRows), peCols(_peCols), peRotate(_peRotate), peStride(_peStride),
-    numBlks(_numBlks) {
+  PE2DTilingMap(int _peRows, int _peCols, int _peRotate, int _peStride, int _numBlks)
+    : peRows(_peRows), peCols(_peCols), peRotate(_peRotate), peStride(_peStride),
+      numBlks(_numBlks) {
     CkAssert(peRows > 0 && peCols > 0);
   }
 
@@ -319,8 +310,8 @@ private:
   const int peRows, peCols, peRotate, peStride, numBlks;
 };
 
-/// Mapping for BlockScheduler - created as an array to hack around
-/// inability to do group section multicasts
+/// Mapping for BlockScheduler - created as an array so group section multicast
+/// can be used
 struct OnePerPE : public CBase_OnePerPE {
   OnePerPE() { }
   int registerArray(CkArrayIndexMax& numElements,CkArrayID aid) {
@@ -331,5 +322,4 @@ struct OnePerPE : public CBase_OnePerPE {
     return *(int*)elt.data();
   }
 };
-
 #endif
