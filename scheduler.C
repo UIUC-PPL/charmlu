@@ -13,40 +13,32 @@ using std::list;
 using std::map;
 
 #ifndef SEND_LIM
-#error Please define some value for the macroSEND_LIM appropriate to the machine you are running on
+  #error Please define some value for the macro SEND_LIM appropriate to the machine you are running on
 #endif
 static const int SEND_LIMIT = SEND_LIM;
 
-
-inline bool operator==(const CkIndex2D &l, const CkIndex2D &r)
-{ return l.x == r.x && l.y == r.y; }
+inline bool operator==(const CkIndex2D &l, const CkIndex2D &r) {
+  return l.x == r.x && l.y == r.y;
+}
 pair<int, int> make_pair(CkIndex2D index) {
   return make_pair(index.x, index.y);
 }
 
 BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_)
-  : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false), inPumpMessages(false), numActive(0),
-    pendingTriggered(0), sendDelay(0), reverseSends(CkMyPe() % 2 == 0),
-    maxMemory(0), maxMemoryIncreases(0), maxMemoryStep(-1) {
+  : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false), inPumpMessages(false), numActive(0)
+  , pendingTriggered(0), sendDelay(0), reverseSends(CkMyPe() % 2 == 0)
+  , maxMemory(0), maxMemoryIncreases(0), maxMemoryStep(-1) {
   blockLimit = config.memThreshold * 1024 * 1024 /
     (config.blockSize * (config.blockSize + 1) * sizeof(double) + sizeof(LUBlk) + sdagOverheadPerBlock);
-
   contribute(CkCallback(CkIndex_LUBlk::schedulerReady(NULL), luArr));
 }
 
 void BlockScheduler::scheduleSend(blkMsg *msg, bool onActive) {
-  list<blkMsg *>::iterator iter = find(scheduledSends.begin(),
-                                       scheduledSends.end(), msg);
+  list<blkMsg *>::iterator iter = find(scheduledSends.begin(), scheduledSends.end(), msg);
   DEBUG_SCHED("scheduling a new send (%d, %d)", msg->src.x, msg->src.y);
   if (iter == scheduledSends.end()) {
-#if 0
-    if (onActive)
-      scheduledSends.push_front(msg);
-    else
-#endif
-      scheduledSends.push_back(msg);
+    scheduledSends.push_back(msg);
   }
-
   pumpMessages();
 }
 
@@ -72,14 +64,11 @@ void BlockScheduler::scheduleSend(CkIndex2D index, bool onActive) {
 
 void pumpOnIdle(void *s, double) {
   BlockScheduler *scheduler = (BlockScheduler *)s;
-  //CkPrintf("Firing pumpMessages on Idle\n");
-  //CcdCallOnCondition(CcdPERIODIC_100ms, pumpOnIdle, s);
   scheduler->pumpMessages();
 }
 
 void BlockScheduler::pumpMessages() {
   if (inPumpMessages) return;
-
   inPumpMessages = true;
 
   size_t curMemory = CmiMemoryUsage()/1024;
@@ -92,7 +81,6 @@ void BlockScheduler::pumpMessages() {
 
   for (list<blkMsg*>::iterator iter = sendsInFlight.begin();
        iter != sendsInFlight.end(); ++iter) {
-    //DEBUG_SCHED("pumpMessages, iter through sendsInFlight %p", *iter);
     blkMsg *msg = *iter;
     int ref = REFFIELD(UsrToEnv(msg));
     CkAssert(ref > 0 && ref <= 2);
@@ -125,7 +113,6 @@ void BlockScheduler::pumpMessages() {
   for (list<blkMsg*>::iterator iter = scheduledSends.begin();
        iter != scheduledSends.end() && sendsInFlight.size() < SEND_LIMIT;
        ++iter) {
-    //DEBUG_SCHED("pumpMessages, iter through scheduledSends %p", *iter);
     if (find(sendsInFlight.begin(), sendsInFlight.end(), *iter) ==
         sendsInFlight.end()) {
       sendsInFlight.push_back(*iter);
@@ -136,7 +123,6 @@ void BlockScheduler::pumpMessages() {
   }
 
   if (sendsInFlight.size() != 0 || scheduledSends.size() != 0) {
-    //DEBUG_SCHED("Setting up idle condition; %d messages in flight\n", sendsInFlight.size());
     CcdCallOnCondition(CcdPROCESSOR_STILL_IDLE, pumpOnIdle, this);
   } else {
     DEBUG_SCHED("finished all sends");
@@ -154,17 +140,15 @@ void BlockScheduler::registerBlock(CkIndex2D index) {
 
   if (index.y != 0) {
     localBlocks.push_back(BlockState(index));
-
     if (index.x != 0) {
       for (int i = 1; i < min(index.x, index.y) + 1; i++)
         Upanels[i].updatesLeftToPlan++;
     }
-
     if (index.y > index.x)
       panels[index.x].updatesLeftToPlan++;
   }
 
-  if (blockLimit< 2)
+  if (blockLimit < 2)
     CkAbort("Too little space to plan even one trailing update");
 }
 
@@ -172,10 +156,10 @@ void printMemory(void *time, void *msg) {
   int *s = (int*) ((CkReductionMsg *)msg)->getData();
   int mem = s[0];
   CkPrintf("%s memory usage: %zu KiB, additional stats: ", time, mem);
-  for (int i = 1; i < ((CkReductionMsg *)msg)->getLength()/sizeof(int); i++)
+  for (int i = 1; i < ((CkReductionMsg*)msg)->getLength() / sizeof(int); i++)
     CkPrintf("%zd ", s[i]);
   CkPrintf("\n");
-  delete (CkReductionMsg *)msg;
+  delete (CkReductionMsg*)msg;
 }
 
 void BlockScheduler::outputStats() {
@@ -183,8 +167,7 @@ void BlockScheduler::outputStats() {
   stats[0] = maxMemory;
   stats[1] = maxMemoryIncreases;
   stats[2] = maxMemoryStep;
-
-  contribute(3*sizeof(int), stats, CkReduction::max_int,
+  contribute(3 * sizeof(int), stats, CkReduction::max_int,
 	     CkCallback(&printMemory, const_cast<char*>("Peak")));
 }
 
@@ -194,13 +177,6 @@ void BlockScheduler::allRegistered(CkReductionMsg *m) {
   baseMemory = CmiMemoryUsage()/1024;
   contribute(sizeof(int), &baseMemory, CkReduction::max_int,
 	     CkCallback(&printMemory, const_cast<char*>("Base")));
-
-  for (map<int, Panel>::iterator iter = panels.begin(); iter != panels.end();
-       ++iter)
-    DEBUG_SCHED("panels[%d] = %d", iter->first, iter->second.updatesLeftToPlan);
-  for (map<int, Panel>::iterator iter = Upanels.begin(); iter != Upanels.end();
-       ++iter)
-    DEBUG_SCHED("Upanels[%d] = %d", iter->first, iter->second.updatesLeftToPlan);
 
   for (StateList::iterator iter = localBlocks.begin();
        iter != localBlocks.end(); ++iter)
@@ -491,10 +467,8 @@ bool eligibilityYOrder(const BlockState& block1, const BlockState& block2) {
 
 void BlockScheduler::progress() {
   DEBUG_SCHED("Called progress, already? %s", inProgress? "true" : "false" );
-  // Prevent reentrance
-  if (inProgress)
-    return;
-
+  // Prevent re-entrance
+  if (inProgress) return;
   inProgress = true;
 
   bool stateModified;
@@ -535,7 +509,6 @@ void BlockScheduler::progress() {
   } while (stateModified);
 
   pumpMessages();
-
   inProgress = false;
 }
 

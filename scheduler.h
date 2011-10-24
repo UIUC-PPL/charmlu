@@ -10,7 +10,6 @@
 #include <algorithm>
 #include <utility>
 
-// MOVE TO scheduler.C
 enum INPUT_STATE {
   PLANNED, ARRIVED, LOCAL_PLANNED
 };
@@ -31,7 +30,7 @@ struct BlockState {
     : ix(index.x), iy(index.y), pendingDependencies(0),
       updatesCompleted(0), updatesPlanned(0), updatesEligible(0),
       pivotsDone(false)
-    {}
+  { }
 
   bool operator==(const BlockState &rhs) {
     return ix == rhs.ix && iy == rhs.iy;
@@ -39,8 +38,6 @@ struct BlockState {
 };
 
 typedef std::list<BlockState> StateList;
-
-//PUPbytes(std::list<Update>::iterator)
 
 struct Update {
   BlockState *target;
@@ -56,7 +53,6 @@ struct Update {
   }
 
   bool isComputeU() { return target->ix == t; }
-
   bool ready() { return L && (U || isComputeU()) && !triggered; }
 
   Update(BlockState *target_, int step)
@@ -92,7 +88,6 @@ public:
   void allRegistered(CkReductionMsg *m);
   void printBlockLimit();
   void pivotsDone(CkIndex2D index);
-//  void dataReady(CkIndex2D index, BlockReadyMsg *m);
   void updateDone(intptr_t update_ptr);
   void factorizationDone(CkIndex2D index);
   void deliverBlock(blkMsg *m);
@@ -109,9 +104,7 @@ private:
   LUMgr *mgr;
   StateList localBlocks, doneBlocks;
 
-  std::map<int, Panel> panels;
-  std::map<int, Panel> Upanels;
-
+  std::map<int, Panel> panels, Upanels;
   std::list<Update> plannedUpdates;
   CProxy_LUBlk luArr;
   int blockLimit;
