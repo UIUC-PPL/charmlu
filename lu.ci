@@ -41,9 +41,9 @@ module lu {
       // Once the current step of the computation reaches the diagonal chare on this block's row / column
       when amActive(bool isActive) {
         // If this matrix block is above the matrix diagonal
-        if      (isAboveDiagonal) atomic { thisProxy[thisIndex].factorAboveDiagBlock(); }
+        if      (isAboveDiagonal()) atomic { thisProxy[thisIndex].factorAboveDiagBlock(); }
         // else if its below the matrix diagonal
-        else if (isBelowDiagonal) atomic { thisProxy[thisIndex].factorBelowDiagBlock(); }
+        else if (isBelowDiagonal()) atomic { thisProxy[thisIndex].factorBelowDiagBlock(); }
         // else, this block is on the matrix diagonal
         else atomic {
           if (STOP_AFTER == thisIndex.x)

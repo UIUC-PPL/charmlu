@@ -82,11 +82,7 @@ public:
   void offDiagSolve(BVecMsg *m);
 
   LUBlk()
-    : factored(false)
-    , blockPulled(0), blocksAfter(0), maxRequestingPEs(0)
-    , isOnDiagonal   ( thisIndex.x == thisIndex.y)
-    , isAboveDiagonal( thisIndex.x <  thisIndex.y)
-    , isBelowDiagonal( thisIndex.x >  thisIndex.y) {
+    : factored(false), blockPulled(0), blocksAfter(0), maxRequestingPEs(0) {
     __sdag_init();
 #if defined(LU_TRACING)
     traceEnd();
@@ -104,7 +100,7 @@ public:
 	    CkCallback initDone, CkCallback fznDone, CkCallback slnDone);
   void prepareForActivePanel(rednSetupMsg *msg);
   ~LUBlk();
-  LUBlk(CkMigrateMessage* m): isOnDiagonal(false), isAboveDiagonal(false), isBelowDiagonal(false) { CkAbort("LU blocks not migratable yet"); }
+  LUBlk(CkMigrateMessage* m) { CkAbort("LU blocks not migratable yet"); }
   // Added for migration
   void pup(PUP::er &p) {  }
 
@@ -215,5 +211,7 @@ protected:
     return i * blkSize + j;
   }
 
-  const bool isOnDiagonal, isAboveDiagonal, isBelowDiagonal;
+  bool isOnDiagonal()    { return thisindex.x == thisIndex.y; }
+  bool isAboveDiagonal() { return thisIndex.x <  thisIndex.y; }
+  bool isBelowDiagonal() { return thisIndex.x >  thisIndex.y; }
 };
