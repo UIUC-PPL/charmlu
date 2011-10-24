@@ -274,7 +274,7 @@ inline void LUBlk::multicastRecvL() {
   // oneRow.readyL(mL);
 }
 
-void LUBlk::getBlock(int pe, int rx, int ry) {
+void LUBlk::requestBlock(int pe, int rx, int ry) {
   if (factored) {
     requestingPEs.push_back(pe);
 
@@ -291,7 +291,8 @@ void LUBlk::getBlock(int pe, int rx, int ry) {
     requestingPEs.push_back(pe);
   }
 }
-double* LUBlk::getBlock() {
+
+double* LUBlk::accessLocalBlock() {
   return LU;
 }
 
@@ -478,7 +479,7 @@ void LUBlk::announceAgglomeratedPivots()
 #endif
 
   mgr->setPrio(msg, PIVOT_RIGHT_SEC, -1, thisIndex.y);
-  thisProxy.applyPivots(msg);
+  thisProxy.applyTrailingPivots(msg);
 
   // Prepare for the next batch of agglomeration
   pivotRecords.clear();
@@ -645,7 +646,7 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg)
       // Send out all the msgs carrying pivot data to other chares
   for (int i=0; i< numBlks; i++)
     if (numMsgsTo[i] > 0)
-      thisProxy(i, thisIndex.y).acceptPivotData(outgoingPivotMsgs[i]);
+      thisProxy(i, thisIndex.y).trailingPivotRowsSwap(outgoingPivotMsgs[i]);
 
   if (tmpBuf) delete [] tmpBuf;
 #ifdef VERBOSE_PIVOT_AGGLOM

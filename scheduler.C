@@ -285,7 +285,7 @@ void BlockScheduler::getBlock(int srcx, int srcy, double *&data,
     if (local->factored) {
       DEBUG_SCHED("Found block (%d, %d) ready locally for update to (%d,%d)",
 		  srcx, srcy, update->target->ix, update->target->iy);
-      data = local->getBlock();
+      data = local->accessLocalBlock();
     } else {
       DEBUG_SCHED("Found block (%d, %d) pending locally for update to (%d,%d)",
 		  srcx, srcy, update->target->ix, update->target->iy);
@@ -303,9 +303,8 @@ void BlockScheduler::getBlock(int srcx, int srcy, double *&data,
     // First reference to this block, so ask for it
     DEBUG_SCHED("requesting getBlock from (%d, %d)", srcx, srcy);
     CkEntryOptions opts;
-    luArr(src.first, src.second).
-      getBlock(CkMyPe(), update->target->ix, update->target->iy,
-               &(mgr->setPrio(GET_BLOCK, opts)));
+    luArr(src.first, src.second).requestBlock(CkMyPe(), update->target->ix, update->target->iy,
+                                              &(mgr->setPrio(GET_BLOCK, opts)));
   }
 
   if (block.m) {
@@ -473,7 +472,7 @@ void BlockScheduler::factorizationDone(CkIndex2D index) {
 	 wanter != wantList.end(); ++wanter) {
       DEBUG_SCHED("tryDeliver of (%d,%d) to (%d,%d) @ %d", index.x, index.y,
 		  (*wanter)->target->ix, (*wanter)->target->iy, (*wanter)->t);
-      (*wanter)->tryDeliver(index.x, index.y, luArr(index).ckLocal()->getBlock());
+      (*wanter)->tryDeliver(index.x, index.y, luArr(index).ckLocal()->accessLocalBlock());
     }
 
     localWantedBlocks.erase(wanters);

@@ -75,8 +75,8 @@ class LUBlk: public CBase_LUBlk {
     //broadcast the L rightwards to the blocks in the same row
     void multicastRecvL();
     void sendBlocks(int);
-    void getBlock(int pe, int rx, int ry);
-    double *getBlock();
+    void requestBlock(int pe, int rx, int ry);
+    double *accessLocalBlock();
 
     /// Solution
     void localSolve(double *xvec, double *preVec);

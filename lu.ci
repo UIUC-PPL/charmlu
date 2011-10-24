@@ -50,7 +50,7 @@ module lu {
         // else, this block is on the matrix diagonal
         else atomic {
           if (STOP_AFTER == thisIndex.x)
-            CkStartQD( CkCallback(CkCallback::ckExit) );
+            CkStartQD(CkCallback(CkCallback::ckExit));
           else
             thisProxy[thisIndex].factorDiagBlock();
         }
@@ -60,17 +60,20 @@ module lu {
     /**
      * Active panel methods
      */
-
     // The reduction to find the maximum element in the column
     entry void colMax(CkReductionMsg *m);
-    // Message with pivot data to swap and row index
+    // Pivot data to swap along with row index
     entry void pivotRowSwap(int rowIndex, int pivotRow, int len, const double data[len], double b, bool noop);
-    entry [nokeep] void applyPivots(pivotSequencesMsg *msg);
-    entry void acceptPivotData(pivotRowsMsg *msg);
-    entry [nokeep] void sendUSegment(UMsg* msg);
-    entry void performUpdate(CkMarshallMsg *dummyMsg);
-    entry void blockUsed(int);
-    entry void getBlock(int pe, int rx, int ry);
+    // U-Segment for the next computation
+    entry [nokeep] void USegCompute(UMsg* msg);
+    // Using the U-Segment previously received, update the sub-block
+    entry void updateSubBlock(CkMarshallMsg *dummyMsg);
+
+    /**
+     * Methods for handling trailing pivots
+     */
+    entry [nokeep] void applyTrailingPivots(pivotSequencesMsg *msg);
+    entry void trailingPivotRowsSwap(pivotRowsMsg *msg);
 
     entry void belowPivot(int targetCol) {
       // Wait for the replacement row from the diagonal chare so that you have the updated block
@@ -92,13 +95,13 @@ module lu {
             mgr->setPrio(anUmsg, BELOW_SEND_USEG, internalStep*BLKSIZE + targetCol);
             CkSetRefNum(anUmsg, internalStep*BLKSIZE + targetCol);
             pendingUmsg = (UMsg*)CkCopyMsg((void**)(&anUmsg));
-            activePanel.sendUSegment(anUmsg);
+            activePanel.USegCompute(anUmsg);
 #endif
           }
           atomic "below_recv_remote_pivot" {
             applySwap(pivotRow % BLKSIZE, 0, data, b);
 #if defined(CHARMLU_USEG_FROM_BELOW)
-            thisProxy[thisIndex].sendUSegment(pendingUmsg);
+            thisProxy[thisIndex].USegCompute(pendingUmsg);
 #endif
           }
         }
@@ -121,7 +124,7 @@ module lu {
           // Receive and process batches of pivot operations sent out by the current active diagonal chare
           while (pivotBatchTag < (internalStep+1)*BLKSIZE) {
               // Wait for msg carrying the next batch of pivot ops
-              when applyPivots[pivotBatchTag](pivotSequencesMsg *msg) {
+              when applyTrailingPivots[pivotBatchTag](pivotSequencesMsg *msg) {
                   // Send out any pivot data owned by this chare
                   atomic "sendOutgoingPivots_trailingChare" {
                     sendPendingPivots(msg);
@@ -130,7 +133,7 @@ module lu {
                   // Wait for all incoming pivot data from this batch
                   while (pendingIncomingPivots > 0)
                   {
-                      when acceptPivotData[pivotBatchTag](pivotRowsMsg *aMsg) atomic "acceptIncomingPivots_trailingChare" {
+                      when trailingPivotRowsSwap[pivotBatchTag](pivotRowsMsg *aMsg) atomic "acceptIncomingPivots_trailingChare" {
                           for (int i = 0; i < aMsg->nRows; i++)
                           {
                               CkAssert(thisIndex.x == aMsg->rowNum[i]/BLKSIZE);
@@ -189,7 +192,7 @@ module lu {
         // Receive and process each pivot selection sent out by the current diagonal block
         while (pivotBatchTag < (internalStep+1)*BLKSIZE) {
           // Wait for msg carrying the next batch of pivot ops
-          when applyPivots[pivotBatchTag](pivotSequencesMsg *msg) {
+          when applyTrailingPivots[pivotBatchTag](pivotSequencesMsg *msg) {
               // Send out any pivot data owned by this chare
               atomic "sendOutgoingPivots_activeRowChare" {
                 sendPendingPivots(msg);
@@ -198,7 +201,7 @@ module lu {
               // Wait for all incoming pivot data from this batch
               while (pendingIncomingPivots > 0)
               {
-                  when acceptPivotData[pivotBatchTag](pivotRowsMsg *aMsg) atomic "acceptIncomingPivots_activeRowChare" {
+                  when trailingPivotRowsSwap[pivotBatchTag](pivotRowsMsg *aMsg) atomic "acceptIncomingPivots_activeRowChare" {
                       for (int i = 0; i < aMsg->nRows; i++)
                       {
                           CkAssert(thisIndex.x == aMsg->rowNum[i]/BLKSIZE);
@@ -252,7 +255,7 @@ module lu {
         }
       atomic "abovediag_iteration_completed" { contribute(factorizationDone); }
       // Swallow excess pivots message broadcast to the entire array
-      while (true) { when applyPivots(pivotSequencesMsg *msg) { } }
+      while (true) { when applyTrailingPivots(pivotSequencesMsg *msg) { } }
       };
 
 
@@ -269,11 +272,11 @@ module lu {
             // Contribute to a reduction along the active panel to identify the pivot row
             mcastMgr->contribute(sizeof(locval), &pivotCandidate, LocValReducer, pivotCookie);
 #ifndef SCHED_PIVOT_REDN
-            void *yuckMsg = CkAllocSysMsg();
-            thisProxy[thisIndex].performUpdate((CkMarshallMsg*)yuckMsg);
+            void *dummyMsg = CkAllocSysMsg();
+            thisProxy[thisIndex].updateSubBlock((CkMarshallMsg*)dummyMsg);
 #endif
           }
-	  when performUpdate(CkMarshallMsg *dummyMsg) atomic "useg_delayed_update" {
+	  when updateSubBlock(CkMarshallMsg *dummyMsg) atomic "useg_delayed_update" {
 	    // Delayed update using the U segment from the prev activeCol iteration
 	    if (pendingUmsg) {
 	      updateLsubBlock(activeCol-1, pendingUmsg->data, 2);
@@ -288,12 +291,10 @@ module lu {
             delete dummyMsg;
 	  }
           // Wait for the post-diagonal U segment from the original owner of the pivot row
-          when sendUSegment(UMsg* anUmsg) atomic "below_recv_useg" {
+          when USegCompute(UMsg* anUmsg) atomic "below_recv_useg" {
             // Release the pivotRowSwap trigger to free memory
 	    if (!ownedPivotThisStep)
-	      thisProxy(thisIndex).
-		pivotRowSwap(internalStep*BLKSIZE + activeCol, -1, 0, NULL, -1, true);
-
+	      thisProxy(thisIndex).pivotRowSwap(internalStep*BLKSIZE + activeCol, -1, 0, NULL, -1, true);
             if (activeCol == 0) {
               DEBUG_PRINT("startedActivePanel");
               localScheduler->startedActivePanel();
@@ -322,7 +323,7 @@ module lu {
           // Receive and process batches of pivot operations sent out by the current active diagonal chare
           while (pivotBatchTag < (internalStep+1)*BLKSIZE) {
               // Wait for msg carrying the next batch of pivot ops
-              when applyPivots[pivotBatchTag](pivotSequencesMsg *msg) {
+              when applyTrailingPivots[pivotBatchTag](pivotSequencesMsg *msg) {
                   // Send out any pivot data owned by this chare
                   atomic "sendOutgoingPivots_leftSectionChare" {
                     sendPendingPivots(msg);
@@ -331,7 +332,7 @@ module lu {
                   // Wait for all incoming pivot data from this batch
                   while (pendingIncomingPivots > 0)
                   {
-                      when acceptPivotData[pivotBatchTag](pivotRowsMsg *aMsg) atomic "acceptIncomingPivots_leftSectionChare" {
+                      when trailingPivotRowsSwap[pivotBatchTag](pivotRowsMsg *aMsg) atomic "acceptIncomingPivots_leftSectionChare" {
                           for (int i = 0; i < aMsg->nRows; i++)
                           {
                               CkAssert(thisIndex.x == aMsg->rowNum[i]/BLKSIZE);
@@ -353,7 +354,7 @@ module lu {
         }
       atomic "belowdiag_iteration_completed" { contribute(factorizationDone); }
       // Swallow excess pivots message broadcast to the entire array
-      while (true) { when applyPivots(pivotSequencesMsg *msg) { } }
+      while (true) { when applyTrailingPivots(pivotSequencesMsg *msg) { } }
       };
 
     entry void factorDiagBlock() {
@@ -405,7 +406,7 @@ module lu {
 	    atomic "diag_send_useg" {
 	      UMsg *anUmsg = new(BLKSIZE - activeCol, sizeof(int)*8) UMsg(BLKSIZE - activeCol, &LU[getIndex(pivotCandidate.loc%BLKSIZE,activeCol)]);
               mgr->setPrio(anUmsg, DIAG_SEND_USEG);
-	      activePanel.sendUSegment(anUmsg);
+	      activePanel.USegCompute(anUmsg);
 	    }
 	    // Perform the local pivoting
 	    atomic "diag_local_pivot" { swapLocal(activeCol, pivotCandidate.loc % BLKSIZE); }
@@ -428,7 +429,7 @@ module lu {
 #if !defined(CHARMLU_USEG_FROM_BELOW)
 	      UMsg *anUmsg = new(BLKSIZE - activeCol, sizeof(int)*8) UMsg(BLKSIZE - activeCol, data + activeCol);
               mgr->setPrio(anUmsg, DIAG_SEND_USEG);
-	      activePanel.sendUSegment(anUmsg);
+	      activePanel.USegCompute(anUmsg);
 #endif
 	      applySwap(activeCol, 0, data, b);
 	    }
@@ -504,7 +505,7 @@ module lu {
             mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
             CkGetSectionInfo(pivotCookie, msg);
 #ifdef SCHED_PIVOT_REDN
-            mcastMgr->setReductionProgressEvent(pivotCookie, CkCallback(CkIndex_LUBlk::performUpdate(0), CkArrayIndex2D(thisIndex.x,thisIndex.y), thisArrayID) );
+            mcastMgr->setReductionProgressEvent(pivotCookie, CkCallback(CkIndex_LUBlk::updateSubBlock(0), CkArrayIndex2D(thisIndex.x,thisIndex.y), thisArrayID) );
 #endif
           }
         }
@@ -575,15 +576,17 @@ module lu {
         }
       };
 
-    //entry void readyL(BlockReadyMsg *mL);
-    //entry void readyU(BlockReadyMsg *mU);
-
     // These process* entry methods are invoked locally on each block
     // by the BlockScheduler with varying priorities, to let the
     // scheduler decide when the work they represent (the bulk of the
     // computation) should execute.
     entry void processTrailingUpdate(int step, intptr_t update_ptr);
     entry void processComputeU(intptr_t update_ptr);
+
+    // Inform the BlockScheduler when a block for a trailing update has be consumed
+    entry void blockUsed(int);
+    // Ask the BlockScheduler for a certain block for a trailing update
+    entry void requestBlock(int pe, int rx, int ry);
 
     entry void flushLogs();
     entry void print();
