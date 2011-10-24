@@ -27,7 +27,17 @@ module lu {
 
   /**
    * 2D array of LU matrix-block objects that are locally coordinated
-   * in Structured Dagger
+   * in Structured Dagger.
+   *
+   * The chare indexing relates to matrix position as follows:
+   *           y
+   *    o------------>
+   *    | (0,0) (0,1) . . .
+   *    | (1,0) (1,1)
+   *  x |   .         .
+   *    |   .           .
+   *    |   .             .
+   *    v
    */
   array [2D] LUBlk {
     /// Constructor
