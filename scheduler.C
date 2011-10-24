@@ -1,3 +1,16 @@
+/**
+ * BlockScheduler
+ *
+ * Plan on a set of trailing updates up to the block (U or L) limit, unless the
+ * block is local or shared by another trailing update. A block is eligible to
+ * be planned if its necessary dependencies on other blocks have been
+ * fulfilled, by that block having been previously planned. To simplify the
+ * dependencies the block are split into regions (called panels in the code) to
+ * signify that they have the same number of pending dependencies because they
+ * are in the same region. This is explained further in a technical report,
+ * "Exploring Partial Synchrony in an Asynchronous Environment Using Dense LU".
+ */
+
 #include "scheduler.h"
 #include "lu.decl.h"
 #include "messages.h"
@@ -12,6 +25,7 @@ using std::make_pair;
 using std::list;
 using std::map;
 
+// The limit on the number of concurrent outgoing sends
 #ifndef SEND_LIM
   #error Please define some value for the macro SEND_LIM appropriate to the machine you are running on
 #endif
@@ -26,7 +40,7 @@ pair<int, int> make_pair(CkIndex2D index) {
 
 BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_)
   : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false), inPumpMessages(false), numActive(0)
-  , pendingTriggered(0), sendDelay(0), reverseSends(CkMyPe() % 2 == 0)
+  , pendingTriggered(0), reverseSends(CkMyPe() % 2 == 0)
   , maxMemory(0), maxMemoryIncreases(0), maxMemoryStep(-1) {
   blockLimit = config.memThreshold * 1024 * 1024 /
     (config.blockSize * (config.blockSize + 1) * sizeof(double) + sizeof(LUBlk) + sdagOverheadPerBlock);
