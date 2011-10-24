@@ -116,15 +116,6 @@ module lu {
           }
         }
 
-        /// Preserved for RDMA variant
-        // overlap {
-        //   when readyL[internalStep](BlockReadyMsg *mL) atomic {
-	//     localScheduler->dataReady(thisIndex, mL);
-        //   }
-        //   when readyU[internalStep](BlockReadyMsg *mU) atomic {
-        //     localScheduler->dataReady(thisIndex, mU);
-        //   }
-        // }
         atomic { updateExecuted = false; }
         while (!updateExecuted) {
           when processTrailingUpdate[internalStep](int step, intptr_t update_ptr)

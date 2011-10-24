@@ -134,7 +134,6 @@ protected:
 
   int blkSize, numBlks;
   blkMsg *U;
-  //BlockReadyMsg *mL, *mU;
   int activeCol, ind;
 
   LUMgr *mgr;

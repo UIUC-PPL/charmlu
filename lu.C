@@ -254,10 +254,6 @@ inline void LUBlk::scheduleDownwardU() {
   DEBUG_PRINT("Multicast to part of column %d", thisIndex.y);
 
   localScheduler->scheduleSend(thisIndex, internalStep == thisIndex.y - 1);
-
-  // BlockReadyMsg *mU = new(8*sizeof(int)) BlockReadyMsg(thisIndex);
-  // mgr->setPrio(mU, MULT_RECV_U);
-  // oneCol.readyU(mU);
 }
 
 // Schedule L to be sent rightwards to the blocks in the same row
@@ -268,10 +264,6 @@ inline void LUBlk::scheduleRightwardL() {
 
   DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
   localScheduler->scheduleSend(thisIndex, true);
-
-  // DEBUG_PRINT("Announce block ready to part of row %d", thisIndex.x);
-  // BlockReadyMsg *mL = new(8*sizeof(int)) BlockReadyMsg(thisIndex);
-  // oneRow.readyL(mL);
 }
 
 void LUBlk::requestBlock(int pe, int rx, int ry) {
