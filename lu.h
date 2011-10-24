@@ -80,8 +80,6 @@ public:
   double *accessLocalBlock();
 
   // ------------------------- Solve Phase ------------------------------------
-  /// Solution
-  void localSolve(double *xvec, double *preVec);
   ///
   void localForward(double *xvec);
   ///

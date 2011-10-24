@@ -253,44 +253,36 @@ double* LUBlk::accessLocalBlock() {
   return LU;
 }
 
-void LUBlk::localSolve(double *xvec, double *preVec) {
-  for (int i = 0; i < blkSize; i++) {
-    xvec[i] = 0.0;
-  }
-
-  for (int i = 0; i < blkSize; i++) {
-    for (int j = 0; j < blkSize; j++) {
-      xvec[i] += LU[getIndex(i,j)] * preVec[j];
-    }
-  }
-}
-
 void LUBlk::localForward(double *xvec) {
-  for (int i = 0; i < blkSize; i++) {
-    for (int j = 0; j < i; j++) {
+  for (int i = 0; i < blkSize; i++)
+    for (int j = 0; j < i; j++)
       xvec[i] -= LU[getIndex(i,j)] * xvec[j];
-    }
-  }
 }
 
 void LUBlk::localBackward(double *xvec) {
   for (int i = blkSize-1; i >= 0; i--) {
-    for (int j = i+1; j < blkSize; j++) {
+    for (int j = i+1; j < blkSize; j++)
       xvec[i] -= LU[getIndex(i,j)] * xvec[j];
-    }
     xvec[i] /= LU[getIndex(i,i)];
   }
 }
 
 
 void LUBlk::offDiagSolve(BVecMsg *m) {
-  if (thisIndex.x == thisIndex.y)
+  if (isOnDiagonal)
     return;
 
-  // Perform local solve and reduce left-of-diagonal row to diagonal
-  double *xvec = new double[blkSize];
-  localSolve(xvec, m->data);
+  // Do local portion of solve (daxpy)
+  double *xvec = new double[blkSize], *preVec = m->data;
+  for (int i = 0; i < blkSize; i++) {
+    xvec[i] = 0.0;
+    for (int j = 0; j < blkSize; j++)
+      xvec[i] += LU[getIndex(i,j)] * preVec[j];
+  }
+
+  // Set the diagonal chare on my row as target of reduction
   CkCallback cb(CkIndex_LUBlk::recvSolveData(0), thisProxy(thisIndex.x, thisIndex.x));
+  // Reduce row towards diagonal chare
   mcastMgr->contribute(sizeof(double) * blkSize, xvec, CkReduction::sum_double,
 		       m->forward ? rowBeforeCookie : rowAfterCookie, cb, thisIndex.x);
   delete[] xvec;
