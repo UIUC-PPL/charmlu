@@ -108,9 +108,9 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
 
   /// Chares on the active panels will create sections of their brethren
 #if defined(CHARMLU_USEG_FROM_BELOW)
-  if (thisIndex.x >= thisIndex.y)
+  if (isOnDiagonal() || isBelowDiagonal())
 #else
-  if (thisIndex.x == thisIndex.y)
+  if (isOnDiagonal())
 #endif
   {
     // Elements in the active panel, not including this block
@@ -124,7 +124,7 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
     activePanel.prepareForActivePanel(activePanelMsg);
   }
   /// Chares on the array diagonal will now create pivot sections that they will talk to
-  if (thisIndex.x == thisIndex.y) {
+  if (isOnDiagonal()) {
     // Create the pivot section
     pivotSection = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,numBlks-1,1,thisIndex.y,thisIndex.y,1);
     rowBeforeDiag = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,thisIndex.x,1,0,thisIndex.y-1,1);
@@ -236,9 +236,9 @@ void LUBlk::requestBlock(int pe, int rx, int ry) {
   requestingPEs.push_back(pe);
   if (factored) {
     bool onActive = false;
-    if (thisIndex.x > thisIndex.y && internalStep == thisIndex.y)
+    if      (isBelowDiagonal() && internalStep == thisIndex.y)
       onActive = true;
-    else if (thisIndex.x < thisIndex.y && internalStep == thisIndex.y - 1)
+    else if (isAboveDiagonal() && internalStep == thisIndex.y - 1)
       onActive = true;
 
     localScheduler->scheduleSend(thisIndex, onActive);
@@ -565,7 +565,7 @@ MaxElm LUBlk::findMaxElm(int startRow, int col, MaxElm first) {
 /// offset from the active column
 void LUBlk::updateLsubBlock(int activeCol, double* U, int offset, int startingRow) {
   // Should only get called on L blocks
-  CkAssert(thisIndex.x >= thisIndex.y);
+  CkAssert(isOnDiagonal() || isBelowDiagonal());
   // Check for input edge cases
   if ((activeCol + offset) >= blkSize || startingRow >= blkSize)
     return;
@@ -595,7 +595,7 @@ void LUBlk::updateLsubBlock(int activeCol, double* U, int offset, int startingRo
 /// the immediate next column (after updating it simultaneously)
 MaxElm LUBlk::computeMultipliersAndFindColMax(int col, double *U, int startingRow) {
   // Should only get called on L blocks
-  CkAssert(thisIndex.x >= thisIndex.y);
+  CkAssert(isOnDiagonal() || isBelowDiagonal());
   MaxElm maxVal;
   // Check for input edge cases
   if (col >= blkSize || startingRow >= blkSize)
