@@ -42,6 +42,7 @@ BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMg
   : luArr(luArr_), mgr(mgr_.ckLocalBranch()), inProgress(false), inPumpMessages(false), numActive(0)
   , pendingTriggered(0), reverseSends(CkMyPe() % 2 == 0)
   , maxMemory(0), maxMemoryIncreases(0), maxMemoryStep(-1) {
+  // Calculate the block limit based on the memory threshold
   blockLimit = config.memThreshold * 1024 * 1024 /
     (config.blockSize * (config.blockSize + 1) * sizeof(double) + sizeof(LUBlk) + sdagOverheadPerBlock);
   contribute(CkCallback(CkIndex_LUBlk::schedulerReady(NULL), luArr));
@@ -75,6 +76,8 @@ void BlockScheduler::scheduleSend(CkIndex2D index, bool onActive) {
   scheduleSend(msg, onActive);
 }
 
+// If the processor is idle, have Converse call this function to pump message
+// out to ensure progress is made
 void pumpOnIdle(void *s, double) {
   BlockScheduler *scheduler = (BlockScheduler *)s;
   scheduler->pumpMessages();
@@ -144,6 +147,8 @@ void BlockScheduler::printBlockLimit() {
   CkPrintf("%d: block limit = %d\n", CkMyPe(), blockLimit);
 }
 
+// When a LUBlk registers, initialize the dependencies based on the presence of
+// this block
 void BlockScheduler::registerBlock(CkIndex2D index) {
   blockLimit--;
 
@@ -187,6 +192,7 @@ void BlockScheduler::allRegistered(CkReductionMsg *m) {
   contribute(sizeof(int), &baseMemory, CkReduction::max_int,
 	     CkCallback(&printMemory, const_cast<char*>("Base")));
 
+  // Add dependence for the first iteration if this is needed
   for (StateList::iterator iter = localBlocks.begin();
        iter != localBlocks.end(); ++iter)
     if (iter->ix != 0)
@@ -267,11 +273,10 @@ void BlockScheduler::getBlock(int srcx, int srcy, double *&data,
 			      Update *update) {
   LUBlk *local = luArr(srcx, srcy).ckLocal();
   if (local) {
-    if (local->factored) {
+    if (local->factored)
       data = local->accessLocalBlock();
-    } else {
+    else
       localWantedBlocks[make_pair(srcx, srcy)].push_back(update);
-    }
     return;
   }
 
@@ -287,9 +292,8 @@ void BlockScheduler::getBlock(int srcx, int srcy, double *&data,
                                               &(mgr->setPrio(GET_BLOCK, opts)));
   }
 
-  if (block.m) {
+  if (block.m)
     update->tryDeliver(srcx, srcy, block.data);
-  }
 }
 
 void BlockScheduler::deliverBlock(blkMsg *m) {
@@ -299,9 +303,8 @@ void BlockScheduler::deliverBlock(blkMsg *m) {
   block.data = m->data;
 
   for (list<Update*>::iterator update = block.refs.begin();
-       update != block.refs.end(); ++update) {
+       update != block.refs.end(); ++update)
     (*update)->tryDeliver(m->src.x, m->src.y, m->data);
-  }
 
   CkAssert(m->npes_receiver >= 1);
   CkAssert(CkMyPe() == m->pes[m->offset]);
@@ -398,11 +401,6 @@ void BlockScheduler::updateDone(intptr_t update_ptr) {
     dropRef(update.t, ty, &update);
 
   update.target->updatesCompleted++;
-  if (update.target->updatesCompleted == min(update.target->ix, update.target->iy)) {
-    // Last update on this block
-    //doneBlocks.erase(find(doneBlocks.begin(), doneBlocks.end(), *update.target));
-  }
-
   pendingTriggered--;
   CkAssert(pendingTriggered >= 0);
 
@@ -433,9 +431,8 @@ void BlockScheduler::factorizationDone(CkIndex2D index) {
     CkAssert(luArr(index).ckLocal());
 
     for (list<Update*>::iterator wanter = wantList.begin();
-	 wanter != wantList.end(); ++wanter) {
+	 wanter != wantList.end(); ++wanter)
       (*wanter)->tryDeliver(index.x, index.y, luArr(index).ckLocal()->accessLocalBlock());
-    }
 
     localWantedBlocks.erase(wanters);
   }
@@ -444,11 +441,10 @@ void BlockScheduler::factorizationDone(CkIndex2D index) {
 }
 
 bool eligibilityYOrder(const BlockState& block1, const BlockState& block2) {
-  if (block1.pendingDependencies.size() != block2.pendingDependencies.size()) {
+  if (block1.pendingDependencies.size() != block2.pendingDependencies.size())
     return block1.pendingDependencies.size() < block2.pendingDependencies.size();
-  } else {
+  else
     return block1.iy < block2.iy;
-  }
 }
 
 void BlockScheduler::progress() {
