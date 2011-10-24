@@ -61,24 +61,32 @@ static inline void dropRef(void *m) {
  */
 class LUBlk: public CBase_LUBlk {
 public:
-  /// Performs the triangular solve required to compute a block of the U matrix (dtrsm)
-  void computeU(double *LMsg);
+  //------------------------- Factorization Phase -----------------------------
   /// Perform trailing update based on input matrices (dgemm)
   void updateMatrix(double *incomingL, double *incomingU);
-  //broadcast the U downwards to the blocks in the same column
+  /// Performs the triangular solve required to compute a block of the U matrix (dtrsm)
+  void computeU(double *LMsg);
+  /// Broadcast the U downwards to the blocks in the same column
   void setupMsg(bool reverse);
-  // Schedule U to be sent downward to the blocks in the same column
+  /// Schedule U to be sent downward to the blocks in the same column
   void scheduleDownwardU();
   // Schedule L to be sent rightwards to the blocks in the same row
   void scheduleRightwardL();
+  ///
   void sendBlocks(int);
+  ///
   void requestBlock(int pe, int rx, int ry);
+  ///
   double *accessLocalBlock();
 
+  // ------------------------- Solve Phase ------------------------------------
   /// Solution
   void localSolve(double *xvec, double *preVec);
+  ///
   void localForward(double *xvec);
+  ///
   void localBackward(double *xvec);
+  ///
   void offDiagSolve(BVecMsg *m);
 
   LUBlk()
