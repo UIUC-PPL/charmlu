@@ -15,8 +15,7 @@ enum PrioType {
   GET_BLOCK, SEND_BLOCKS, PROCESS_COMPUTE_U
 };
 
-class LUMgr : public CBase_LUMgr
-{
+class LUMgr : public CBase_LUMgr {
 protected:
   int blkSize;
   int matSize;
@@ -32,8 +31,7 @@ public:
   virtual void setPrio(CkMessage *msg, PrioType type, int refnum = -1, int y = 0, int x = 0) = 0;
 };
 
-struct PrioLU : public LUMgr
-{
+struct PrioLU : public LUMgr {
   PrioLU(int blkSize, int matSize) : LUMgr(blkSize, matSize) {}
 
   int bitsOfPrio() { return sizeof(int) * 8; }
