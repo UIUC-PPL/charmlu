@@ -264,7 +264,7 @@ void LUBlk::offDiagSolve(BVecMsg *m) {
   }
 
   // Set the diagonal chare on my row as target of reduction
-  CkCallback cb(CkIndex_LUBlk::recvSolveData(0), thisProxy(thisIndex.x, thisIndex.x));
+  CkCallback cb(CkReductionTarget(LUBlk, recvSolveData), thisProxy(thisIndex.x, thisIndex.x));
   // Reduce row towards diagonal chare
   mcastMgr->contribute(sizeof(double) * blkSize, xvec, CkReduction::sum_double,
 		       m->forward ? rowBeforeCookie : rowAfterCookie, cb, thisIndex.x);
