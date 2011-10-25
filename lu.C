@@ -192,7 +192,7 @@ void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
 #endif
 }
 
-void LUBlk::setupMsg(bool reverse) {
+void LUBlk::resetMessage(bool reverse) {
   // Setup multicast of message to a dynamic set of processors
   blkMsg *m = LUmsg;
 

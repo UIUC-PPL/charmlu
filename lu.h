@@ -19,7 +19,7 @@ class LUBlk: public CBase_LUBlk {
 public:
   //------ Public Interface for Block Scheduler Object (for memory management) ------
   /// Broadcast the U downwards to the blocks in the same column
-  void setupMsg(bool reverse);
+  void resetMessage(bool reverse);
   /// Sends out the block to requesting PE if / when this block has been factored
   void requestBlock(int pe, int rx, int ry);
   /// Gives the local scheduler object access to this block's data
