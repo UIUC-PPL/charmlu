@@ -252,9 +252,6 @@ double* LUBlk::accessLocalBlock() {
 }
 
 void LUBlk::offDiagSolve(BVecMsg *m) {
-  if (isOnDiagonal())
-    return;
-
   // Do local portion of solve (daxpy)
   double *xvec = new double[blkSize], *preVec = m->data;
   for (int i = 0; i < blkSize; i++) {
