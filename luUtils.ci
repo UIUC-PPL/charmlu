@@ -3,10 +3,6 @@ module luUtils {
   include "traceToggler.h";
   initproc void traceToggler::registerHandler();
 
-  message BlockReadyMsg;
-
-  message rednSetupMsg;
-
   // Register the reducer function that handles reductions of MaxElm
   initnode void registerMaxElmReducer();
 

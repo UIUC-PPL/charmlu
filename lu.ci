@@ -1,29 +1,7 @@
 module lu {
   extern module luUtils;
-
-  message blkMsg {
-    double data[];
-    int pes[];
-  };
-
-  message UMsg {
-    double data[];
-  };
-
-  message BVecMsg {
-    double data[];
-  };
-
-  message pivotSequencesMsg {
-    int seqIndex[];
-    int pivotSequence[];
-  };
-
-  message pivotRowsMsg {
-    int rowNum[];
-    double rows[];
-    double rhs[];
-  };
+  extern module luMessages;
+  include "maxelm.h";
 
   /**
    * 2D array of LU matrix-block objects that are locally coordinated
@@ -288,7 +266,7 @@ module lu {
         }
 
         // Share the pivot info with the appropriate array section
-        when colMax(CkReductionMsg *m) {
+        when colMax(MaxElm pivotFound) {
 	  atomic "diag_found_colmax" {
             if (activeCol == 0) {
               ckout << "--------------------------------------------------------------------"<<endl
@@ -297,29 +275,28 @@ module lu {
                     << CmiWallTimer() - startTime << endl;
               localScheduler->startedActivePanel();
             }
-	    pivotCandidate = *(MaxElm *)(m->getData());
-            delete m;
+	    pivot = pivotFound;
 	  }
-	  if (pivotCandidate.loc / blkSize == thisIndex.x) {
+	  if (pivot.loc / blkSize == thisIndex.x) {
 	    // Now, send the post-diagonal portion of the pivot row (a
 	    // segment of U) to all active panel brethren so that they
 	    // can start updating their sub-blocks right away
 	    atomic "diag_send_useg" {
 	      UMsg *anUmsg = new (blkSize - activeCol, sizeof(int)*8)
                 UMsg(blkSize - activeCol,
-                     &LU[getIndex(pivotCandidate.loc % blkSize, activeCol)]);
+                     &LU[getIndex(pivot.loc % blkSize, activeCol)]);
               mgr->setPrio(anUmsg, DIAG_SEND_USEG);
 	      activePanel.USegCompute(anUmsg);
 	    }
 	    // Perform the local pivoting
-	    atomic "diag_local_pivot" { swapLocal(activeCol, pivotCandidate.loc % blkSize); }
+	    atomic "diag_local_pivot" { swapLocal(activeCol, pivot.loc % blkSize); }
 	  } else {
 	    // Send pivot data to remote chare in active panel
 	    atomic "diag_send_remote_pivot" {
 	      // Trigger swap of data
 	      CkEntryOptions opts;
-	      thisProxy(pivotCandidate.loc / blkSize, thisIndex.y)
-		.pivotRowSwap(internalStep*blkSize + activeCol, pivotCandidate.loc, blkSize,
+	      thisProxy(pivot.loc / blkSize, thisIndex.y)
+		.pivotRowSwap(internalStep*blkSize + activeCol, pivot.loc, blkSize,
 			      &LU[getIndex((activeCol + blkSize * thisIndex.y) % blkSize,0)],
 			      bvec[(activeCol + blkSize * thisIndex.y) % blkSize], false,
                               &(mgr->setPrio(DIAG_SEND_PIVOT, opts)));
@@ -341,7 +318,7 @@ module lu {
 
         atomic "diag_agglomerate_pivots" {
           // Store the pivot information
-          recordPivot(thisIndex.y*blkSize + activeCol, pivotCandidate.loc);
+          recordPivot(thisIndex.y*blkSize + activeCol, pivot.loc);
           // at opportune steps, send out the agglomerated pivot ops
           if (shouldSendPivots() || activeCol == blkSize-1)
             announceAgglomeratedPivots();
@@ -423,7 +400,7 @@ module lu {
      * Active panel methods
      */
     // The reduction to find the maximum element in the column
-    entry void colMax(CkReductionMsg *m);
+    entry [reductiontarget] void colMax(MaxElm pivotFound);
     // Pivot data to swap along with row index
     entry void pivotRowSwap(int rowIndex, int pivotRow, int len,
                             const double data[len], double b, bool noop);
@@ -551,4 +528,33 @@ module lu {
     entry void releaseActiveColumn(const int y, const int t);
     entry void outputStats();
   }
+};
+
+module luMessages {
+  message BlockReadyMsg;
+  message rednSetupMsg;
+
+  message blkMsg {
+    double data[];
+    int pes[];
+  };
+
+  message UMsg {
+    double data[];
+  };
+
+  message BVecMsg {
+    double data[];
+  };
+
+  message pivotSequencesMsg {
+    int seqIndex[];
+    int pivotSequence[];
+  };
+
+  message pivotRowsMsg {
+    int rowNum[];
+    double rows[];
+    double rhs[];
+  };
 };
