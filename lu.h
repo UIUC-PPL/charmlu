@@ -10,28 +10,6 @@
 #include <vector>
 using std::min;
 
-struct MaxElm {
-  double val;
-  int loc;
-  MaxElm(): val(0.0), loc(-1) { }
-  MaxElm(double _val, int _loc): val(_val), loc(_loc) { }
-};
-
-/// Global that holds the reducer type for MaxElm
-extern CkReduction::reducerType MaxElmReducer;
-//extern CmiNodeLock lock;
-
-static inline void takeRef(void *m) {
-//    CmiLock(lock);
-    CmiReference(UsrToEnv(m));
-//    CmiUnlock(lock);
-}
-static inline void dropRef(void *m) {
-//    CmiLock(lock);
-    CmiFree(UsrToEnv(m));
-//    CmiUnlock(lock);
-}
-
 /**
  * 2D chare array that embodies a block of the input matrix
  *
@@ -39,17 +17,19 @@ static inline void dropRef(void *m) {
  */
 class LUBlk: public CBase_LUBlk {
 public:
+  //------ Public Interface for Block Scheduler Object (for memory management) ------
   /// Broadcast the U downwards to the blocks in the same column
   void setupMsg(bool reverse);
   /// Sends out the block to requesting PE if / when this block has been factored
   void requestBlock(int pe, int rx, int ry);
   /// Gives the local scheduler object access to this block's data
   double *accessLocalBlock();
+
   /// For off-diagonal blocks, this performs the computations required for fwd and bkwd solves
   void offDiagSolve(BVecMsg *m);
-
-  LUBlk()
-    : factored(false), blockPulled(0), blocksAfter(0), maxRequestingPEs(0) {
+  /// Constructor
+  LUBlk() : factored(false), blockPulled(0), blocksAfter(0), maxRequestingPEs(0) {
+    // allow SDAG to initialize its internal state for this chare
     __sdag_init();
 #if defined(LU_TRACING)
     traceEnd();
@@ -184,3 +164,21 @@ protected:
   bool isAboveDiagonal() { return thisIndex.x <  thisIndex.y; }
   bool isBelowDiagonal() { return thisIndex.x >  thisIndex.y; }
 };
+
+
+
+/// A pair representing the value and the location of the candidate pivot element
+struct MaxElm {
+  double val;
+  int loc;
+  MaxElm(double _val=0.0, int _loc=-1): val(_val), loc(_loc) { }
+};
+
+/// The ID of a custom reduction function for MaxElm types
+extern CkReduction::reducerType MaxElmReducer;
+
+/// Utility to retain a reference to a reference-counted message
+static inline void takeRef(void *m) { CmiReference(UsrToEnv(m)); }
+/// Utility to drop a reference to a reference-counted message
+static inline void dropRef(void *m) { CmiFree(UsrToEnv(m)); }
+
