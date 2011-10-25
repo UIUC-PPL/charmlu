@@ -18,12 +18,10 @@ using std::min;
 
 #if CHARMLU_DEBUG >= 2
   #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
-  #define VERBOSE_VALIDATION(...) CkPrintf(__VA_ARGS__)
   #define VERBOSE_PIVOT_RECORDING
   #define VERBOSE_PIVOT_AGGLOM
 #else
   #define DEBUG_PIVOT(...)
-  #define VERBOSE_VALIDATION(...)
 #endif
 
 struct MaxElm {
