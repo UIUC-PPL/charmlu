@@ -26,13 +26,6 @@ using std::min;
   #define VERBOSE_VALIDATION(...)
 #endif
 
-struct MaxElm {
-  double val;
-  int loc;
-  MaxElm(): val(0.0), loc(-1) { }
-  MaxElm(double _val, int _loc): val(_val), loc(_loc) { }
-};
-
 /// Global that holds the reducer type for MaxElm
 extern CkReduction::reducerType MaxElmReducer;
 //extern CmiNodeLock lock;
@@ -126,7 +119,7 @@ protected:
     otherRowIndex, thisLocalRow, globalThisRow, globalOtherRow;
   bool remoteSwap, ownedPivotThisStep;
   // Stores the local column max which is a candidate for that column's pivot element
-  MaxElm pivotCandidate;
+  MaxElm pivotCandidate, pivot;
   int pivotBlk;
   /// Tag for all msgs associated with a single batch of pivots
   int pivotBatchTag;

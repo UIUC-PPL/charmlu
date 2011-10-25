@@ -1,7 +1,8 @@
 #ifndef LU_MESSAGES_H
 #define LU_MESSAGES_H
 
-#include "lu.decl.h"
+#include "luMessages.decl.h"
+#include <ckmulticast.h>
 #include <algorithm>
 
 /// A block of the matrix, with ornamentation for setup-free multicast

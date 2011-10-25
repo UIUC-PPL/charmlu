@@ -134,7 +134,7 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
     rowBeforeDiag.ckSectionDelegate(mcastMgr);
     rowAfterDiag.ckSectionDelegate(mcastMgr);
     // Set the reduction client for this pivot section
-    mcastMgr->setReductionClient( pivotSection, new CkCallback( CkIndex_LUBlk::colMax(0), thisProxy(thisIndex.y, thisIndex.y) ) );
+    mcastMgr->setReductionClient( pivotSection, new CkCallback( CkReductionTarget(LUBlk,colMax), thisProxy(thisIndex.y, thisIndex.y) ) );
 
     // Invoke a dummy mcast so that all the section members know which section to reduce along
     rednSetupMsg *pivotMsg = new rednSetupMsg(cfg.mcastMgrGID);
@@ -626,3 +626,4 @@ MaxElm LUBlk::computeMultipliersAndFindColMax(int col, double *U, int startingRo
 
 #include "luUtils.def.h"
 #include "lu.def.h"
+#include "luMessages.def.h"
