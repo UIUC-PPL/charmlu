@@ -153,18 +153,18 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
   if (tmpBuf) delete [] tmpBuf;
 }
 
+// Copy received pivot data into its place in this block
+void LUBlk::applySwap(int row, int offset, const double *data, double b) {
+  bvec[row] = b;
+  memcpy( &(LU[getIndex(row,offset)]), data, sizeof(double)*(blkSize-offset) );
+}
+
 // Exchange local data
 void LUBlk::swapLocal(int row1, int row2, int offset) {
   if (row1 == row2) return;
   std::swap(bvec[row1], bvec[row2]);
   /// @todo: Is this better or is it better to do 3 memcpys
   std::swap_ranges(&(LU[getIndex(row1,offset)]), &(LU[getIndex(row1,blkSize)]), &(LU[getIndex(row2,offset)]) );
-}
-
-// Copy received pivot data into its place in this block
-void LUBlk::applySwap(int row, int offset, const double *data, double b) {
-  bvec[row] = b;
-  memcpy( &(LU[getIndex(row,offset)]), data, sizeof(double)*(blkSize-offset) );
 }
 
 // Compute a triangular solve
@@ -284,6 +284,64 @@ inline void LUBlk::scheduleRightwardL() {
   localScheduler->scheduleSend(thisIndex, true);
 }
 
+/**
+ * Is it time to send out the next batch of pivots?
+ * @note: Any runtime adaptivity should be plugged here
+ */
+bool LUBlk::shouldSendPivots() {
+  return (numRowsSinceLastPivotSend >= suggestedPivotBatchSize);
+}
+
+/// Periodically send out the agglomerated pivot operations
+void LUBlk::announceAgglomeratedPivots() {
+  // Create and initialize a msg to carry the pivot sequences
+  pivotSequencesMsg *msg = new (numRowsSinceLastPivotSend+1, numRowsSinceLastPivotSend*2, sizeof(int)*8) pivotSequencesMsg(pivotBatchTag, numRowsSinceLastPivotSend);
+  msg->numSequences = 0;
+  memset(msg->seqIndex, 0, sizeof(int) * numRowsSinceLastPivotSend);
+  memset(msg->pivotSequence, 0, sizeof(int) * numRowsSinceLastPivotSend*2);
+
+  /// Parse the pivot operations and construct optimized pivot sequences
+  int seqNo = -1, i = 0;
+  std::map<int,int>::iterator itr = pivotRecords.begin();
+  while (itr != pivotRecords.end()) {
+    msg->seqIndex[++seqNo] = i;
+    int chainStart = itr->first;
+    msg->pivotSequence[i++] = chainStart;
+    while (itr->second != chainStart) {
+      msg->pivotSequence[i] = itr->second;
+      std::map<int,int>::iterator prev = itr;
+      itr = pivotRecords.find(itr->second);
+      pivotRecords.erase(prev);
+      i++;
+    }
+    pivotRecords.erase(itr);
+    itr = pivotRecords.begin();
+  }
+  msg->seqIndex[++seqNo] = i; ///< @note: Just so that we know where the last sequence ends
+  msg->numSequences = seqNo;
+
+  mgr->setPrio(msg, PIVOT_RIGHT_SEC, -1, thisIndex.y);
+  thisProxy.applyTrailingPivots(msg);
+
+  // Prepare for the next batch of agglomeration
+  pivotRecords.clear();
+  pivotBatchTag += numRowsSinceLastPivotSend;
+  numRowsSinceLastPivotSend = 0;
+}
+
+/// Record the effect of a pivot operation in terms of actual row numbers
+void LUBlk::recordPivot(const int r1, const int r2) {
+  numRowsSinceLastPivotSend++;
+  // If the two rows are the same, then dont record the pivot operation at all
+  if (r1 == r2) return;
+  std::map<int,int>::iterator itr1, itr2;
+  // The records for the two rows (already existing or freshly created)
+  itr1 = (pivotRecords.insert(std::make_pair(r1,r1))).first;
+  itr2 = (pivotRecords.insert(std::make_pair(r2,r2))).first;
+  // Swap the values (the actual rows living in these two positions)
+  std::swap(itr1->second, itr2->second);
+}
+
 void LUBlk::offDiagSolve(BVecMsg *m) {
   // Do local portion of solve (daxpy)
   double *xvec = new double[blkSize], *preVec = m->data;
@@ -334,64 +392,6 @@ void LUBlk::requestBlock(int pe, int rx, int ry) {
 
 double* LUBlk::accessLocalBlock() {
   return LU;
-}
-
-/// Record the effect of a pivot operation in terms of actual row numbers
-void LUBlk::recordPivot(const int r1, const int r2) {
-  numRowsSinceLastPivotSend++;
-  // If the two rows are the same, then dont record the pivot operation at all
-  if (r1 == r2) return;
-  std::map<int,int>::iterator itr1, itr2;
-  // The records for the two rows (already existing or freshly created)
-  itr1 = (pivotRecords.insert(std::make_pair(r1,r1))).first;
-  itr2 = (pivotRecords.insert(std::make_pair(r2,r2))).first;
-  // Swap the values (the actual rows living in these two positions)
-  std::swap(itr1->second, itr2->second);
-}
-
-/**
- * Is it time to send out the next batch of pivots?
- * @note: Any runtime adaptivity should be plugged here
- */
-bool LUBlk::shouldSendPivots() {
-  return (numRowsSinceLastPivotSend >= suggestedPivotBatchSize);
-}
-
-/// Periodically send out the agglomerated pivot operations
-void LUBlk::announceAgglomeratedPivots() {
-  // Create and initialize a msg to carry the pivot sequences
-  pivotSequencesMsg *msg = new (numRowsSinceLastPivotSend+1, numRowsSinceLastPivotSend*2, sizeof(int)*8) pivotSequencesMsg(pivotBatchTag, numRowsSinceLastPivotSend);
-  msg->numSequences = 0;
-  memset(msg->seqIndex, 0, sizeof(int) * numRowsSinceLastPivotSend);
-  memset(msg->pivotSequence, 0, sizeof(int) * numRowsSinceLastPivotSend*2);
-
-  /// Parse the pivot operations and construct optimized pivot sequences
-  int seqNo = -1, i = 0;
-  std::map<int,int>::iterator itr = pivotRecords.begin();
-  while (itr != pivotRecords.end()) {
-    msg->seqIndex[++seqNo] = i;
-    int chainStart = itr->first;
-    msg->pivotSequence[i++] = chainStart;
-    while (itr->second != chainStart) {
-      msg->pivotSequence[i] = itr->second;
-      std::map<int,int>::iterator prev = itr;
-      itr = pivotRecords.find(itr->second);
-      pivotRecords.erase(prev);
-      i++;
-    }
-    pivotRecords.erase(itr);
-    itr = pivotRecords.begin();
-  }
-  msg->seqIndex[++seqNo] = i; ///< @note: Just so that we know where the last sequence ends
-  msg->numSequences = seqNo;
-
-  mgr->setPrio(msg, PIVOT_RIGHT_SEC, -1, thisIndex.y);
-  thisProxy.applyTrailingPivots(msg);
-
-  // Prepare for the next batch of agglomeration
-  pivotRecords.clear();
-  pivotBatchTag += numRowsSinceLastPivotSend;
-  numRowsSinceLastPivotSend = 0;
 }
 
 // Internal functions for creating messages to encapsulate the priority
