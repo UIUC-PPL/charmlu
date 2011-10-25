@@ -10,20 +10,6 @@
 #include <vector>
 using std::min;
 
-#if CHARMLU_DEBUG >= 1
-  #define DEBUG_PRINT(FORMAT, ...) CkPrintf("(%d: [%d,%d]@%d) " FORMAT "\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep ,##__VA_ARGS__)
-#else
-  #define DEBUG_PRINT(...)
-#endif
-
-#if CHARMLU_DEBUG >= 2
-  #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
-  #define VERBOSE_PIVOT_RECORDING
-  #define VERBOSE_PIVOT_AGGLOM
-#else
-  #define DEBUG_PIVOT(...)
-#endif
-
 struct MaxElm {
   double val;
   int loc;
