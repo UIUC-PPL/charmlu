@@ -71,9 +71,7 @@ protected:
   double startTime;
 
   // Variables for pivoting SDAG code
-  int row1Index, row2Index, localRow1, localRow2,
-    otherRowIndex, thisLocalRow, globalThisRow, globalOtherRow;
-  bool remoteSwap, ownedPivotThisStep;
+  bool ownedPivotThisStep;
   // Stores the local column max which is a candidate for that column's pivot element
   MaxElm pivotCandidate, pivot;
   int pivotBlk;
