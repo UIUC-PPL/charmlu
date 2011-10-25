@@ -4,10 +4,6 @@
 #include "pup.h"
 #include <charm++.h>
 
-#ifndef STOP_AFTER
-  #define STOP_AFTER -1
-#endif
-
 /// Class the stores configurations relevant to the LU factorization library
 class LUConfig {
 public:

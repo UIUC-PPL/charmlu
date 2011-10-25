@@ -1,7 +1,5 @@
 module luUtils {
   include "set";
-  include "traceToggler.h";
-  initproc void traceToggler::registerHandler();
 
   // Register the reducer function that handles reductions of MaxElm
   initnode void registerMaxElmReducer();

@@ -200,9 +200,6 @@ module lu {
             updateLsubBlock(activeCol-1, pendingUmsg->data, 2);
             dropRef(pendingUmsg);
             pendingUmsg = NULL;
-            if (activeCol % 20 == 0) {
-              flushLogs();
-            }
           }
           ownedPivotThisStep = false;
           thisProxy[thisIndex].belowPivot(activeCol);
@@ -260,9 +257,6 @@ module lu {
         atomic "diag_find_colmax" {
           // Contribute to a redn along the pivot section to identify the pivot row
           mcastMgr->contribute(sizeof(MaxElm), &pivotCandidate, MaxElmReducer, pivotCookie);
-          if (activeCol % 20 == 0) {
-            flushLogs();
-          }
         }
 
         // Share the pivot info with the appropriate array section
@@ -468,8 +462,6 @@ module lu {
     // A remote BlockScheduler wants this block for a triangular solve
     // or trailing update
     entry void requestBlock(int pe, int rx, int ry);
-
-    entry void flushLogs();
 
     /**
      * Initialization methods

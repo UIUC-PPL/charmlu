@@ -18,11 +18,6 @@ using std::min;
     #define LU_REVISION Unknown
 #endif
 
-// Define static variable
-#if defined(LU_TRACING)
-  int traceToggler::traceCmdHandlerID;
-#endif
-
 CkReductionMsg *maxMaxElm(int nMsg, CkReductionMsg **msgs) {
   CkAssert(nMsg > 0);
 
@@ -57,12 +52,6 @@ struct traceLU {
     traceUserBracketEvent(event, startTime, CkWallTimer());
   }
 };
-
-void LUBlk::flushLogs() {
-#if defined(LU_TRACING)
-  flushTraceLog();
-#endif
-}
 
 void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
                  CProxy_BlockScheduler bs,

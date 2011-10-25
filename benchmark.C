@@ -258,9 +258,6 @@ public:
       luArrProxy.startValidation();
     } else if (!solved && LUcomplete) {
       CkPrintf("starting solve at wall time: %f\n", CmiWallTimer());
-      #if defined(LU_TRACING)
-      traceToggler::stop();
-      #endif
       for (int i = 0; i < luCfg.numBlocks; i++)
         luArrProxy(i, i).forwardSolve();
       solved = true;

@@ -31,12 +31,8 @@ public:
   LUBlk() : factored(false), blockPulled(0), blocksAfter(0), maxRequestingPEs(0) {
     // allow SDAG to initialize its internal state for this chare
     __sdag_init();
-#if defined(LU_TRACING)
-    traceEnd();
-#endif
   }
 
-  void flushLogs();
   void init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
 	    CkCallback initDone, CkCallback fznDone, CkCallback slnDone);
   void prepareForActivePanel(rednSetupMsg *msg);
