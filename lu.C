@@ -13,11 +13,6 @@ using std::min;
 #include "mapping.h"
 #include "platformBlas.h"
 
-/// The build system should define this macro to be the commit identifier
-#ifndef LU_REVISION
-    #define LU_REVISION Unknown
-#endif
-
 CkReductionMsg *maxMaxElm(int nMsg, CkReductionMsg **msgs) {
   CkAssert(nMsg > 0);
 
