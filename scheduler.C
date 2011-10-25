@@ -117,7 +117,7 @@ void BlockScheduler::pumpMessages() {
             progress();
           }
         } else {
-          // If local, needs to be set back to false, so setupMsg gets called
+          // If local, needs to be set back to false, so resetMessage gets called
           msg->firstHalfSent = false;
         }
         iter = sendsInFlight.erase(iter);
@@ -335,7 +335,7 @@ void BlockScheduler::propagateBlkMsg(blkMsg *m) {
   if (!m->firstHalfSent) {
     LUBlk *block = luArr[m->src].ckLocal();
     if (block != NULL) {
-      block->setupMsg(reverseSends);
+      block->resetMessage(reverseSends);
       reverseSends = !reverseSends;
     }
     m->npes_sender = m->npes_receiver;
