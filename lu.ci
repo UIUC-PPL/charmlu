@@ -342,11 +342,9 @@ module lu {
         factored = true;
         // All diagonal chares except the last must continue the factorization
         if (thisIndex.x < numBlks-1 && thisIndex.y < numBlks-1) {
-          if (isOnDiagonal()) {
-            blkMsg *msg = new (blkSize * blkSize, 0, mgr->bitsOfPrio()) blkMsg(thisIndex);
-            memcpy(msg->data, LU, sizeof(double) * blkSize * blkSize);
-            thisProxy(thisIndex.x, thisIndex.y + 1).triangularSolve(msg);
-          }
+          blkMsg *msg = new (blkSize * blkSize, 0, mgr->bitsOfPrio()) blkMsg(thisIndex);
+          memcpy(msg->data, LU, sizeof(double) * blkSize * blkSize);
+          thisProxy(thisIndex.x, thisIndex.y + 1).triangularSolve(msg);
           // Multicast the local block of L rightwards to the blocks in the same row
           scheduleRightwardL();
         }
