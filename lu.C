@@ -47,7 +47,6 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
   numBlks = cfg.numBlocks;
   mgr = _mgr.ckLocalBranch();
   suggestedPivotBatchSize = cfg.pivotBatchSize;
-  schedAdaptMemThresholdMB = cfg.memThreshold;
   initDone = initialization;
   factorizationDone = factorization;
   solveDone = solution;
