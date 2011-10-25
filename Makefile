@@ -10,7 +10,7 @@ BENCHCI = dgerBenchmark.ci
 # Specify the exe name and the arguments to run it with
 NP        = 4
 TARGET    = lu.prod
-BINS      = lu.prod lu.trace
+BINS      = lu.prod
 BENCH     = lu_dger
 ARGS      = 64 16 500 8 2
 
@@ -59,11 +59,6 @@ lu_dger: $(BENCHSRC:.C=.o)
 lu.prod: CXX = $(CHARMPROD)/bin/charmc
 lu.prod: $(RAWSRC:.C=-prod.o)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
-
-lu.trace: CXX = $(CHARMTRACE)/bin/charmc
-lu.trace: CPPFLAGS += -DLU_TRACING
-lu.trace: $(RAWSRC:.C=-trace.o)
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS) -tracemode projections
 
 clean:
 	$(RM) $(wildcard *.decl.h *.def.h *.d *.di *.o *.stamp) charmrun
