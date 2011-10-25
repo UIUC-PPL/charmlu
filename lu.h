@@ -10,22 +10,6 @@
 #include <vector>
 using std::min;
 
-
-/// Global that holds the reducer type for MaxElm
-extern CkReduction::reducerType MaxElmReducer;
-//extern CmiNodeLock lock;
-
-static inline void takeRef(void *m) {
-//    CmiLock(lock);
-    CmiReference(UsrToEnv(m));
-//    CmiUnlock(lock);
-}
-static inline void dropRef(void *m) {
-//    CmiLock(lock);
-    CmiFree(UsrToEnv(m));
-//    CmiUnlock(lock);
-}
-
 /**
  * 2D chare array that embodies a block of the input matrix
  *
@@ -33,17 +17,19 @@ static inline void dropRef(void *m) {
  */
 class LUBlk: public CBase_LUBlk {
 public:
+  //------ Public Interface for Block Scheduler Object (for memory management) ------
   /// Broadcast the U downwards to the blocks in the same column
   void setupMsg(bool reverse);
   /// Sends out the block to requesting PE if / when this block has been factored
   void requestBlock(int pe, int rx, int ry);
   /// Gives the local scheduler object access to this block's data
   double *accessLocalBlock();
+
   /// For off-diagonal blocks, this performs the computations required for fwd and bkwd solves
   void offDiagSolve(BVecMsg *m);
-
-  LUBlk()
-    : factored(false), blockPulled(0), blocksAfter(0), maxRequestingPEs(0) {
+  /// Constructor
+  LUBlk() : factored(false), blockPulled(0), blocksAfter(0), maxRequestingPEs(0) {
+    // allow SDAG to initialize its internal state for this chare
     __sdag_init();
 #if defined(LU_TRACING)
     traceEnd();
@@ -178,3 +164,5 @@ protected:
   bool isAboveDiagonal() { return thisIndex.x <  thisIndex.y; }
   bool isBelowDiagonal() { return thisIndex.x >  thisIndex.y; }
 };
+
+
