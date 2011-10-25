@@ -31,10 +31,6 @@ public:
     p | peTileStride;
     p | memThreshold;
     p | mappingScheme;
-    p | traceTrailingUpdate;
-    p | traceComputeU;
-    p | traceComputeL;
-    p | traceSolveLocalLU;
     p | mcastMgrGID;
   }
 
@@ -60,14 +56,6 @@ public:
   int memThreshold;
   /// The mapping scheme
   int mappingScheme;
-  /// Projections user event ID for trailing updates
-  int traceTrailingUpdate;
-  /// Projections user event ID for triangular solves on active row
-  int traceComputeU;
-  /// Projections user event ID for triangular solves
-  int traceComputeL;
-  /// Projections user event ID for local block factorization
-  int traceSolveLocalLU;
   /// The group ID of the multicast manager
   CkGroupID mcastMgrGID;
 };

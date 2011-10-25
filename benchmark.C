@@ -238,15 +238,6 @@ public:
     // Create a multicast manager group
     luCfg.mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
 
-    luCfg.traceTrailingUpdate = traceRegisterUserEvent("Trailing Update");
-    luCfg.traceComputeU = traceRegisterUserEvent("Compute U");
-    luCfg.traceComputeL = traceRegisterUserEvent("Compute L");
-    luCfg.traceSolveLocalLU = traceRegisterUserEvent("Solve local LU");
-
-    traceRegisterUserEvent("Local Multicast Deliveries", 10000);
-    traceRegisterUserEvent("Remote Multicast Forwarding - preparing", 10001);
-    traceRegisterUserEvent("Remote Multicast Forwarding - sends", 10002);
-
     thisProxy.startNextStep();
   }
 

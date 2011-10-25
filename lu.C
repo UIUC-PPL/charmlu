@@ -34,20 +34,6 @@ void registerMaxElmReducer() {
   MaxElmReducer = CkReduction::addReducer(maxMaxElm);
 }
 
-struct traceLU {
-  int step, event;
-  double startTime;
-  traceLU(int internalStep, int eventType)
-    : step(internalStep), event(eventType), startTime(CkWallTimer()) {
-    traceUserSuppliedData(internalStep);
-    traceMemoryUsage();
-  }
-
-  ~traceLU() {
-    traceUserBracketEvent(event, startTime, CkWallTimer());
-  }
-};
-
 void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
                  CProxy_BlockScheduler bs,
 		 CkCallback initialization, CkCallback factorization, CkCallback solution) {
@@ -68,9 +54,6 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
   internalStep = 0;
 
   CkAssert(blkSize > 0);
-
-  traceUserSuppliedData(-1);
-  traceMemoryUsage();
 
   CkMulticastMgr *mcastMgr = CProxy_CkMulticastMgr(cfg.mcastMgrGID).ckLocalBranch();
 
@@ -128,7 +111,6 @@ LUBlk::~LUBlk() {
 }
 
 void LUBlk::computeU(double *LMsg) {
-  traceLU t(internalStep, cfg.traceComputeU);
 #if USE_ESSL || USE_ACML
   // LMsg is implicitly transposed by telling dtrsm that it is a
   // right, upper matrix. Since this also switches the order of
@@ -140,8 +122,6 @@ void LUBlk::computeU(double *LMsg) {
 }
 
 void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
-  traceLU t(internalStep, cfg.traceTrailingUpdate);
-
 #if USE_ESSL || USE_ACML
   // By switching the order of incomingU and incomingL the transpose
   // is applied implicitly: C' = B*A
@@ -182,21 +162,13 @@ void LUBlk::resetMessage(bool reverse) {
 
 // Schedule U to be sent downward to the blocks in the same column
 inline void LUBlk::scheduleDownwardU() {
-  traceUserSuppliedData(internalStep);
-  traceMemoryUsage();
   mgr->setPrio(LUmsg, MULT_RECV_U);
-
-  DEBUG_PRINT("Multicast to part of column %d", thisIndex.y);
   localScheduler->scheduleSend(thisIndex, internalStep == thisIndex.y - 1);
 }
 
 // Schedule L to be sent rightward to the blocks in the same row
 inline void LUBlk::scheduleRightwardL() {
-  traceUserSuppliedData(internalStep);
-  traceMemoryUsage();
   mgr->setPrio(LUmsg, MULT_RECV_L);
-
-  DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
   localScheduler->scheduleSend(thisIndex, true);
 }
 
