@@ -2,37 +2,21 @@
  * @file A Charm++ implementation of LU
  */
 
-#include "luConfig.h"
+#include <algorithm>
+using std::min;
+#include <cmath>
+#include <limits>
+#include <map>
+#include <string.h>
+
+#include "lu.h"
+#include "mapping.h"
+#include "platformBlas.h"
 
 /// The build system should define this macro to be the commit identifier
 #ifndef LU_REVISION
     #define LU_REVISION Unknown
 #endif
-
-#include <string.h>
-#include <iostream>
-#include <sstream>
-#include <map>
-#include <algorithm>
-using std::min;
-#include <limits>
-#include <cmath>
-
-#include "platformBlas.h"
-
-#if USE_MEMALIGN
-#include <malloc.h>
-#endif
-
-#include "lu.decl.h"
-#include <trace-projections.h>
-#include <ckmulticast.h>
-#include <queueing.h> // for access to memory threshold setting
-
-#include "lu.h"
-#include "manager.h"
-#include "mapping.h"
-#include "messages.h"
 
 // Define static variable
 #if defined(LU_TRACING)
