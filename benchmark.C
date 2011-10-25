@@ -19,6 +19,11 @@
 #define _QUOTEIT(x) #x
 #define INQUOTES(x) _QUOTEIT(x)
 
+/// The build system should define this macro to be the commit identifier
+#ifndef LU_REVISION
+    #define LU_REVISION Unknown
+#endif
+
 //A class for randomly generating matrix elements' value
 #define MAXINT (~(1<<31))
 class MatGen {
