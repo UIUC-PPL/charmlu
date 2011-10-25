@@ -351,8 +351,6 @@ void BlockScheduler::propagateBlkMsg(blkMsg *m) {
     takeRef(m);
     thisProxy[m->pes[m->offset]].deliverBlock(m);
   }
-
-  traceMemoryUsage();
 }
 
 void BlockScheduler::dropRef(int srcx, int srcy, Update *update) {
