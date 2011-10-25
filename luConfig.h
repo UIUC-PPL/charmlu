@@ -1,7 +1,7 @@
 #ifndef LU_CONFIG_H
 #define LU_CONFIG_H
 
-#include "pup.h"
+#include <pup.h>
 #include <charm++.h>
 
 /// Class the stores configurations relevant to the LU factorization library
