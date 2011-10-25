@@ -165,7 +165,6 @@ struct Benchmark : public CBase_Benchmark {
              luCfg.memThreshold,
              SEND_LIM,
              luCfg.mappingScheme,
-             luCfg.mappingScheme == 1 ? "Balanced Snake" :
              (luCfg.mappingScheme == 2 ? "Block Cyclic" : "2D Tiling")
              );
     if (luCfg.mappingScheme == 3)
@@ -263,14 +262,8 @@ public:
 	  .setStaticInsertion(true);
       CkGroupID map;
       switch (mappingScheme) {
-      case 0:
-	map = CProxy_BlockCyclicMap::ckNew();
-	break;
-      case 1:
-        map = CProxy_LUBalancedSnakeMap::ckNew(luCfg.numBlocks, luCfg.blockSize);
-	break;
       case 2:
-        map = CProxy_RealBlockCyclicMap::ckNew(1, luCfg.numBlocks);
+        map = CProxy_BlockCyclicMap::ckNew(1, luCfg.numBlocks);
         break;
       case 3:
         map = CProxy_PE2DTilingMap::ckNew(luCfg.peTileRows, luCfg.peTileCols,
