@@ -201,8 +201,6 @@ void LUBlk::setupMsg(bool reverse) {
   std::sort(requestingPEs.begin(), requestingPEs.end());
   if (reverse) std::reverse(requestingPEs.begin(), requestingPEs.end());
 
-  DEBUG_PRINT("Preparing block for delivery to %d PEs", requestingPEs.size());
-
   // Junk value to catch bugs
   m->npes_sender = -1;
   m->npes_receiver = requestingPEs.size();
@@ -218,7 +216,6 @@ inline void LUBlk::scheduleDownwardU() {
   traceMemoryUsage();
   mgr->setPrio(LUmsg, MULT_RECV_U);
 
-  DEBUG_PRINT("Multicast to part of column %d", thisIndex.y);
   localScheduler->scheduleSend(thisIndex, internalStep == thisIndex.y - 1);
 }
 
@@ -228,7 +225,6 @@ inline void LUBlk::scheduleRightwardL() {
   traceMemoryUsage();
   mgr->setPrio(LUmsg, MULT_RECV_L);
 
-  DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
   localScheduler->scheduleSend(thisIndex, true);
 }
 
@@ -242,8 +238,6 @@ void LUBlk::requestBlock(int pe, int rx, int ry) {
       onActive = true;
 
     localScheduler->scheduleSend(thisIndex, onActive);
-  } else {
-    DEBUG_PRINT("Queueing remote block for pe %d", pe);
   }
 }
 
@@ -273,7 +267,6 @@ void LUBlk::offDiagSolve(BVecMsg *m) {
 
 // Copy received pivot data into its place in this block
 void LUBlk::applySwap(int row, int offset, const double *data, double b) {
-  DEBUG_PIVOT("(%d, %d): remote pivot inserted at %d\n", thisIndex.x, thisIndex.y, row);
   bvec[row] = b;
   memcpy( &(LU[getIndex(row,offset)]), data, sizeof(double)*(blkSize-offset) );
 }
@@ -338,12 +331,6 @@ bool LUBlk::shouldSendPivots() {
 
 /// Periodically send out the agglomerated pivot operations
 void LUBlk::announceAgglomeratedPivots() {
-#if defined(VERBOSE_PIVOT_RECORDING) || defined(VERBOSE_PIVOT_AGGLOM)
-  std::stringstream pivotLog;
-  pivotLog<<"["<<thisIndex.x<<","<<thisIndex.y<<"]"
-          <<" announcing "<<pivotRecords.size()<<" pivot operations in batch "<<pivotBatchTag<<std::endl;
-#endif
-
   // Create and initialize a msg to carry the pivot sequences
   pivotSequencesMsg *msg = new (numRowsSinceLastPivotSend+1, numRowsSinceLastPivotSend*2, sizeof(int)*8) pivotSequencesMsg(pivotBatchTag, numRowsSinceLastPivotSend);
   msg->numSequences = 0;
@@ -354,20 +341,11 @@ void LUBlk::announceAgglomeratedPivots() {
   int seqNo = -1, i = 0;
   std::map<int,int>::iterator itr = pivotRecords.begin();
   while (itr != pivotRecords.end()) {
-#ifdef VERBOSE_PIVOT_RECORDING
-    pivotLog<<std::endl;
-#endif
     msg->seqIndex[++seqNo] = i;
     int chainStart = itr->first;
     msg->pivotSequence[i++] = chainStart;
-#ifdef VERBOSE_PIVOT_RECORDING
-    pivotLog<<chainStart;
-#endif
     while (itr->second != chainStart) {
       msg->pivotSequence[i] = itr->second;
-#ifdef VERBOSE_PIVOT_RECORDING
-      pivotLog<<" <-- "<<itr->second;
-#endif
       std::map<int,int>::iterator prev = itr;
       itr = pivotRecords.find(itr->second);
       pivotRecords.erase(prev);
@@ -378,9 +356,6 @@ void LUBlk::announceAgglomeratedPivots() {
   }
   msg->seqIndex[++seqNo] = i; ///< @note: Just so that we know where the last sequence ends
   msg->numSequences = seqNo;
-#if defined(VERBOSE_PIVOT_RECORDING) || defined(VERBOSE_PIVOT_AGGLOM)
-  CkPrintf("%s\n", pivotLog.str().c_str());
-#endif
 
   mgr->setPrio(msg, PIVOT_RIGHT_SEC, -1, thisIndex.y);
   thisProxy.applyTrailingPivots(msg);
@@ -393,12 +368,6 @@ void LUBlk::announceAgglomeratedPivots() {
 
 /// Given a set of pivot ops, send out participating row chunks that you own
 void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
-#ifdef VERBOSE_PIVOT_AGGLOM
-  std::stringstream pivotLog;
-  pivotLog << "[" << thisIndex.x << "," << thisIndex.y << "]"
-           <<" processing "<< msg->numSequences
-           <<" pivot sequences in batch " << pivotBatchTag;
-#endif
 
   const int *pivotSequence = msg->pivotSequence, *idx = msg->seqIndex;
   int numSequences = msg->numSequences;
@@ -444,9 +413,6 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
 
   // Parse each sequence independently
   for (int i=0; i < numSequences; i++) {
-#ifdef VERBOSE_PIVOT_AGGLOM
-    pivotLog << "\n[" << thisIndex.x << "," << thisIndex.y << "] sequence " << i << ": ";
-#endif
 
     // Find the location of this sequence in the msg buffer
     const int *first = pivotSequence + idx[i];
@@ -471,9 +437,6 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
       if (tmpBuf == 0) tmpBuf = new double[blkSize];
       memcpy(tmpBuf, &LU[getIndex(*ringStart%blkSize,0)], blkSize*sizeof(double));
       tmpB = bvec[*ringStart%blkSize];
-#ifdef VERBOSE_PIVOT_AGGLOM
-      pivotLog << "tmp <-cpy- "<< *ringStart << "; ";
-#endif
     }
 
     // Process all the pivot operations in the circular sequence
@@ -488,16 +451,10 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
         // If you're sending to yourself, memcopy
         if (toChareIdx == thisIndex.x) {
           applySwap(*to%blkSize, 0, &LU[getIndex(fromLocal,0)], bvec[fromLocal]);
-#ifdef VERBOSE_PIVOT_AGGLOM
-          pivotLog << *to << " <-cpy- " << *from << "; ";
-#endif
         }
         // else, copy the data into the appropriate msg
         else {
           outgoingPivotMsgs[*to/blkSize]->copyRow(*to, &LU[getIndex(fromLocal,0)], bvec[fromLocal]);
-#ifdef VERBOSE_PIVOT_AGGLOM
-          pivotLog << *to << " <-msg- " << *from << "; ";
-#endif
         }
       }
       // else, the source data is remote
@@ -505,15 +462,9 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
         // if the current destination row belongs to me, make sure I expect the remote data
         if (*to / blkSize == thisIndex.x) {
           pendingIncomingPivots++;
-#ifdef VERBOSE_PIVOT_AGGLOM
-          pivotLog << *to << " <-inwd- " << *from << "; ";
-#endif
         }
         // else, i dont worry about this portion of the exchange sequence which is completely remote
         else {
-#ifdef VERBOSE_PIVOT_AGGLOM
-          pivotLog << *to << " <-noop- " << *from << "; ";
-#endif
         }
       }
       // Setup a circular traversal of the pivot sequence
@@ -525,9 +476,6 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
     // by copying the temp buffer back into the matrix block
     if (isSequenceLocal) {
       applySwap(*(beyondLast - 1) % blkSize, 0, tmpBuf, tmpB);
-#ifdef VERBOSE_PIVOT_AGGLOM
-      pivotLog << *(beyondLast-1) << "<-cpy- tmp " << "; ";
-#endif
     }
   } // end for loop through all sequences
 
@@ -537,9 +485,6 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
       thisProxy(i, thisIndex.y).trailingPivotRowsSwap(outgoingPivotMsgs[i]);
 
   if (tmpBuf) delete [] tmpBuf;
-#ifdef VERBOSE_PIVOT_AGGLOM
-  CkPrintf("%s\n",pivotLog.str().c_str());
-#endif
 }
 
 // Internal functions for creating messages to encapsulate the priority

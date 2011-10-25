@@ -10,6 +10,12 @@
 #include <limits>
 #include <iostream>
 
+#if CHARMLU_DEBUG >= 2
+  #define VERBOSE_VALIDATION(...) CkPrintf(__VA_ARGS__)
+#else
+  #define VERBOSE_VALIDATION(...)
+#endif
+
 #define _QUOTEIT(x) #x
 #define INQUOTES(x) _QUOTEIT(x)
 

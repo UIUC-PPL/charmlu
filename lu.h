@@ -10,37 +10,6 @@
 #include <vector>
 using std::min;
 
-#if CHARMLU_DEBUG >= 1
-  #define DEBUG_PRINT(FORMAT, ...) CkPrintf("(%d: [%d,%d]@%d) " FORMAT "\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep ,##__VA_ARGS__)
-#else
-  #define DEBUG_PRINT(...)
-#endif
-
-#if CHARMLU_DEBUG >= 2
-  #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
-  #define VERBOSE_VALIDATION(...) CkPrintf(__VA_ARGS__)
-  #define VERBOSE_PIVOT_RECORDING
-  #define VERBOSE_PIVOT_AGGLOM
-#else
-  #define DEBUG_PIVOT(...)
-  #define VERBOSE_VALIDATION(...)
-#endif
-
-/// Global that holds the reducer type for MaxElm
-extern CkReduction::reducerType MaxElmReducer;
-//extern CmiNodeLock lock;
-
-static inline void takeRef(void *m) {
-//    CmiLock(lock);
-    CmiReference(UsrToEnv(m));
-//    CmiUnlock(lock);
-}
-static inline void dropRef(void *m) {
-//    CmiLock(lock);
-    CmiFree(UsrToEnv(m));
-//    CmiUnlock(lock);
-}
-
 /**
  * 2D chare array that embodies a block of the input matrix
  *
@@ -48,28 +17,19 @@ static inline void dropRef(void *m) {
  */
 class LUBlk: public CBase_LUBlk {
 public:
-  //------------------------- Factorization Phase -----------------------------
-  /// Perform trailing update based on input matrices (dgemm)
-  void updateMatrix(double *incomingL, double *incomingU);
-  /// Performs the triangular solve required to compute a block of the U matrix (dtrsm)
-  void computeU(double *LMsg);
+  //------ Public Interface for Block Scheduler Object (for memory management) ------
   /// Broadcast the U downwards to the blocks in the same column
   void setupMsg(bool reverse);
-  /// Schedule U to be sent downward to the blocks in the same column
-  void scheduleDownwardU();
-  // Schedule L to be sent rightwards to the blocks in the same row
-  void scheduleRightwardL();
-  ///
+  /// Sends out the block to requesting PE if / when this block has been factored
   void requestBlock(int pe, int rx, int ry);
-  ///
+  /// Gives the local scheduler object access to this block's data
   double *accessLocalBlock();
 
-  // ------------------------- Solve Phase ------------------------------------
-  ///
+  /// For off-diagonal blocks, this performs the computations required for fwd and bkwd solves
   void offDiagSolve(BVecMsg *m);
-
-  LUBlk()
-    : factored(false), blockPulled(0), blocksAfter(0), maxRequestingPEs(0) {
+  /// Constructor
+  LUBlk() : factored(false), blockPulled(0), blocksAfter(0), maxRequestingPEs(0) {
+    // allow SDAG to initialize its internal state for this chare
     __sdag_init();
 #if defined(LU_TRACING)
     traceEnd();
@@ -165,6 +125,14 @@ protected:
   LUBlk_SDAG_CODE
 
   private:
+  /// Perform trailing update based on input matrices (dgemm)
+  void updateMatrix(double *incomingL, double *incomingU);
+  /// Performs the triangular solve required to compute a block of the U matrix (dtrsm)
+  void computeU(double *LMsg);
+  /// Schedule U to be sent downward to the blocks in the same column
+  void scheduleDownwardU();
+  // Schedule L to be sent rightwards to the blocks in the same row
+  void scheduleRightwardL();
   // Copy received pivot data into its place in this block
   void applySwap(int row, int offset, const double *data, double b);
   // Exchange local data
