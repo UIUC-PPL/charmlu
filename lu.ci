@@ -477,7 +477,6 @@ module lu {
     entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
                        CkCallback initialized, CkCallback factored, CkCallback solved) {
       when schedulerReady(CkReductionMsg *m) atomic {
-	delete m;
 	init(luCfg, _mgr, bs, initialized, factored, solved);
       }
       when multicastRedns(int dummy) {
@@ -506,7 +505,7 @@ module lu {
 	}
       }
     };
-    entry void schedulerReady(CkReductionMsg *m);
+    entry [nokeep] void schedulerReady(CkReductionMsg *m);
     entry void dataReady(int);
     entry [nokeep] void prepareForPivotRedn(rednSetupMsg *);
     entry [nokeep] void prepareForActivePanel(rednSetupMsg *);
