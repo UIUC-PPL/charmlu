@@ -342,23 +342,6 @@ void LUBlk::recordPivot(const int r1, const int r2) {
   std::swap(itr1->second, itr2->second);
 }
 
-void LUBlk::offDiagSolve(BVecMsg *m) {
-  // Do local portion of solve (daxpy)
-  double *xvec = new double[blkSize], *preVec = m->data;
-  for (int i = 0; i < blkSize; i++) {
-    xvec[i] = 0.0;
-    for (int j = 0; j < blkSize; j++)
-      xvec[i] += LU[getIndex(i,j)] * preVec[j];
-  }
-
-  // Set the diagonal chare on my row as target of reduction
-  CkCallback cb(CkReductionTarget(LUBlk, recvSolveData), thisProxy(thisIndex.x, thisIndex.x));
-  // Reduce row towards diagonal chare
-  mcastMgr->contribute(sizeof(double) * blkSize, xvec, CkReduction::sum_double,
-		       m->forward ? rowBeforeCookie : rowAfterCookie, cb, thisIndex.x);
-  delete[] xvec;
-}
-
 void LUBlk::resetMessage(bool reverse) {
   // Setup multicast of message to a dynamic set of processors
   blkMsg *m = LUmsg;
