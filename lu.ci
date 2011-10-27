@@ -454,7 +454,26 @@ module lu {
         }
       }
     };
-    entry [nokeep] void offDiagSolve(BVecMsg *m);
+
+
+    /// For off-diagonal blocks, this performs the computations required for fwd and bkwd solves
+    entry [nokeep] void offDiagSolve(BVecMsg *m) atomic {
+      // Do local portion of solve (daxpy)
+      double *xvec = new double[blkSize], *preVec = m->data;
+      for (int i = 0; i < blkSize; i++) {
+        xvec[i] = 0.0;
+        for (int j = 0; j < blkSize; j++)
+          xvec[i] += LU[getIndex(i,j)] * preVec[j];
+      }
+
+      // Set the diagonal chare on my row as target of reduction
+      CkCallback cb(CkReductionTarget(LUBlk, recvSolveData), thisProxy(thisIndex.x, thisIndex.x));
+      // Reduce row towards diagonal chare
+      mcastMgr->contribute(sizeof(double) * blkSize, xvec, CkReduction::sum_double,
+              m->forward ? rowBeforeCookie : rowAfterCookie, cb, thisIndex.x);
+      delete[] xvec;
+    };
+
     entry [reductiontarget] void recvSolveData(int count, double data[count]);
 
     // A remote BlockScheduler wants this block for a triangular solve

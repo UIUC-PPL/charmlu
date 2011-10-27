@@ -25,8 +25,6 @@ public:
   /// Gives the local scheduler object access to this block's data
   double *accessLocalBlock();
 
-  /// For off-diagonal blocks, this performs the computations required for fwd and bkwd solves
-  void offDiagSolve(BVecMsg *m);
   /// Constructor
   LUBlk() : factored(false), blockPulled(0), blocksAfter(0), maxRequestingPEs(0) {
     // allow SDAG to initialize its internal state for this chare
