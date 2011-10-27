@@ -131,7 +131,7 @@ struct Benchmark : public CBase_Benchmark {
       }
     }
     else
-      luCfg.mappingScheme = 1;
+      luCfg.mappingScheme = 2;
 
     if (luCfg.matrixSize >= std::numeric_limits<short>::max() &&
         sizeof(CMK_REFNUM_TYPE) != sizeof(int)) {
@@ -225,7 +225,6 @@ class LUSolver : public CBase_LUSolver {
   bool solved, LUcomplete;
   CProxy_BenchmarkLUBlk luArrProxy;
   CProxy_BlockScheduler bs;
-  int mappingScheme;
   CkCallback finishedSolve;
 
 public:
@@ -261,7 +260,7 @@ public:
       opts.setAnytimeMigration(false)
 	  .setStaticInsertion(true);
       CkGroupID map;
-      switch (mappingScheme) {
+      switch (luCfg.mappingScheme) {
       case 2:
         map = CProxy_BlockCyclicMap::ckNew(1, luCfg.numBlocks);
         break;
