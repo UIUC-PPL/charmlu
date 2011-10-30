@@ -433,7 +433,7 @@ void BenchmarkLUBlk::initVec() {
 
   LUmsg = createABlkMsg();
   LU = LUmsg->data;
-  thisProxy(thisIndex).dataReady(0);
+  thisProxy(thisIndex).dataReady();
 
   // Save seed value to use for validation
   seed_A = 2998389;

@@ -448,7 +448,7 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
     rowAfterDiag.prepareForRowAfterDiag(rowAfterMsg);
 
     if (thisIndex.x == 0) {
-      thisProxy.multicastRedns(0);
+      thisProxy.multicastRedns();
     }
   }
   // All chares except members of pivot sections are done with init
