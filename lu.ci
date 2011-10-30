@@ -28,7 +28,7 @@ module lu {
       atomic { thisProxy[thisIndex].updateUntilActive(); }
       // Once the current step of the computation reaches the diagonal
       // chare on this block's row / column
-      when amActive(bool isActive) {
+      when amActive() {
         if      (isAboveDiagonal()) atomic { thisProxy[thisIndex].factorAboveDiagBlock(); }
         else if (isBelowDiagonal()) atomic { thisProxy[thisIndex].factorBelowDiagBlock(); }
         else     /* on diagonal */  atomic { thisProxy[thisIndex].factorDiagBlock(); }
@@ -74,9 +74,9 @@ module lu {
           }
         }
       }
-      atomic { thisProxy[thisIndex].amActive(true); }
+      atomic { thisProxy[thisIndex].amActive(); }
     };
-    entry void amActive(bool isActive);
+    entry void amActive();
 
     /**
      * Methods for handling pivots in the trailing submatrix
@@ -190,11 +190,10 @@ module lu {
           // Contribute to a reduction along the active panel to identify the pivot row
           mcastMgr->contribute(sizeof(MaxElm), &pivotCandidate, MaxElmReducer, pivotCookie);
 #ifndef SCHED_PIVOT_REDN
-          void *dummyMsg = CkAllocSysMsg();
-          thisProxy[thisIndex].updateSubBlock((CkMarshallMsg*)dummyMsg);
+          thisProxy[thisIndex].updateSubBlock();
 #endif
         }
-        when updateSubBlock(CkMarshallMsg *dummyMsg) atomic "useg_delayed_update" {
+        when updateSubBlock() atomic "useg_delayed_update" {
           // Delayed update using the U segment from the prev activeCol iteration
           if (pendingUmsg) {
             updateLsubBlock(activeCol-1, pendingUmsg->data, 2);
@@ -203,7 +202,6 @@ module lu {
           }
           ownedPivotThisStep = false;
           thisProxy[thisIndex].belowPivot(activeCol);
-          delete dummyMsg;
         }
         // Wait for the post-diagonal U segment from the original owner of the pivot row
         when USegCompute(UMsg* anUmsg) atomic "below_recv_useg" {
@@ -400,7 +398,7 @@ module lu {
     // U-Segment for the next computation
     entry [nokeep] void USegCompute(UMsg* msg);
     // Using the U-Segment previously received, update the sub-block
-    entry void updateSubBlock(CkMarshallMsg *dummyMsg);
+    entry void updateSubBlock();
 
     /**
      * Solve methods
@@ -489,13 +487,13 @@ module lu {
       when schedulerReady(CkReductionMsg *m) atomic {
 	init(luCfg, _mgr, bs, initialized, factored, solved);
       }
-      when multicastRedns(int dummy) {
+      when multicastRedns() {
         if (isOnDiagonal() || isBelowDiagonal()) {
           when prepareForPivotRedn(rednSetupMsg *msg) atomic {
             mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
             CkGetSectionInfo(pivotCookie, msg);
 #ifdef SCHED_PIVOT_REDN
-            mcastMgr->setReductionProgressEvent(pivotCookie, CkCallback(CkIndex_LUBlk::updateSubBlock(0), CkArrayIndex2D(thisIndex.x,thisIndex.y), thisArrayID) );
+            mcastMgr->setReductionProgressEvent(pivotCookie, CkCallback(CkIndex_LUBlk::updateSubBlock(), CkArrayIndex2D(thisIndex.x,thisIndex.y), thisArrayID) );
 #endif
           }
         }
@@ -510,18 +508,18 @@ module lu {
             CkGetSectionInfo(rowAfterCookie, msg);
           }
         }
-	when dataReady(int foo) atomic {
+	when dataReady() atomic {
 	  contribute(initDone);
 	}
       }
     };
     entry [nokeep] void schedulerReady(CkReductionMsg *m);
-    entry void dataReady(int);
+    entry void dataReady();
     entry [nokeep] void prepareForPivotRedn(rednSetupMsg *);
     entry [nokeep] void prepareForActivePanel(rednSetupMsg *);
     entry [nokeep] void prepareForRowBeforeDiag(rednSetupMsg *);
     entry [nokeep] void prepareForRowAfterDiag(rednSetupMsg *);
-    entry void multicastRedns(int dummy);
+    entry void multicastRedns();
   };
 
   array [1D] BlockScheduler {
