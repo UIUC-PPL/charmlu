@@ -1,5 +1,4 @@
 include config.mk
-include ../config.mk
 
 # The relevant source files for this project
 RAWSRC    = lu.C scheduler.C benchmark.C
@@ -13,11 +12,9 @@ ARGS      = 64 16 500 8 2
 
 # Specify the compilers, run script, flags etc.
 OPT       = -O3
-#CPPFLAGS += -DSCHED_PIVOT_REDN
-#CPPFLAGS += -DCHARMLU_USEG_FROM_BELOW
-CPPFLAGS += -DSEND_LIM=$(SEND_LIM) $(BLAS_INC)
+CPPFLAGS += $(BLAS_INC)
 CXXFLAGS += -language charm++ $(OPT)
-LDFLAGS  += -module comlib -module CkMulticast $(BLAS_LD)
+LDFLAGS  += -module CkMulticast $(BLAS_LD)
 LDLIBS   += $(BLAS_LIBS)
 EXEC      = ./charmrun
 EXECFLAGS = +p$(NP) ++local

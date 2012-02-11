@@ -153,17 +153,13 @@ struct Benchmark : public CBase_Benchmark {
              "\n\tMatrix size: %d X %d "
              "\n\tBlock size: %d X %d "
              "\n\tChare Array size: %d X %d"
-             "\n\tPivot batch size: %d"
              "\n\tMem Threshold (MB): %d"
-             "\n\tSend Limit: %d"
              "\n\tMapping Scheme: %d (%s)\n",
              CkNumPes(), CmiNumNodes(),
              luCfg.matrixSize, luCfg.matrixSize,
              luCfg.blockSize, luCfg.blockSize,
              luCfg.numBlocks, luCfg.numBlocks,
-             luCfg.pivotBatchSize,
              luCfg.memThreshold,
-             SEND_LIM,
              luCfg.mappingScheme,
              (luCfg.mappingScheme == 2 ? "Block Cyclic" : "2D Tiling")
              );
@@ -171,17 +167,6 @@ struct Benchmark : public CBase_Benchmark {
       CkPrintf("\tMapping PE tile size: %d x %d"
                " rotate %d stride %d \n", luCfg.peTileRows, luCfg.peTileCols,
                luCfg.peTileRotate, luCfg.peTileStride);
-
-#ifdef SCHED_PIVOT_REDN
-    CkPrintf("\tPivot Redn Scheduling: On\n");
-#else
-    CkPrintf("\tPivot Redn Scheduling: Off\n");
-#endif
-#if defined(CHARMLU_USEG_FROM_BELOW)
-    CkPrintf("\tUseg Multicast from: Below\n");
-#else
-    CkPrintf("\tUseg Multicast from: Diagonal\n");
-#endif
 
     for (int i = 0; i < numIterations; i++) {
       ckout << "Starting solve" << endl;
@@ -431,8 +416,7 @@ void BenchmarkLUBlk::initVec() {
     return;
   }
 
-  LUmsg = createABlkMsg();
-  LU = LUmsg->data;
+  LU = new double[blkSize * blkSize];
   thisProxy(thisIndex).dataReady(0);
 
   // Save seed value to use for validation
