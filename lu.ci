@@ -1,7 +1,6 @@
 module lu {
   extern module luUtils;
   extern module luMessages;
-  include "maxelm.h";
 
   /**
    * 2D array of LU matrix-block objects that are locally coordinated
