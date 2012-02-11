@@ -57,18 +57,22 @@ void LUBlk::computeU(double *LMsg) {
   // LMsg is implicitly transposed by telling dtrsm that it is a
   // right, upper matrix. Since this also switches the order of
   // multiplication, the transpose is output to LU.
-  dtrsm(BLAS_RIGHT, BLAS_UPPER, BLAS_NOTRANSPOSE, BLAS_UNIT, blkSize, blkSize, 1.0, LMsg, blkSize, LU, blkSize);
+  dtrsm(BLAS_RIGHT, BLAS_UPPER, BLAS_NOTRANSPOSE, BLAS_UNIT,
+        blkSize, blkSize, 1.0, LMsg, blkSize, LU, blkSize);
 #else
-  cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, blkSize, blkSize, 1.0, LMsg, blkSize, LU, blkSize);
+  cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit,
+              blkSize, blkSize, 1.0, LMsg, blkSize, LU, blkSize);
 #endif
 }
 
 // Compute a triangular solve
 void LUBlk::computeL(double *UMsg) {
 #if USE_ESSL || USE_ACML
-  dtrsm(BLAS_LEFT, BLAS_LOWER, BLAS_NOTRANSPOSE, BLAS_UNIT, blkSize, blkSize, 1.0, UMsg, blkSize, LU, blkSize);
+  dtrsm(BLAS_LEFT, BLAS_LOWER, BLAS_NOTRANSPOSE, BLAS_NONUNIT,
+        blkSize, blkSize, 1.0, UMsg, blkSize, LU, blkSize);
 #else
-  cblas_dtrsm(CblasRowMajor, CblasRight, CblasUpper, CblasNoTrans, CblasUnit, blkSize, blkSize, 1.0, UMsg, blkSize, LU, blkSize);
+  cblas_dtrsm(CblasRowMajor, CblasRight, CblasUpper, CblasNoTrans, CblasNonUnit,
+              blkSize, blkSize, 1.0, UMsg, blkSize, LU, blkSize);
 #endif
 }
 

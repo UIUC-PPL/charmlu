@@ -35,11 +35,6 @@ module lu {
       }
     };
 
-    entry [nokeep] void recvTrailingL(blkMsg*);
-    entry [nokeep] void recvTrailingU(blkMsg*);
-    entry [nokeep] void recvL(blkMsg*);
-    entry [nokeep] void recvU(blkMsg*);
-
     // Describes the control flow of alternating pivoting and trailing
     // updates for all LUBlk chares before they become part of the
     // active panel.
@@ -57,8 +52,10 @@ module lu {
           when recvTrailingL[internalStep](blkMsg* mL) atomic { CmiReference(UsrToEnv(mL)); L = mL; }
           when recvTrailingU[internalStep](blkMsg* mU) atomic { CmiReference(UsrToEnv(mU)); U = mU; }
         }
-        //when processTrailingUpdate[internalStep](int step)
-        atomic "trailing_update" {
+        atomic "scheduleTrailing" {
+          thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep);
+        }
+        when processTrailingUpdate[internalStep](int step) atomic "trailingUpdate" {
           ckout << "Block (" << thisIndex.x << "," << thisIndex.y << ") updating at internalStep "
               << internalStep << ", time = " << CmiWallTimer() - startTime << endl;
           updateMatrix(L->data, U->data);
@@ -76,7 +73,7 @@ module lu {
         CmiReference(UsrToEnv(mL)); L = mL;
         thisProxy(thisIndex.x, thisIndex.y).processComputeU(0);
       }
-      when processComputeU(int dummy) atomic "process_compute_U" {
+      when processComputeU(int dummy) atomic "processComputeU" {
         ckout << "Block (" << thisIndex.x << "," << thisIndex.y << ") compute U at internalStep "
               << internalStep << ", time = " << CmiWallTimer() - startTime << endl;
         computeU(L->data);
@@ -85,32 +82,37 @@ module lu {
       atomic "abovediag_iteration_completed" { contribute(factorizationDone); }
     };
 
-    //entry void processTrailingUpdate(int step);
-    entry void processComputeU(int dummy);
-    entry void processComputeL(int dummy);
-
     // Below diagonal
     entry [local] void factorBelowDiagBlock() {
       when recvU[internalStep](blkMsg* mU) atomic {
         CmiReference(UsrToEnv(mU)); U = mU;
         thisProxy(thisIndex.x, thisIndex.y).processComputeL(0);
       }
-      when processComputeL(int dummy) atomic "process_compute_L" {
+      when processComputeL(int dummy) atomic "processComputeL" {
         ckout << "Block (" << thisIndex.x << "," << thisIndex.y << ") compute L at internalStep "
               << internalStep << ", time = " << CmiWallTimer() - startTime << endl;
         computeL(U->data);
         sendRightwardL();
       }
-      atomic "belowdiag_iteration_completed" { contribute(factorizationDone); }
+      atomic "belowDiagCompleted" { contribute(factorizationDone); }
     };
+
+    entry [nokeep] void recvTrailingL(blkMsg*);
+    entry [nokeep] void recvTrailingU(blkMsg*);
+    entry [nokeep] void recvL(blkMsg*);
+    entry [nokeep] void recvU(blkMsg*);
+
+    entry void processTrailingUpdate(int step);
+    entry void processComputeU(int dummy);
+    entry void processComputeL(int dummy);
 
     entry void multicastRedns(int);
 
     entry void factorDiagBlock() {
-      atomic "diag_solve" {
+      atomic "diagDecompose" {
         decompose();
       }
-      atomic "diag_multicast_L" {
+      atomic "diagMulticast" {
         ckout << "Block " << thisIndex.x << " finished local LU at internalStep "
               << internalStep << ", time = " << CmiWallTimer() - startTime << endl;
 

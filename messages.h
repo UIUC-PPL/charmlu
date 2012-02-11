@@ -10,7 +10,7 @@ static inline void takeRef(void *m) { CmiReference(UsrToEnv(m)); }
 /// Utility to drop a reference to a reference-counted message
 static inline void dropRef(void *m) { CmiFree(UsrToEnv(m)); }
 
-/// A block of the matrix, with ornamentation for setup-free multicast
+/// A block of the matrix
 struct blkMsg: public CkMcastBaseMsg, CMessage_blkMsg {
   double *data;
 
