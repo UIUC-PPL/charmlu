@@ -39,7 +39,6 @@ protected:
   blkMsg* createABlkMsg();
   CProxy_BlockScheduler scheduler;
   BlockScheduler *localScheduler;
-  int l_block, u_block;
 
   /// Configuration settings
   LUConfig cfg;
@@ -48,7 +47,6 @@ protected:
   double *LU;
   int blkSize, numBlks;
   blkMsg *U, *L;
-  int activeCol, ind;
 
   LUMgr *mgr;
 
@@ -74,12 +72,13 @@ protected:
   // System-generated macro for SDAG code
   LUBlk_SDAG_CODE
 
-  private:
+private:
   void decompose();
   /// Perform trailing update based on input matrices (dgemm)
   void updateMatrix(double *incomingL, double *incomingU);
   /// Performs the triangular solve required to compute a block of the U matrix (dtrsm)
   void computeU(double *LMsg);
+  /// Performs the triangular solve required to compute a block of the L matrix (dtrsm)
   void computeL(double *UMsg);
   /// Send U downward to the blocks in the same column
   void sendDownwardU();

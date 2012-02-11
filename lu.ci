@@ -56,8 +56,8 @@ module lu {
           thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep);
         }
         when processTrailingUpdate[internalStep](int step) atomic "trailingUpdate" {
-          ckout << "Block (" << thisIndex.x << "," << thisIndex.y << ") updating at internalStep "
-              << internalStep << ", time = " << CmiWallTimer() - startTime << endl;
+          //ckout << "Block (" << thisIndex.x << "," << thisIndex.y << ") updating at internalStep "
+          //<< internalStep << ", time = " << CmiWallTimer() - startTime << endl;
           updateMatrix(L->data, U->data);
           CmiFree(UsrToEnv(L)); CmiFree(UsrToEnv(U));
         }
@@ -74,8 +74,8 @@ module lu {
         thisProxy(thisIndex.x, thisIndex.y).processComputeU(0);
       }
       when processComputeU(int dummy) atomic "processComputeU" {
-        ckout << "Block (" << thisIndex.x << "," << thisIndex.y << ") compute U at internalStep "
-              << internalStep << ", time = " << CmiWallTimer() - startTime << endl;
+        //ckout << "Block (" << thisIndex.x << "," << thisIndex.y << ") compute U at internalStep "
+        //<< internalStep << ", time = " << CmiWallTimer() - startTime << endl;
         computeU(L->data);
         sendDownwardU();
       }
@@ -89,8 +89,8 @@ module lu {
         thisProxy(thisIndex.x, thisIndex.y).processComputeL(0);
       }
       when processComputeL(int dummy) atomic "processComputeL" {
-        ckout << "Block (" << thisIndex.x << "," << thisIndex.y << ") compute L at internalStep "
-              << internalStep << ", time = " << CmiWallTimer() - startTime << endl;
+        //ckout << "Block (" << thisIndex.x << "," << thisIndex.y << ") compute L at internalStep "
+        //<< internalStep << ", time = " << CmiWallTimer() - startTime << endl;
         computeL(U->data);
         sendRightwardL();
       }
