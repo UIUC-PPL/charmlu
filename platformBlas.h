@@ -19,6 +19,10 @@ extern "C" {
 #define BLAS_UPPER 'U'
 #define BLAS_UNIT 'U'
 
+#define BLAS_LEFT 'L'
+#define BLAS_LOWER 'L'
+#define BLAS_NONUNIT 'N'
+
 #elif USE_ACCELERATE_BLAS
 #include <Accelerate/Accelerate.h>
 
@@ -32,6 +36,10 @@ extern "C" {
 #define BLAS_RIGHT "R"
 #define BLAS_UPPER "U"
 #define BLAS_UNIT "U"
+
+#define BLAS_LEFT 'L'
+#define BLAS_LOWER 'L'
+#define BLAS_NONUNIT 'N'
 
 #else
 #error "No BLAS Header files included!"
