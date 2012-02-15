@@ -352,7 +352,8 @@ public:
 		 {"Abe", 9.332},
                  {"Ranger", 9.2},
                  {"Jaguar/Kraken XT5", 10.3987},
-		 {"BG/P", 3.4}};
+		 {"BG/P", 3.4},
+		 {"Hopper", 8.4}};
 
     for (int i = 0; i < sizeof(peaks)/sizeof(peaks[0]); ++i) {
       double fractionOfPeak = gflops_per_core / peaks[i].gflops_per_core;
