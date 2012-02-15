@@ -12,6 +12,7 @@ mainmodule driver {
     entry void outputStats();
     entry void calcScaledResidual(CkReductionMsg *);
     entry void startNextStep();
+    entry void continueStartup();
   };
 
   array [2D] BenchmarkLUBlk : LUBlk {

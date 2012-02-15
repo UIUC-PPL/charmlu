@@ -114,6 +114,7 @@ module lu {
       atomic "diagMulticast" {
         ckout << "Block " << thisIndex.x << " finished local LU at internalStep "
               << internalStep << ", time = " << CmiWallTimer() - startTime << endl;
+	fflush(stdout);
 
         // All diagonal chares except the last must continue the factorization
         if (thisIndex.x < numBlks - 1 && thisIndex.y < numBlks - 1) {

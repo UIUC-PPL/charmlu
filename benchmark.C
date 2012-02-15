@@ -211,6 +211,7 @@ class LUSolver : public CBase_LUSolver {
   CProxy_BenchmarkLUBlk luArrProxy;
   CProxy_BlockScheduler bs;
   CkCallback finishedSolve;
+  CProxy_LUMgr mgr;
 
 public:
   LUSolver(LUConfig luCfg_, CkCallback finishedSolve)
@@ -261,7 +262,7 @@ public:
       luCfg.map = map;
       opts.setMap(map);
 
-      CProxy_LUMgr mgr = CProxy_PrioLU::ckNew(luCfg.blockSize, luCfg.matrixSize);
+      mgr = CProxy_PrioLU::ckNew(luCfg.blockSize, luCfg.matrixSize);
 
       luArrProxy = CProxy_BenchmarkLUBlk::ckNew(thisProxy, opts);
 
@@ -271,12 +272,16 @@ public:
 
       LUcomplete = true;
 
-      luArrProxy.startup(luCfg, mgr, bs,
-			 CkCallback(CkIndex_LUSolver::continueIter(), thisProxy),
-			 CkCallback(CkIndex_LUSolver::startNextStep(), thisProxy),
-			 CkCallback(CkIndex_LUSolver::startNextStep(), thisProxy));
-      luArrProxy.initVec();
+      fflush(stdout);
     }
+  }
+
+  void continueStartup() {
+    luArrProxy.startup(luCfg, mgr, bs,
+		       CkCallback(CkIndex_LUSolver::continueIter(), thisProxy),
+		       CkCallback(CkIndex_LUSolver::startNextStep(), thisProxy),
+		       CkCallback(CkIndex_LUSolver::startNextStep(), thisProxy));
+    luArrProxy.initVec();
   }
 
   /// Returns how long a single dgemm of given block size takes
@@ -329,7 +334,7 @@ public:
     double endTime = CmiWallTimer();
     double duration = endTime-startTime;
 
-    double n = luCfg.matrixSize;
+    int n = luCfg.matrixSize;
     double HPL_flop_count =  (2.0 / 3.0 * n * n * n + 3.0 / 2.0 * n * n) / duration ;
     double HPL_gflops =	 HPL_flop_count / 1000000000.0; // Giga fp ops per second
     double gflops_per_core = HPL_gflops / (double)CkNumPes();
@@ -384,7 +389,11 @@ public:
 };
 
 struct BenchmarkLUBlk : public CBase_BenchmarkLUBlk {
-  BenchmarkLUBlk(CProxy_LUSolver solver) : mainProxy(solver), msgsRecvd(0) { }
+  BenchmarkLUBlk(CProxy_LUSolver solver) 
+    : mainProxy(solver)
+    , msgsRecvd(0) {
+    contribute(CkCallback(CkIndex_LUSolver::continueStartup(), solver));
+  }
   BenchmarkLUBlk(CkMigrateMessage *) { }
 
   CProxy_LUSolver mainProxy;
