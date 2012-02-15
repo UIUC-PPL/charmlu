@@ -52,7 +52,9 @@ module lu {
           when recvTrailingU[internalStep](blkMsg* mU) atomic { CmiReference(UsrToEnv(mU)); U = mU; }
         }
         atomic "scheduleTrailing" {
-          thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep);
+	  CkEntryOptions opts;
+	  opts.setPriority(thisIndex.x + thisIndex.y);
+          thisProxy(thisIndex.x, thisIndex.y).processTrailingUpdate(internalStep, &opts);
         }
         when processTrailingUpdate[internalStep](int step) atomic "trailingUpdate" {
           //ckout << "Block (" << thisIndex.x << "," << thisIndex.y << ") updating at internalStep "
@@ -70,7 +72,9 @@ module lu {
     entry [local] void factorAboveDiagBlock() {
       when recvL[internalStep](blkMsg* mL) atomic {
         CmiReference(UsrToEnv(mL)); L = mL;
-        thisProxy(thisIndex.x, thisIndex.y).processComputeU(0);
+	CkEntryOptions opts;
+	opts.setPriority(thisIndex.y);
+        thisProxy(thisIndex.x, thisIndex.y).processComputeU(0, &opts);
       }
       when processComputeU(int dummy) atomic "processComputeU" {
         //ckout << "Block (" << thisIndex.x << "," << thisIndex.y << ") compute U at internalStep "
@@ -85,7 +89,9 @@ module lu {
     entry [local] void factorBelowDiagBlock() {
       when recvU[internalStep](blkMsg* mU) atomic {
         CmiReference(UsrToEnv(mU)); U = mU;
-        thisProxy(thisIndex.x, thisIndex.y).processComputeL(0);
+	CkEntryOptions opts;
+	opts.setPriority(thisIndex.x);
+        thisProxy(thisIndex.x, thisIndex.y).processComputeL(0, &opts);
       }
       when processComputeL(int dummy) atomic "processComputeL" {
         //ckout << "Block (" << thisIndex.x << "," << thisIndex.y << ") compute L at internalStep "
