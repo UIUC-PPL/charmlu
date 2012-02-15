@@ -243,7 +243,7 @@ public:
       solved = true;
     } else {
       CkArrayOptions opts(luCfg.numBlocks, luCfg.numBlocks);
-      opts.setAnytimeMigration(false)
+      opts.setAnytimeMigration(true)
 	  .setStaticInsertion(true);
       CkGroupID map;
       switch (luCfg.mappingScheme) {
