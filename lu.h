@@ -29,7 +29,33 @@ public:
   ~LUBlk();
   LUBlk(CkMigrateMessage* m) { CkAbort("LU blocks not migratable yet"); }
   // Added for migration
-  void pup(PUP::er &p) {  }
+  void pup(PUP::er &p) {
+    __sdag_pup(p);
+
+    p | scheduler;
+    p | cfg;
+    p | blkSize;
+    p | numBlks;
+    p | startTime;
+    p | activePanel;
+    p | rowBeforeDiag;
+    p | rowAfterDiag;
+    p | rowBeforeCookie;
+    p | rowAfterCookie;
+    p | internalStep;
+    p | updateExecuted;
+    p | initDone; 
+    p | factorizationDone;
+    p | solveDone;
+    p | mgrp;
+
+    PUParray(p, LU, blkSize * blkSize);
+
+    if (p.isUnpacking()) {
+      mcastMgr = CProxy_CkMulticastMgr(cfg.mcastMgrGID).ckLocalBranch();
+      mgr = mgrp.ckLocalBranch();
+    }
+  }
 
 public:
   int internalStep;
@@ -38,7 +64,6 @@ protected:
   // Internal functions for creating messages to encapsulate the priority
   blkMsg* createABlkMsg();
   CProxy_BlockScheduler scheduler;
-  BlockScheduler *localScheduler;
 
   /// Configuration settings
   LUConfig cfg;
@@ -48,6 +73,7 @@ protected:
   int blkSize, numBlks;
   blkMsg *U, *L;
 
+  CProxy_LUMgr mgrp;
   LUMgr *mgr;
 
   /// Variables used only during solution

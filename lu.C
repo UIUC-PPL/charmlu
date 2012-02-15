@@ -118,13 +118,11 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
                  CProxy_BlockScheduler bs,
 		 CkCallback initialization, CkCallback factorization, CkCallback solution) {
   scheduler = bs;
-  localScheduler = scheduler[CkMyPe()].ckLocal();
-  CkAssert(localScheduler);
-  localScheduler->registerBlock(thisIndex);
   contribute(CkCallback(CkIndex_BlockScheduler::allRegistered(NULL), bs));
   cfg = _cfg;
   blkSize = cfg.blockSize;
   numBlks = cfg.numBlocks;
+  mgrp = _mgr;
   mgr = _mgr.ckLocalBranch();
   initDone = initialization;
   factorizationDone = factorization;
