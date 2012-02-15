@@ -334,7 +334,7 @@ public:
     double endTime = CmiWallTimer();
     double duration = endTime-startTime;
 
-    int n = luCfg.matrixSize;
+    double n = luCfg.matrixSize;
     double HPL_flop_count =  (2.0 / 3.0 * n * n * n + 3.0 / 2.0 * n * n) / duration ;
     double HPL_gflops =	 HPL_flop_count / 1000000000.0; // Giga fp ops per second
     double gflops_per_core = HPL_gflops / (double)CkNumPes();
