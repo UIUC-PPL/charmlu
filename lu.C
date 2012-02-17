@@ -34,6 +34,7 @@ void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
 }
 
 void LUBlk::decompose() {
+#if 0
   for (int j = 0; j < blkSize; j++) {
     for (int i = 0; i <= j; i++) {
       double sum = 0.0;
@@ -49,6 +50,11 @@ void LUBlk::decompose() {
       LU[getIndex(i, j)] /= LU[getIndex(j, j)];
     }
   }
+#else
+  int *ipiv = new int[blkSize];
+  int info;
+  dgetrf(blkSize, blkSize, LU, blkSize, ipiv, &info);
+#endif
 }
 
 // Compute a triangular solve
@@ -97,7 +103,7 @@ inline void LUBlk::sendRightwardL() {
   //mgr->setPrio(msg, MULT_RECV_L);
   CProxySection_LUBlk row = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,
                                                        thisIndex.x, 1, thisIndex.y + 1,
-                                                       numBlks - 1, 1);
+						       numBlks - 1, 1);
   row.ckSectionDelegate(mcastMgr);
   if (isOnDiagonal()) {
     row.recvL(msg);

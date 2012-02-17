@@ -235,16 +235,16 @@ public:
       outputStats();
       //Perform validation
       CkPrintf("starting validation at wall time: %f\n", CmiWallTimer());
+      fflush(stdout);
       luArrProxy.startValidation();
     } else if (!solved && LUcomplete) {
       CkPrintf("starting solve at wall time: %f\n", CmiWallTimer());
+      fflush(stdout);
       for (int i = 0; i < luCfg.numBlocks; i++)
         luArrProxy(i, i).forwardSolve();
       solved = true;
     } else {
       CkArrayOptions opts(luCfg.numBlocks, luCfg.numBlocks);
-      opts.setAnytimeMigration(true)
-	  .setStaticInsertion(true);
       CkGroupID map;
       switch (luCfg.mappingScheme) {
       case 2:

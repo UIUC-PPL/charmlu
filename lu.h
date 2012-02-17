@@ -30,11 +30,20 @@ public:
   LUBlk(CkMigrateMessage* m) { CkAbort("LU blocks not migratable yet"); }
   // Added for migration
   void pup(PUP::er &p) {
-    __sdag_pup(p);
+    printf("puping object unpacking = %s\n",
+	   p.isUnpacking() ? "true" : "false");
+
+    p | blkSize;
+
+    if (p.isUnpacking()) {
+      LU = new double[blkSize * blkSize];
+      bvec = new double[blkSize];
+    }
+
+    PUParray(p, LU, blkSize * blkSize);
 
     p | scheduler;
     p | cfg;
-    p | blkSize;
     p | numBlks;
     p | startTime;
     p | activePanel;
@@ -49,12 +58,30 @@ public:
     p | solveDone;
     p | mgrp;
 
-    PUParray(p, LU, blkSize * blkSize);
-
     if (p.isUnpacking()) {
       mcastMgr = CProxy_CkMulticastMgr(cfg.mcastMgrGID).ckLocalBranch();
       mgr = mgrp.ckLocalBranch();
     }
+
+    __sdag_pup(p);
+
+    if (p.isUnpacking()) {
+      printf("migrated: internalStep = %d\n", internalStep);
+      printf("migrated: numBlks = %d\n", numBlks);
+      printf("migrated: blkSize = %d\n", blkSize);
+    }
+    fflush(stdout);
+  }
+
+  virtual void ckJustMigrated() {
+    ArrayElement::ckJustMigrated();
+    CkPrintf("ckJustMigrated()\n");
+    thisProxy(thisIndex.x, thisIndex.y).migrateDone(0);
+    fflush(stdout);
+  }
+
+  void doMigrate(int proc) {
+    migrateMe(proc);
   }
 
 public:
