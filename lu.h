@@ -18,7 +18,7 @@ using std::min;
 class LUBlk: public CBase_LUBlk {
 public:
   /// Constructor
-  LUBlk() {
+  LUBlk() : started(false) {
     // allow SDAG to initialize its internal state for this chare
     __sdag_init();
   }
@@ -30,8 +30,8 @@ public:
   LUBlk(CkMigrateMessage* m) { CkAbort("LU blocks not migratable yet"); }
   // Added for migration
   void pup(PUP::er &p) {
-    printf("puping object unpacking = %s\n",
-	   p.isUnpacking() ? "true" : "false");
+    //printf("puping object unpacking = %s\n",
+    //p.isUnpacking() ? "true" : "false");
 
     p | blkSize;
 
@@ -42,6 +42,7 @@ public:
 
     PUParray(p, LU, blkSize * blkSize);
 
+    p | started;
     p | scheduler;
     p | cfg;
     p | numBlks;
@@ -66,16 +67,16 @@ public:
     __sdag_pup(p);
 
     if (p.isUnpacking()) {
-      printf("migrated: internalStep = %d\n", internalStep);
-      printf("migrated: numBlks = %d\n", numBlks);
-      printf("migrated: blkSize = %d\n", blkSize);
+      //printf("(%d,%d): migrated: internalStep = %d\n", internalStep, thisIndex.x, thisIndex.y);
+      //printf("(%d,%d): migrated: numBlks = %d\n", numBlks, thisIndex.x, thisIndex.y);
+      //printf("(%d,%d): migrated: blkSize = %d\n", blkSize, thisIndex.x, thisIndex.y);
     }
     fflush(stdout);
   }
 
   virtual void ckJustMigrated() {
     ArrayElement::ckJustMigrated();
-    CkPrintf("ckJustMigrated()\n");
+    //CkPrintf("ckJustMigrated()\n");
     thisProxy(thisIndex.x, thisIndex.y).migrateDone(0);
     fflush(stdout);
   }
@@ -99,6 +100,8 @@ protected:
   double *LU;
   int blkSize, numBlks;
   blkMsg *U, *L;
+
+  bool started;
 
   CProxy_LUMgr mgrp;
   LUMgr *mgr;

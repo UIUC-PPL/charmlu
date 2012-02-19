@@ -34,13 +34,13 @@ public:
   }
 
   int map(const int coor[2]) {
-    int tileYIndex = coor[1]  / peCols;
-    int XwithinPEtile = (coor[0] + tileYIndex * peRotate) % peRows;
-    int YwithinPEtile = coor[1] % (peCols / peStride);
-    int subtileY = (coor[1] % peCols) / (peCols / peStride);
-    int peNum = XwithinPEtile * peStride + YwithinPEtile * peStride * peRows + subtileY;
-    CkAssert(peNum < CkNumPes());
-    return peNum;
+    // int tileYIndex = coor[1]  / peCols;
+//     int XwithinPEtile = (coor[0] + tileYIndex * peRotate) % peRows;
+//     int YwithinPEtile = coor[1] % (peCols / peStride);
+//     int subtileY = (coor[1] % peCols) / (peCols / peStride);
+//     int peNum = XwithinPEtile * peStride + YwithinPEtile * peStride * peRows + subtileY;
+//     CkAssert(peNum < CkNumPes());
+//     return peNum;
   }
 
   int procNum(int arrayHdl, const CkArrayIndex &idx) {

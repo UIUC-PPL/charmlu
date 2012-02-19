@@ -9,6 +9,7 @@ mainmodule driver {
   chare LUSolver {
     entry LUSolver(LUConfig luCfg, CkCallback finishedSolve);
     entry void continueIter();
+    entry void actualStart();
     entry void outputStats();
     entry void calcScaledResidual(CkReductionMsg *);
     entry void startNextStep();

@@ -84,6 +84,7 @@ void LUBlk::computeL(double *UMsg) {
 
 // Send U downward to the blocks in the same column
 inline void LUBlk::sendDownwardU() {
+  //CkPrintf("(%d,%d): sendDownwardU()\n", thisIndex.x, thisIndex.y);
   blkMsg* msg = createABlkMsg();
   //mgr->setPrio(msg, MULT_RECV_U);
   CProxySection_LUBlk col = CProxySection_LUBlk::ckNew(thisArrayID,
@@ -99,6 +100,7 @@ inline void LUBlk::sendDownwardU() {
 
 // Send L rightward to the blocks in the same row
 inline void LUBlk::sendRightwardL() {
+  //CkPrintf("(%d,%d): sendRightwardL()\n", thisIndex.x, thisIndex.y);
   blkMsg* msg = createABlkMsg();
   //mgr->setPrio(msg, MULT_RECV_L);
   CProxySection_LUBlk row = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,

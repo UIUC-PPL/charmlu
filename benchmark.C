@@ -170,6 +170,7 @@ struct Benchmark : public CBase_Benchmark {
 
     for (int i = 0; i < numIterations; i++) {
       ckout << "Starting solve" << endl;
+      fflush(stdout);
       CkCallback cb(CkIndex_Benchmark::finished(), thisProxy);
       CProxy_LUSolver solver = CProxy_LUSolver::ckNew(luCfg, cb);
     }
@@ -221,27 +222,33 @@ public:
   , finishedSolve(finishedSolve) {
     // Create a multicast manager group
     luCfg.mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
-
     thisProxy.startNextStep();
   }
 
   void continueIter() {
+    CkStartQD(CkCallback(CkIndex_LUSolver::actualStart(), thisProxy));
+  }
+
+  void actualStart() {
     startTime = CmiWallTimer();
     luArrProxy.factor();
   }
 
   void startNextStep() {
-    if (solved && LUcomplete) {
+    if (1 && LUcomplete) {
       outputStats();
       //Perform validation
       CkPrintf("starting validation at wall time: %f\n", CmiWallTimer());
       fflush(stdout);
-      luArrProxy.startValidation();
+      //luArrProxy.startValidation();
+      //finishedSolve.send();
+      CkExit();
     } else if (!solved && LUcomplete) {
       CkPrintf("starting solve at wall time: %f\n", CmiWallTimer());
       fflush(stdout);
-      for (int i = 0; i < luCfg.numBlocks; i++)
-        luArrProxy(i, i).forwardSolve();
+      //solveDone.send();
+      //for (int i = 0; i < luCfg.numBlocks; i++)
+      //luArrProxy(i, i).forwardSolve();
       solved = true;
     } else {
       CkArrayOptions opts(luCfg.numBlocks, luCfg.numBlocks);
@@ -421,6 +428,7 @@ struct BenchmarkLUBlk : public CBase_BenchmarkLUBlk {
 };
 
 void BenchmarkLUBlk::initVec() {
+  if (started) return;
   if (!mgr) {
     thisProxy(thisIndex).initVec();
     return;
