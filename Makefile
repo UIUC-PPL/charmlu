@@ -11,10 +11,10 @@ BINS      = $(TARGET)
 ARGS      = 64 16 500 8 2
 
 # Specify the compilers, run script, flags etc.
-OPT       = -O3
+OPT       = -g -O3
 CPPFLAGS += $(BLAS_INC)
 CXXFLAGS += -language charm++ $(OPT)
-LDFLAGS  += -module CkMulticast $(BLAS_LD)
+LDFLAGS  += -module CkMulticast -tracemode projections $(BLAS_LD)
 LDLIBS   += $(BLAS_LIBS)
 EXEC      = ./charmrun
 EXECFLAGS = +p$(NP) ++local

@@ -6,10 +6,10 @@
 # BLAS_LIBS = -lcblas
 
 # To compile on hope (OSX):
-SEND_LIM ?= 2
-BLAS_INC  = -DUSE_ACCELERATE_BLAS=1
-BLAS_LD   =
-BLAS_LIBS = -framework Accelerate
+# SEND_LIM ?= 2
+# BLAS_INC  = -DUSE_ACCELERATE_BLAS=1
+# BLAS_LD   =
+# BLAS_LIBS = -framework Accelerate
 
 # To compile against a custom atlas install on linux:
 #SEND_LIM ?= 2
@@ -38,10 +38,10 @@ BLAS_LIBS = -framework Accelerate
 #BLAS_LIBS = -llapack -lf77blas -lcblas -latlas
 
 # To compile on Cray XT5 with "module load acml"
-#SEND_LIM ?= 1
-#BLAS_INC  =  -I$(ACML_DIR)/pgi64/include/ -DUSE_ACML_H=1 -DUSE_ACML
-#BLAS_LD   = -L$(ACML_DIR)/pgi64/lib/
-#BLAS_LIBS = -lacml
+SEND_LIM ?= 1
+BLAS_INC  =  -I$(ACML_DIR)/pgi64/include/ -DUSE_ACML_H=1 -DUSE_ACML
+BLAS_LD   = -L$(ACML_DIR)/pgi64/lib/
+BLAS_LIBS = -lacml
 
 # To compile on Cray XT5 with GNU compilers "module swap PrgEnv-pgi PrgEnv-gnu" and "module load acml"
 #SEND_LIM ?= 1

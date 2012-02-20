@@ -213,6 +213,7 @@ class LUSolver : public CBase_LUSolver {
   CProxy_BlockScheduler bs;
   CkCallback finishedSolve;
   CProxy_LUMgr mgr;
+  CProxy_StaticBlockSchedule staticProxy;
 
 public:
   LUSolver(LUConfig luCfg_, CkCallback finishedSolve)
@@ -226,6 +227,8 @@ public:
   }
 
   void continueIter() {
+    CkPrintf("continueIter\n");
+    fflush(stdout);
     CkStartQD(CkCallback(CkIndex_LUSolver::actualStart(), thisProxy));
   }
 
@@ -277,6 +280,8 @@ public:
       bsOpts.setMap(CProxy_OnePerPE::ckNew());
       bs = CProxy_BlockScheduler::ckNew(luArrProxy, luCfg, mgr, bsOpts);
 
+      staticProxy = CProxy_StaticBlockSchedule::ckNew(luCfg.numBlocks);
+
       LUcomplete = true;
 
       fflush(stdout);
@@ -287,7 +292,8 @@ public:
     luArrProxy.startup(luCfg, mgr, bs,
 		       CkCallback(CkIndex_LUSolver::continueIter(), thisProxy),
 		       CkCallback(CkIndex_LUSolver::startNextStep(), thisProxy),
-		       CkCallback(CkIndex_LUSolver::startNextStep(), thisProxy));
+		       CkCallback(CkIndex_LUSolver::startNextStep(), thisProxy),
+		       staticProxy);
     luArrProxy.initVec();
   }
 

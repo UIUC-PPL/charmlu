@@ -124,7 +124,9 @@ blkMsg* LUBlk::createABlkMsg() {
 
 void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
                  CProxy_BlockScheduler bs,
-		 CkCallback initialization, CkCallback factorization, CkCallback solution) {
+		 CkCallback initialization, CkCallback factorization, CkCallback solution,
+		 CProxy_StaticBlockSchedule staticProxy_) {
+  staticProxy = staticProxy_;
   scheduler = bs;
   contribute(CkCallback(CkIndex_BlockScheduler::allRegistered(NULL), bs));
   cfg = _cfg;

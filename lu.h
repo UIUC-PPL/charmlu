@@ -8,7 +8,80 @@
 #include <map>
 #include <algorithm>
 #include <vector>
+#include <cassert>
 using std::min;
+
+struct StateNode {
+  int taskid, taskType, is, proc;
+};
+
+struct StaticBlockSchedule : public CBase_StaticBlockSchedule {
+  std::vector<std::vector<StateNode> > blockStates;
+  int numBlks;
+  
+  StaticBlockSchedule(int numBlks)
+    : numBlks(numBlks) {
+    blockStates.resize(numBlks * numBlks);
+
+    if (CkMyPe() == 0) {
+      CkPrintf("reading schedule\n");
+      fflush(stdout);
+    }
+
+    // read from file;
+    int curBlock = -1, curVal = 0, x;
+    FILE* schedule = fopen("schedule.dag", "r");
+    StateNode node;
+    while (fscanf(schedule, "%d ", &x) == 1) {
+      curVal++;
+      if (x == -1) {
+	//CkPrintf("x == -1\n");
+	curBlock++;
+	curVal = 0;
+      } else {
+	switch (curVal) {
+	case 1: node.taskid = x; break;
+	case 2: node.taskType = x; break;
+	case 3: node.is = x; break;
+	case 4:
+	  node.proc = x;
+	  assert(curBlock < blockStates.size());
+	  //CkPrintf("readNode %d: %d %d %d %d\n",
+	  //curBlock, node.taskid, node.taskType, node.is, node.proc);
+	  fflush(stdout);
+	  blockStates[curBlock].push_back(node);
+	  curVal = 0;
+	  break;
+	}
+      }
+    }
+    fclose(schedule);
+
+    if (CkMyPe() == 0) {
+      CkPrintf("finished reading schedule\n");
+      fflush(stdout);
+    }
+  }
+
+  StateNode getNextState(int x, int y, int state) {
+    int index = x * numBlks + y;
+    assert(index < blockStates.size());
+    
+    //CkPrintf("(%d,%d): getNextState on index %d, current = %d\n", x, y, index, state);
+    fflush(stdout);
+
+    if (state + 1 == blockStates[index].size()) {
+      StateNode state;
+      state.taskType = -1;
+      state.taskid = -1;
+      state.is = -1;
+      state.proc = -1;
+      return state;
+    } else {
+      return blockStates[index][state + 1];
+    }
+  }
+};
 
 /**
  * 2D chare array that embodies a block of the input matrix
@@ -18,20 +91,22 @@ using std::min;
 class LUBlk: public CBase_LUBlk {
 public:
   /// Constructor
-  LUBlk() : started(false) {
+  LUBlk() 
+  : started(false)
+  , currentState(-1) {
     // allow SDAG to initialize its internal state for this chare
     __sdag_init();
   }
 
   void init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
-	    CkCallback initDone, CkCallback fznDone, CkCallback slnDone);
+	    CkCallback initDone, CkCallback fznDone, CkCallback slnDone,
+	    CProxy_StaticBlockSchedule staticProxy_);
   void prepareForActivePanel(rednSetupMsg *msg);
   ~LUBlk();
   LUBlk(CkMigrateMessage* m) { CkAbort("LU blocks not migratable yet"); }
   // Added for migration
   void pup(PUP::er &p) {
-    //printf("puping object unpacking = %s\n",
-    //p.isUnpacking() ? "true" : "false");
+    //CkPrintf("puping object unpacking = %s\n", p.isUnpacking() ? "true" : "false");
 
     p | blkSize;
 
@@ -42,7 +117,9 @@ public:
 
     PUParray(p, LU, blkSize * blkSize);
 
+    p | nproc;
     p | started;
+    p | staticProxy;
     p | scheduler;
     p | cfg;
     p | numBlks;
@@ -52,6 +129,7 @@ public:
     p | rowAfterDiag;
     p | rowBeforeCookie;
     p | rowAfterCookie;
+    p | currentState;
     p | internalStep;
     p | updateExecuted;
     p | initDone; 
@@ -67,9 +145,9 @@ public:
     __sdag_pup(p);
 
     if (p.isUnpacking()) {
-      //printf("(%d,%d): migrated: internalStep = %d\n", internalStep, thisIndex.x, thisIndex.y);
-      //printf("(%d,%d): migrated: numBlks = %d\n", numBlks, thisIndex.x, thisIndex.y);
-      //printf("(%d,%d): migrated: blkSize = %d\n", blkSize, thisIndex.x, thisIndex.y);
+      //CkPrintf("(%d,%d): migrated: internalStep = %d\n", thisIndex.x, thisIndex.y, internalStep);
+      //CkPrintf("(%d,%d): migrated: numBlks = %d\n", thisIndex.x, thisIndex.y, numBlks);
+      //CkPrintf("(%d,%d): migrated: blkSize = %d\n", thisIndex.x, thisIndex.y, blkSize);
     }
     fflush(stdout);
   }
@@ -77,8 +155,8 @@ public:
   virtual void ckJustMigrated() {
     ArrayElement::ckJustMigrated();
     //CkPrintf("ckJustMigrated()\n");
-    thisProxy(thisIndex.x, thisIndex.y).migrateDone(0);
     fflush(stdout);
+    thisProxy[thisIndex].migrateDone(0);
   }
 
   void doMigrate(int proc) {
@@ -101,8 +179,11 @@ protected:
   int blkSize, numBlks;
   blkMsg *U, *L;
 
+  int nproc;
+
   bool started;
 
+  CProxy_StaticBlockSchedule staticProxy;
   CProxy_LUMgr mgrp;
   LUMgr *mgr;
 
@@ -118,6 +199,8 @@ protected:
   CProxySection_LUBlk rowAfterDiag;
   CkSectionInfo rowBeforeCookie;
   CkSectionInfo rowAfterCookie;
+
+  int currentState;
 
   /// A pointer to the local branch of the multicast manager group that handles the pivot section comm
   CkMulticastMgr *mcastMgr;

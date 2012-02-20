@@ -2,6 +2,10 @@ module lu {
   extern module luUtils;
   extern module luMessages;
 
+  group StaticBlockSchedule {
+    entry StaticBlockSchedule(int numBlks);
+  };
+
   /**
    * 2D array of LU matrix-block objects that are locally coordinated
    * in Structured Dagger.
@@ -23,6 +27,7 @@ module lu {
     /// Each block starts its participation in the factorization here
     entry void factor() {
       atomic {
+	fflush(stdout);
 	if (started) return;
 	started = true;
 	//CkPrintf("(%d,%d): scheduleStart()\n", thisIndex.x, thisIndex.y);
@@ -41,8 +46,154 @@ module lu {
 //       //when migrateDone(int test) {}
     };
 
+    entry void transition(int dummy);
 
- entry void scheduleStart();
+    entry void scheduleStart() {
+      while (currentState != -2) {
+	atomic "loadNextState" {
+	  StaticBlockSchedule& sched = *(staticProxy.ckLocalBranch());
+	  StateNode node = sched.getNextState(thisIndex.x, thisIndex.y, currentState);
+	  //CkPrintf("(%d,%d): is = %d, proc = %d, type = %d, task = %d, actualProc = %d\n",
+	  //thisIndex.x, thisIndex.y, node.is, node.proc, node.taskType, node.taskid,
+	  //CkMyPe());
+	  fflush(stdout);
+	  switch (node.taskType) {
+	  case -1:
+	    currentState = -3;
+	    break;
+	  case 100:
+	    thisProxy[thisIndex].trailingUpdateState(node.is, node.taskid, node.proc);
+	    break;
+	  case 101:
+	    thisProxy[thisIndex].processLState(node.is, node.taskid, node.proc);
+	    break;
+	  case 102:
+	    thisProxy[thisIndex].processUState(node.is, node.taskid, node.proc);
+	    break;
+	  case 103:
+	    thisProxy[thisIndex].diagDecomposeState(node.is, node.taskid, node.proc);
+	    break;
+	  case 104:
+	    nproc = node.proc;
+	    thisProxy[thisIndex].migrateState();
+	    break;
+	  }
+	  currentState++;
+	}
+	if (currentState != -2) {
+	  when transition(int a) { }
+	}
+      }
+    };
+
+    entry void trailingUpdateState(int is, int taskid, int proc) {
+      atomic {
+	//CkPrintf("(%d,%d,%d): trailing update taskid = %d, proc = %d\n",
+	//thisIndex.x, thisIndex.y, is, taskid, proc);
+	fflush(stdout);
+	CkAssert(CkMyPe() == proc);
+      }
+      overlap {
+	when recvTrailingL[is](blkMsg* mL) atomic { CmiReference(UsrToEnv(mL)); L = mL; }
+	when recvTrailingU[is](blkMsg* mU) atomic { CmiReference(UsrToEnv(mU)); U = mU; }
+      }
+      atomic "trailingUpdateMain" {
+	updateMatrix(LU, LU);
+	CmiFree(UsrToEnv(L)); CmiFree(UsrToEnv(U));
+      }
+      atomic {
+	//CkPrintf("(%d,%d,%d): FINISHED trailing update taskid = %d, proc = %d\n",
+	//thisIndex.x, thisIndex.y, is, taskid, proc);
+	fflush(stdout);
+      }
+      atomic {
+	thisProxy[thisIndex].transition(0);
+      }
+    };
+    
+    entry void processUState(int is, int taskid, int proc) {
+      atomic {
+	//CkPrintf("(%d,%d,%d): process U taskid = %d, proc = %d\n",
+	//thisIndex.x, thisIndex.y, is, taskid, proc);
+	fflush(stdout);
+	CkAssert(CkMyPe() == proc);
+      }
+      when recvL[is](blkMsg* mL) atomic "processUMain" {
+	computeU(LU);
+	sendDownwardU();
+      }
+      atomic {
+	//CkPrintf("(%d,%d,%d): FINISHED process U taskid = %d, proc = %d\n",
+	//thisIndex.x, thisIndex.y, is, taskid, proc);
+	fflush(stdout);
+      }
+      atomic {
+	thisProxy[thisIndex].transition(0);
+      }
+    };
+
+    entry void processLState(int is, int taskid, int proc) {
+      atomic {
+	//CkPrintf("(%d,%d,%d): process L taskid = %d, proc = %d\n",
+	//thisIndex.x, thisIndex.y, is, taskid, proc);
+	fflush(stdout);
+	CkAssert(CkMyPe() == proc);
+      }
+      when recvU[is](blkMsg* mU) atomic "processLMain" {
+	computeL(LU);
+	sendRightwardL();
+      }
+      atomic {
+	//CkPrintf("(%d,%d,%d): FINISHED process L taskid = %d, proc = %d\n",
+	//thisIndex.x, thisIndex.y, is, taskid, proc);
+	fflush(stdout);
+      }
+      atomic {
+	thisProxy[thisIndex].transition(0);
+      }
+    };
+
+    entry void diagDecomposeState(int is, int taskid, int proc) {
+      atomic {
+	//CkPrintf("(%d,%d,%d): diag decompose taskid = %d, proc = %d\n",
+	//thisIndex.x, thisIndex.y, is, taskid, proc);
+	fflush(stdout);
+	CkAssert(CkMyPe() == proc);
+      }
+      atomic "diagDecomposeMain" {
+	decompose();
+	if (thisIndex.x < numBlks - 1) {
+	  sendRightwardL();
+	  sendDownwardU();
+	} else {
+	  factorizationDone.send();
+	}
+      }
+      atomic {
+	CkPrintf("(%d,%d,%d): FINISHED diag decompose taskid = %d, proc = %d\n",
+		 thisIndex.x, thisIndex.y, is, taskid, proc);
+	fflush(stdout);
+      }
+      atomic {
+	thisProxy[thisIndex].transition(0);
+      }
+    };
+
+    entry void migrateState() {
+      atomic "migrateStateMain" {
+	//CkPrintf("(%d,%d): calling doMigrate nproc = %d, current = %d\n",
+	//thisIndex.x, thisIndex.y, nproc, CkMyPe());
+	//fflush(stdout);
+	thisProxy(thisIndex.x,thisIndex.y).doMigrate(nproc);
+      }
+      when migrateDone(int dummy) atomic {
+	//CkPrintf("(%d,%d): migrate FINISHED current = %d\n", thisIndex.x, thisIndex.y, CkMyPe());
+	//fflush(stdout);
+      }
+      atomic {
+	thisProxy[thisIndex].transition(0);
+      }
+    };
 
     // Describes the control flow of alternating pivoting and trailing
     // updates for all LUBlk chares before they become part of the
@@ -74,9 +225,9 @@ module lu {
           CmiFree(UsrToEnv(L)); CmiFree(UsrToEnv(U));
         }
       }
-      atomic { thisProxy[thisIndex].amActive(true); }
+      //atomic { thisProxy[thisIndex].amActive(true); }
     };
-    entry void amActive(bool isActive);
+    //entry void amActive(bool isActive);
     entry void doMigrate(int proc);
     entry void migrateDone(int dummy);
 
@@ -236,10 +387,11 @@ module lu {
      * Initialization methods
      */
     entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
-                       CkCallback initialized, CkCallback factored, CkCallback solved) {
+                       CkCallback initialized, CkCallback factored, CkCallback solved,
+		       CProxy_StaticBlockSchedule staticProxy) {
       if (!started) {
 	when schedulerReady(CkReductionMsg *m) atomic {
-	  init(luCfg, _mgr, bs, initialized, factored, solved);
+	  init(luCfg, _mgr, bs, initialized, factored, solved, staticProxy);
 	}
 	when multicastRedns(int dummy) {
 	  if (isBelowDiagonal()) {
