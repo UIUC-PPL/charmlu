@@ -11,7 +11,7 @@ BINS      = $(TARGET)
 ARGS      = 64 16 500 8 2
 
 # Specify the compilers, run script, flags etc.
-OPT       = -g -O3
+OPT       = -g -O0
 CPPFLAGS += $(BLAS_INC)
 CXXFLAGS += -language charm++ $(OPT)
 LDFLAGS  += -module CkMulticast -tracemode projections $(BLAS_LD)

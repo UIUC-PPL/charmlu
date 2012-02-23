@@ -13,11 +13,24 @@ static inline void dropRef(void *m) { CmiFree(UsrToEnv(m)); }
 /// A block of the matrix
 struct blkMsg: public CkMcastBaseMsg, CMessage_blkMsg {
   double *data;
+  int blkSize;
+  CkIndex2D indx;
+  bool rightward;
 
-  blkMsg(double *data_, int step, int blkSize) {
+  blkMsg(double *data_, int step, int blkSize_, CkIndex2D indx_)
+    : blkSize(blkSize_), indx(indx_) {
     CkSetRefNum(this, step);
-    memcpy(data, data_, sizeof(double) * blkSize * blkSize);
+    if (data_) {
+      memcpy(data, data_, sizeof(double) * blkSize * blkSize);
+    }
     //CkSetQueueing(this, CK_QUEUEING_IFIFO);
+  }
+
+  void pup(PUP::er& p) {
+    p | blkSize;
+    p | indx;
+    p | rightward;
+    PUParray(p, data, blkSize * blkSize);
   }
 };
 

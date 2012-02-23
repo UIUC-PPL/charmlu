@@ -35,6 +35,7 @@ public:
 
   int map(const int coor[2]) {
 
+
 if (coor[0] == 11 && coor[1] == 11) return 29;
 else if (coor[0] == 11 && coor[1] == 7) return 62;
 else if (coor[0] == 11 && coor[1] == 17) return 12;
@@ -436,6 +437,7 @@ else if (coor[0] == 5 && coor[1] == 19) return 29;
 else if (coor[0] == 5 && coor[1] == 10) return 36;
 else if (coor[0] == 5 && coor[1] == 5) return 44;
 
+
     // int tileYIndex = coor[1]  / peCols;
 //     int XwithinPEtile = (coor[0] + tileYIndex * peRotate) % peRows;
 //     int YwithinPEtile = coor[1] % (peCols / peStride);
@@ -478,13 +480,17 @@ private:
 
 /// Mapping for BlockScheduler - created as an array so group section multicast
 /// can be used
-struct OnePerPE : public CBase_OnePerPE {
+struct OnePerPE : public CkArrayMap {
   OnePerPE() { }
-  int registerArray(CkArrayIndexMax& numElements,CkArrayID aid) {
-    CkAssert(CkNumPes() == numElements.index[0]);
-    return 0;
-  }
+  //int registerArray(CkArrayIndexMax& numElements,CkArrayID aid) {
+  //CkAssert(CkNumPes() == numElements.index[0]);
+  //return 0;
+  //}
   int procNum(int arrayHdl, const CkArrayIndex &elt) {
+    assert(*(int*)elt.data() < CkNumPes() &&
+	   *(int*)elt.data() >= 0);
+    //CkPrintf("index = %d\n", *(int*)elt.data());
+    //fflush(stdout);
     return *(int*)elt.data();
   }
 };

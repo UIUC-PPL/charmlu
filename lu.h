@@ -13,15 +13,18 @@ using std::min;
 
 struct StateNode {
   int taskid, taskType, is, proc;
+  int waitTask, relX, relY;
 };
 
 struct StaticBlockSchedule : public CBase_StaticBlockSchedule {
   std::vector<std::vector<StateNode> > blockStates;
+  std::vector<std::vector<int> > blockToProcs;
   int numBlks;
   
   StaticBlockSchedule(int numBlks)
     : numBlks(numBlks) {
     blockStates.resize(numBlks * numBlks);
+    blockToProcs.resize(numBlks * numBlks);
 
     if (CkMyPe() == 0) {
       CkPrintf("reading schedule\n");
@@ -43,8 +46,11 @@ struct StaticBlockSchedule : public CBase_StaticBlockSchedule {
 	case 1: node.taskid = x; break;
 	case 2: node.taskType = x; break;
 	case 3: node.is = x; break;
-	case 4:
-	  node.proc = x;
+	case 4: node.proc = x; break;
+	case 5: node.waitTask = x; break;
+	case 6: node.relX = x; break;
+	case 7:
+	  node.relY = x;
 	  assert(curBlock < blockStates.size());
 	  //CkPrintf("readNode %d: %d %d %d %d\n",
 	  //curBlock, node.taskid, node.taskType, node.is, node.proc);
@@ -56,6 +62,27 @@ struct StaticBlockSchedule : public CBase_StaticBlockSchedule {
       }
     }
     fclose(schedule);
+
+    curBlock = -1;
+    curVal = 0;
+    FILE* procMap = fopen("taskProcMap", "r");
+
+    while (fscanf(procMap, "%d ", &x) == 1) {
+      if (x == -1) curBlock++;
+      else {
+// 	if (CkMyPe() == 0) CkPrintf("block = %d: proc = %d\n", curBlock, x);
+// 	fflush(stdout);
+	assert(curBlock < numBlks * numBlks);
+	blockToProcs[curBlock].push_back(x);
+      }
+    }
+
+//     for (int i = 0; i < blockToProcs[11*numBlks+11].size(); i++) {
+//       if (CkMyPe() == 0) CkPrintf("(11,11): %d\n", blockToProcs[11*numBlks+11][i]);
+//       fflush(stdout);
+//     }
+
+    fclose(procMap);
 
     if (CkMyPe() == 0) {
       CkPrintf("finished reading schedule\n");
@@ -93,7 +120,9 @@ public:
   /// Constructor
   LUBlk() 
   : started(false)
-  , currentState(-1) {
+  , currentState(-1)
+  , L(NULL)
+  , U(NULL) {
     // allow SDAG to initialize its internal state for this chare
     __sdag_init();
   }
@@ -136,11 +165,28 @@ public:
     p | factorizationDone;
     p | solveDone;
     p | mgrp;
+    bool hasL = L != NULL;
+    bool hasU = U != NULL;
+    p | hasL;
+    p | hasU;
 
     if (p.isUnpacking()) {
       mcastMgr = CProxy_CkMulticastMgr(cfg.mcastMgrGID).ckLocalBranch();
       mgr = mgrp.ckLocalBranch();
+      if (hasL) {
+	L = createABlkMsg(NULL,thisIndex);
+      } else {
+	L = NULL;
+      }
+      if (hasU) {
+	U = createABlkMsg(NULL,thisIndex);
+      } else {
+	U = NULL;
+      }
     }
+
+    if (hasL) p | *L;
+    if (hasU) p | *U;
 
     __sdag_pup(p);
 
@@ -168,7 +214,7 @@ public:
 
 protected:
   // Internal functions for creating messages to encapsulate the priority
-  blkMsg* createABlkMsg();
+  blkMsg* createABlkMsg(double* block, CkIndex2D indx);
   CProxy_BlockScheduler scheduler;
 
   /// Configuration settings

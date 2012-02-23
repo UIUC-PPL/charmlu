@@ -23,6 +23,7 @@
 #include "lu.decl.h"
 #include <list>
 #include <map>
+#include <set>
 #include <utility>
 #include <algorithm>
 #include <utility>
@@ -33,19 +34,29 @@
  */
 class BlockScheduler : public CBase_BlockScheduler {
 public:
-  BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_);
+  BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_,
+                  CProxy_StaticBlockSchedule, int);
   BlockScheduler(CkMigrateMessage *m) { }
 
   // All LUBlk chares that live on the same processor, must register with the
   // BlockScheduler at startup
   void registerBlock(CkIndex2D index);
+  void unRegisterBlock(CkIndex2D index);
   // Reduction to indicate that all chares have registered
   void allRegistered(CkReductionMsg *m);
   void outputStats();
+  void tryDeliver(blkMsg* m, CkIndex2D indx);
+  void deliver(blkMsg* m, CkIndex2D indx);
+  void storeMsg(blkMsg* m);
+  void checkMsgs(CkIndex2D indx);
 
 private:
   LUMgr *mgr;
   CProxy_LUBlk luArr;
+  set<int> myBlocks;
+  CProxy_StaticBlockSchedule staticProxy;
+  map< int, list< blkMsg* > > msgs;
+  int numBlks;
 
   // Memory usage instrumentation
   // Memory occupied before factorization starts (kilobytes)

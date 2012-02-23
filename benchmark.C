@@ -278,9 +278,10 @@ public:
 
       CkArrayOptions bsOpts(CkNumPes());
       bsOpts.setMap(CProxy_OnePerPE::ckNew());
-      bs = CProxy_BlockScheduler::ckNew(luArrProxy, luCfg, mgr, bsOpts);
 
       staticProxy = CProxy_StaticBlockSchedule::ckNew(luCfg.numBlocks);
+      bs = CProxy_BlockScheduler::ckNew(luArrProxy, luCfg, mgr, staticProxy,
+                                          luCfg.numBlocks, bsOpts);
 
       LUcomplete = true;
 

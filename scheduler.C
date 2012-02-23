@@ -17,16 +17,93 @@
 #include "lu.h"
 #include "register.h"
 
-BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_)
+BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_,
+                                CProxy_StaticBlockSchedule staticProxy_, int numBlks_)
   : luArr(luArr_)
   , mgr(mgr_.ckLocalBranch())
   , maxMemory(0)
   , maxMemoryIncreases(0)
-  , maxMemoryStep(-1) {
+  , maxMemoryStep(-1)
+  , numBlks(numBlks_) {
+  staticProxy = staticProxy_;
   contribute(CkCallback(CkIndex_LUBlk::schedulerReady(NULL), luArr));
 }
 
-void BlockScheduler::registerBlock(CkIndex2D index) { }
+void BlockScheduler::registerBlock(CkIndex2D index) {
+  //CkPrintf("registerBlock (%d,%d)\n", index.x, index.y);
+  myBlocks.insert(index.x*numBlks+index.y);
+}
+
+void BlockScheduler::unRegisterBlock(CkIndex2D index) {
+  CkPrintf("unRegisterBlock (%d,%d)\n", index.x, index.y);
+  fflush(stdout);
+  assert(myBlocks.find(index.x*numBlks+index.y) != myBlocks.end());
+  myBlocks.erase(index.x*numBlks+index.y);
+}
+
+void BlockScheduler::storeMsg(blkMsg* m) {
+  CkIndex2D indx = m->indx;
+  int step = CkGetRefNum(m);
+  CkPrintf("storeMsg from = (%d,%d), step = %d\n", m->indx.x, m->indx.y, step);
+  fflush(stdout);
+  if(m->rightward) {
+    for (int index = indx.y + 1; index < numBlks; index++) {  
+        int proc = staticProxy.ckLocalBranch()->blockToProcs[indx.x * numBlks + index][step];
+        if(CkMyPe() == proc) {
+          CmiReference(UsrToEnv(m));
+          CkIndex2D sIndx;
+          sIndx.x = indx.x;
+          sIndx.y = index;
+          tryDeliver(m, sIndx);
+        }
+    }
+    CmiFree(UsrToEnv(m));
+  } else {
+    for (int index = indx.x + 1; index < numBlks; index++) {
+        int proc = staticProxy.ckLocalBranch()->blockToProcs[index * numBlks + indx.y][step];
+        if(CkMyPe() == proc) {
+          CmiReference(UsrToEnv(m));
+          CkIndex2D sIndx;
+          sIndx.x = index;
+          sIndx.y = indx.y;
+          tryDeliver(m, sIndx);
+        }
+    }
+    CmiFree(UsrToEnv(m));
+  }
+}
+
+void BlockScheduler::tryDeliver(blkMsg* m, CkIndex2D indx) {
+  if(myBlocks.find(indx.x*numBlks+indx.y) != myBlocks.end()) {
+    deliver(m,indx);
+  }
+  else {
+    msgs[indx.x*numBlks+indx.y].push_back(m);  
+  }
+}
+
+void BlockScheduler::deliver(blkMsg* m, CkIndex2D indx) {
+  if(m->rightward) {
+    if(m->indx.x == m->indx.y)
+      luArr[indx].ckLocal()->recvL(m);
+    else
+      luArr[indx].ckLocal()->recvTrailingL(m);
+  } else {
+    if(m->indx.x == m->indx.y)
+      luArr[indx].ckLocal()->recvU(m);
+    else
+      luArr[indx].ckLocal()->recvTrailingU(m);
+  }
+  //CmiFree
+}
+
+void BlockScheduler::checkMsgs(CkIndex2D indx) {
+  for(list< blkMsg* >::iterator iter = msgs[indx.x*numBlks+indx.y].begin();
+        iter != msgs[indx.x*numBlks+indx.y].end(); ++iter) {
+    deliver(*iter, indx);
+  }
+  msgs[indx.x*numBlks+indx.y].clear();
+}
 
 void printMemory(void *time, void *msg) {
   int *s = (int*) ((CkReductionMsg *)msg)->getData();
@@ -53,4 +130,5 @@ void BlockScheduler::allRegistered(CkReductionMsg *m) {
   baseMemory = CmiMemoryUsage()/1024;
   contribute(sizeof(int), &baseMemory, CkReduction::max_int,
 	     CkCallback(&printMemory, const_cast<char*>("Base")));
+  contribute(CkCallback(CkIndex_LUBlk::regDone(NULL), luArr));
 }

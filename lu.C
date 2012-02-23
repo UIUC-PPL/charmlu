@@ -7,6 +7,7 @@ using std::min;
 #include <cmath>
 #include <limits>
 #include <map>
+#include <set>
 #include <string.h>
 
 #include "lu.h"
@@ -85,40 +86,94 @@ void LUBlk::computeL(double *UMsg) {
 // Send U downward to the blocks in the same column
 inline void LUBlk::sendDownwardU() {
   //CkPrintf("(%d,%d): sendDownwardU()\n", thisIndex.x, thisIndex.y);
-  blkMsg* msg = createABlkMsg();
+  blkMsg* msg = createABlkMsg(LU,thisIndex);
   //mgr->setPrio(msg, MULT_RECV_U);
-  CProxySection_LUBlk col = CProxySection_LUBlk::ckNew(thisArrayID,
-                                                       thisIndex.x + 1, numBlks - 1, 1,
-                                                       thisIndex.y, thisIndex.y, 1);
-  col.ckSectionDelegate(mcastMgr);
-  if (isOnDiagonal()) {
-    col.recvU(msg);
-  } else {
-    col.recvTrailingU(msg);
+  // CProxySection_LUBlk col = CProxySection_LUBlk::ckNew(thisArrayID,
+//                                                        thisIndex.x + 1, numBlks - 1, 1,
+//                                                        thisIndex.y, thisIndex.y, 1);
+
+  msg->rightward = false;
+
+  int is = std::min(thisIndex.x, thisIndex.y);
+  std::set<int> sendPEs;
+
+  for (int index = thisIndex.x + 1; index < numBlks; index++) {
+    int bx = index, by = thisIndex.y;
+    sendPEs.insert(staticProxy.ckLocalBranch()->blockToProcs[bx * numBlks + by][is]);
   }
+
+  CkPrintf("sendPEs size = %d\n", sendPEs.size()); fflush(stdout);
+
+  CkVec<CkArrayIndex1D> elms;
+  for (std::set<int>::iterator iter = sendPEs.begin(); iter != sendPEs.end(); ++iter) {
+    int pe = *iter;
+    //scheduler[pe].storeMsg(msg);
+    CkPrintf("pe = %d\n", pe); fflush(stdout);
+    elms.push_back(CkArrayIndex1D(pe));
+  }
+
+  CProxySection_BlockScheduler bsec =
+    CProxySection_BlockScheduler::ckNew(scheduler.ckGetArrayID(), elms.getVec(), elms.size());
+  //bsec.ckSectionDelegate(mcastMgr);
+  bsec.storeMsg(msg);
+
+  //col.ckSectionDelegate(mcastMgr);
+  // if (isOnDiagonal()) {
+//     col.recvU(msg);
+//   } else {
+//     col.recvTrailingU(msg);
+//   }
 }
 
 // Send L rightward to the blocks in the same row
 inline void LUBlk::sendRightwardL() {
   //CkPrintf("(%d,%d): sendRightwardL()\n", thisIndex.x, thisIndex.y);
-  blkMsg* msg = createABlkMsg();
+  blkMsg* msg = createABlkMsg(LU,thisIndex);
   //mgr->setPrio(msg, MULT_RECV_L);
-  CProxySection_LUBlk row = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,
-                                                       thisIndex.x, 1, thisIndex.y + 1,
-						       numBlks - 1, 1);
-  row.ckSectionDelegate(mcastMgr);
-  if (isOnDiagonal()) {
-    row.recvL(msg);
-  } else {
-    row.recvTrailingL(msg);
+//   CProxySection_LUBlk row = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,
+//                                                        thisIndex.x, 1, thisIndex.y + 1,
+// 						       numBlks - 1, 1);
+
+  msg->rightward = true;
+
+  int is = std::min(thisIndex.x, thisIndex.y);
+  std::set<int> sendPEs;
+  for (int index = thisIndex.y + 1; index < numBlks; index++) {
+    int bx = thisIndex.x, by = index;
+    sendPEs.insert(staticProxy.ckLocalBranch()->blockToProcs[bx * numBlks + by][is]);
   }
+
+  CkPrintf("sendPEs size = %d\n", sendPEs.size()); fflush(stdout);
+
+  CkVec<CkArrayIndex1D> elms;
+  for (std::set<int>::iterator iter = sendPEs.begin(); iter != sendPEs.end(); ++iter) {
+    int pe = *iter;
+
+    //scheduler[pe].storeMsg(msg);
+
+    CkPrintf("pe = %d\n", pe); fflush(stdout);
+    elms.push_back(CkArrayIndex1D(pe));
+  }
+
+  CProxySection_BlockScheduler bsec =
+    CProxySection_BlockScheduler::ckNew(scheduler.ckGetArrayID(), elms.getVec(), elms.size());
+  //bsec.ckSectionDelegate(mcastMgr);
+
+  bsec.storeMsg(msg);
+
+  //row.ckSectionDelegate(mcastMgr);
+  // if (isOnDiagonal()) {
+//     row.recvL(msg);
+//   } else {
+//     row.recvTrailingL(msg);
+//   }
 }
 
 // Internal functions for creating messages to encapsulate the priority
-blkMsg* LUBlk::createABlkMsg() {
+blkMsg* LUBlk::createABlkMsg(double* block, CkIndex2D indx) {
   int prioBits = mgr->bitsOfPrio();
   blkMsg* msg = new (blkSize * blkSize, prioBits)
-    blkMsg(LU, std::min(thisIndex.x, thisIndex.y), blkSize);
+    blkMsg(block, std::min(thisIndex.x, thisIndex.y), blkSize, indx);
   return msg;
 }
 
@@ -128,6 +183,7 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
 		 CProxy_StaticBlockSchedule staticProxy_) {
   staticProxy = staticProxy_;
   scheduler = bs;
+  scheduler[CkMyPe()].ckLocal()->registerBlock(thisIndex);
   contribute(CkCallback(CkIndex_BlockScheduler::allRegistered(NULL), bs));
   cfg = _cfg;
   blkSize = cfg.blockSize;

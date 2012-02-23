@@ -31,7 +31,9 @@ module lu {
 	if (started) return;
 	started = true;
 	//CkPrintf("(%d,%d): scheduleStart()\n", thisIndex.x, thisIndex.y);
-	thisProxy(thisIndex.x,thisIndex.y).scheduleStart();
+	//scheduler[CkMyPe()].ckLocal()->registerBlock(thisIndex);
+        //scheduler[CkMyPe()].ckLocal()->checkMsgs(thisIndex);	
+        thisProxy(thisIndex.x,thisIndex.y).scheduleStart();
       }
 //       // Keep executing trailing updates on this block until it is on
 //       // the active block row or column
@@ -47,31 +49,39 @@ module lu {
     };
 
     entry void transition(int dummy);
+    entry void releaseDep(int dummy);
 
     entry void scheduleStart() {
       while (currentState != -2) {
 	atomic "loadNextState" {
 	  StaticBlockSchedule& sched = *(staticProxy.ckLocalBranch());
 	  StateNode node = sched.getNextState(thisIndex.x, thisIndex.y, currentState);
-	  //CkPrintf("(%d,%d): is = %d, proc = %d, type = %d, task = %d, actualProc = %d\n",
-	  //thisIndex.x, thisIndex.y, node.is, node.proc, node.taskType, node.taskid,
-	  //CkMyPe());
-	  fflush(stdout);
+	  if (CkMyPe() == 0) {
+	    CkPrintf("(%d,%d): is = %d, proc = %d, type = %d, task = %d, actualProc = %d\n",
+		     thisIndex.x, thisIndex.y, node.is, node.proc, node.taskType, node.taskid,
+		     CkMyPe());
+	    fflush(stdout);
+	  }
+ 	  
 	  switch (node.taskType) {
 	  case -1:
 	    currentState = -3;
 	    break;
 	  case 100:
-	    thisProxy[thisIndex].trailingUpdateState(node.is, node.taskid, node.proc);
+	    thisProxy[thisIndex].trailingUpdateState(node.is, node.taskid, node.proc, node.waitTask,
+						     node.relX, node.relY);
 	    break;
 	  case 101:
-	    thisProxy[thisIndex].processLState(node.is, node.taskid, node.proc);
+	    thisProxy[thisIndex].processLState(node.is, node.taskid, node.proc, node.waitTask,
+						     node.relX, node.relY);
 	    break;
 	  case 102:
-	    thisProxy[thisIndex].processUState(node.is, node.taskid, node.proc);
+	    thisProxy[thisIndex].processUState(node.is, node.taskid, node.proc, node.waitTask,
+						     node.relX, node.relY);
 	    break;
 	  case 103:
-	    thisProxy[thisIndex].diagDecomposeState(node.is, node.taskid, node.proc);
+	    thisProxy[thisIndex].diagDecomposeState(node.is, node.taskid, node.proc, node.waitTask,
+						     node.relX, node.relY);
 	    break;
 	  case 104:
 	    nproc = node.proc;
@@ -86,20 +96,26 @@ module lu {
       }
     };
 
-    entry void trailingUpdateState(int is, int taskid, int proc) {
-      atomic {
+    
+    entry void trailingUpdateState(int is, int taskid, int proc, int wait, int rx, int ry) {
+      atomic "trailingUpdateInit" {
 	//CkPrintf("(%d,%d,%d): trailing update taskid = %d, proc = %d\n",
 	//thisIndex.x, thisIndex.y, is, taskid, proc);
 	fflush(stdout);
 	CkAssert(CkMyPe() == proc);
+      }
+      if (wait != -5) {
+	when releaseDep(int dummy) { }
       }
       overlap {
 	when recvTrailingL[is](blkMsg* mL) atomic { CmiReference(UsrToEnv(mL)); L = mL; }
 	when recvTrailingU[is](blkMsg* mU) atomic { CmiReference(UsrToEnv(mU)); U = mU; }
       }
       atomic "trailingUpdateMain" {
+	char buf[100]; sprintf(buf, "%d: trailingUpdateState", taskid); traceUserSuppliedNote(buf);
 	updateMatrix(LU, LU);
 	CmiFree(UsrToEnv(L)); CmiFree(UsrToEnv(U));
+	L = NULL; U = NULL;
       }
       atomic {
 	//CkPrintf("(%d,%d,%d): FINISHED trailing update taskid = %d, proc = %d\n",
@@ -107,18 +123,26 @@ module lu {
 	fflush(stdout);
       }
       atomic {
+	CkAssert(rx != -5 && ry != -5 || rx == -5 && ry == -5);
+	if (rx != -5 && ry != -5) {
+	  thisProxy(rx,ry).releaseDep(0);
+	}
 	thisProxy[thisIndex].transition(0);
       }
     };
     
-    entry void processUState(int is, int taskid, int proc) {
-      atomic {
+    entry void processUState(int is, int taskid, int proc, int wait, int rx, int ry) {
+      atomic "processUInit" {
 	//CkPrintf("(%d,%d,%d): process U taskid = %d, proc = %d\n",
 	//thisIndex.x, thisIndex.y, is, taskid, proc);
 	fflush(stdout);
 	CkAssert(CkMyPe() == proc);
       }
+      if (wait != -5) {
+	when releaseDep(int dummy) { }
+      }
       when recvL[is](blkMsg* mL) atomic "processUMain" {
+	char buf[100]; sprintf(buf, "%d: processUState", taskid); traceUserSuppliedNote(buf);
 	computeU(LU);
 	sendDownwardU();
       }
@@ -128,18 +152,26 @@ module lu {
 	fflush(stdout);
       }
       atomic {
+	CkAssert(rx != -5 && ry != -5 || rx == -5 && ry == -5);
+	if (rx != -5 && ry != -5) {
+	  thisProxy(rx,ry).releaseDep(0);
+	}
 	thisProxy[thisIndex].transition(0);
       }
     };
 
-    entry void processLState(int is, int taskid, int proc) {
-      atomic {
+    entry void processLState(int is, int taskid, int proc, int wait, int rx, int ry) {
+      atomic "processLInit" {
 	//CkPrintf("(%d,%d,%d): process L taskid = %d, proc = %d\n",
 	//thisIndex.x, thisIndex.y, is, taskid, proc);
 	fflush(stdout);
 	CkAssert(CkMyPe() == proc);
       }
+      if (wait != -5) {
+	when releaseDep(int dummy) { }
+      }
       when recvU[is](blkMsg* mU) atomic "processLMain" {
+	char buf[100]; sprintf(buf, "%d: processLState", taskid); traceUserSuppliedNote(buf);
 	computeL(LU);
 	sendRightwardL();
       }
@@ -149,18 +181,26 @@ module lu {
 	fflush(stdout);
       }
       atomic {
+	CkAssert(rx != -5 && ry != -5 || rx == -5 && ry == -5);
+	if (rx != -5 && ry != -5) {
+	  thisProxy(rx,ry).releaseDep(0);
+	}
 	thisProxy[thisIndex].transition(0);
       }
     };
 
-    entry void diagDecomposeState(int is, int taskid, int proc) {
-      atomic {
+    entry void diagDecomposeState(int is, int taskid, int proc, int wait, int rx, int ry) {
+      atomic "diagDecomposeInit" {
 	//CkPrintf("(%d,%d,%d): diag decompose taskid = %d, proc = %d\n",
 	//thisIndex.x, thisIndex.y, is, taskid, proc);
 	fflush(stdout);
 	CkAssert(CkMyPe() == proc);
       }
+      if (wait != -5) {
+	when releaseDep(int dummy) { }
+      }
       atomic "diagDecomposeMain" {
+	char buf[100]; sprintf(buf, "%d: diagDecomposeState", taskid); traceUserSuppliedNote(buf);
 	decompose();
 	if (thisIndex.x < numBlks - 1) {
 	  sendRightwardL();
@@ -175,6 +215,10 @@ module lu {
 	fflush(stdout);
       }
       atomic {
+	CkAssert(rx != -5 && ry != -5 || rx == -5 && ry == -5);
+	if (rx != -5 && ry != -5) {
+	  thisProxy(rx,ry).releaseDep(0);
+	}
 	thisProxy[thisIndex].transition(0);
       }
     };
@@ -184,13 +228,17 @@ module lu {
 	//CkPrintf("(%d,%d): calling doMigrate nproc = %d, current = %d\n",
 	//thisIndex.x, thisIndex.y, nproc, CkMyPe());
 	//fflush(stdout);
-	thisProxy(thisIndex.x,thisIndex.y).doMigrate(nproc);
+	char buf[100]; sprintf(buf, "from %d to %d: migrateState", CkMyPe(), nproc); traceUserSuppliedNote(buf);
+	scheduler[CkMyPe()].ckLocal()->unRegisterBlock(thisIndex);
+        thisProxy(thisIndex.x,thisIndex.y).doMigrate(nproc);
       }
       when migrateDone(int dummy) atomic {
 	//CkPrintf("(%d,%d): migrate FINISHED current = %d\n", thisIndex.x, thisIndex.y, CkMyPe());
 	//fflush(stdout);
+        scheduler[CkMyPe()].ckLocal()->registerBlock(thisIndex);
+        scheduler[CkMyPe()].ckLocal()->checkMsgs(thisIndex);
       }
-      atomic {
+      atomic "migrateFinished" {
 	thisProxy[thisIndex].transition(0);
       }
     };
@@ -223,6 +271,7 @@ module lu {
 	  fflush(stdout);
           updateMatrix(L->data, U->data);
           CmiFree(UsrToEnv(L)); CmiFree(UsrToEnv(U));
+	  L = NULL; U = NULL;
         }
       }
       //atomic { thisProxy[thisIndex].amActive(true); }
@@ -393,6 +442,7 @@ module lu {
 	when schedulerReady(CkReductionMsg *m) atomic {
 	  init(luCfg, _mgr, bs, initialized, factored, solved, staticProxy);
 	}
+	when regDone(CkReductionMsg *m) atomic { }
 	when multicastRedns(int dummy) {
 	  if (isBelowDiagonal()) {
 	    when prepareForRowBeforeDiag(rednSetupMsg *msg) atomic {
@@ -412,12 +462,15 @@ module lu {
       }
     };
     entry [nokeep] void schedulerReady(CkReductionMsg *m);
+    entry [nokeep] void regDone(CkReductionMsg *m);
   };
 
   array [1D] BlockScheduler {
-    entry BlockScheduler(CProxy_LUBlk luArr, LUConfig config, CProxy_LUMgr mgr_);
+    entry BlockScheduler(CProxy_LUBlk luArr, LUConfig config, CProxy_LUMgr mgr_,
+                          CProxy_StaticBlockSchedule, int);
     entry void allRegistered(CkReductionMsg *m);
     entry void outputStats();
+    entry void storeMsg(blkMsg* m);
   }
 };
 
