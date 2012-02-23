@@ -231,11 +231,12 @@ public:
   }
 
   void startNextStep() {
-    if (solved && LUcomplete) {
+    if (1 && LUcomplete) {
       outputStats();
       //Perform validation
-      CkPrintf("starting validation at wall time: %f\n", CmiWallTimer());
-      luArrProxy.startValidation();
+      //CkPrintf("starting validation at wall time: %f\n", CmiWallTimer());
+      //luArrProxy.startValidation();
+      CkExit();
     } else if (!solved && LUcomplete) {
       CkPrintf("starting solve at wall time: %f\n", CmiWallTimer());
       for (int i = 0; i < luCfg.numBlocks; i++)

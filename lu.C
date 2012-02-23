@@ -83,7 +83,7 @@ inline void LUBlk::sendDownwardU() {
   CProxySection_LUBlk col = CProxySection_LUBlk::ckNew(thisArrayID,
                                                        thisIndex.x + 1, numBlks - 1, 1,
                                                        thisIndex.y, thisIndex.y, 1);
-  col.ckSectionDelegate(mcastMgr);
+  //col.ckSectionDelegate(mcastMgr);
   if (isOnDiagonal()) {
     col.recvU(msg);
   } else {
@@ -98,7 +98,7 @@ inline void LUBlk::sendRightwardL() {
   CProxySection_LUBlk row = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,
                                                        thisIndex.x, 1, thisIndex.y + 1,
                                                        numBlks - 1, 1);
-  row.ckSectionDelegate(mcastMgr);
+  //row.ckSectionDelegate(mcastMgr);
   if (isOnDiagonal()) {
     row.recvL(msg);
   } else {
