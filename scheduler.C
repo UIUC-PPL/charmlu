@@ -24,7 +24,8 @@ BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMg
   , maxMemory(0)
   , maxMemoryIncreases(0)
   , maxMemoryStep(-1)
-  , numBlks(numBlks_) {
+  , numBlks(numBlks_)
+  , nextRelease(-1) {
   staticProxy = staticProxy_;
   contribute(CkCallback(CkIndex_LUBlk::schedulerReady(NULL), luArr));
 }
@@ -32,20 +33,36 @@ BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMg
 void BlockScheduler::registerBlock(CkIndex2D index) {
   //CkPrintf("registerBlock (%d,%d)\n", index.x, index.y);
   myBlocks.insert(index.x*numBlks+index.y);
+  if (nextRelease == index.x * numBlks + index.y) {
+    luArr(index.x,index.y).ckLocal()->releaseDep(0);
+    nextRelease = -1;
+  }
 }
 
 void BlockScheduler::unRegisterBlock(CkIndex2D index) {
-  CkPrintf("unRegisterBlock (%d,%d)\n", index.x, index.y);
-  fflush(stdout);
+  //CkPrintf("unRegisterBlock (%d,%d)\n", index.x, index.y);
+  //fflush(stdout);
   assert(myBlocks.find(index.x*numBlks+index.y) != myBlocks.end());
   myBlocks.erase(index.x*numBlks+index.y);
+}
+
+void BlockScheduler::release(int x, int y) {
+  if (myBlocks.find(x * numBlks + y) != myBlocks.end()) {
+    luArr(x,y).ckLocal()->releaseDep(0);
+  } else {
+    nextRelease = x * numBlks + y;
+  }
+}
+
+void BlockScheduler::notifyMigrate(int x, int y, int nproc) {
+  luArr(x,y).ckLocal()->doMigrate(nproc);
 }
 
 void BlockScheduler::storeMsg(blkMsg* m) {
   CkIndex2D indx = m->indx;
   int step = CkGetRefNum(m);
-  CkPrintf("storeMsg from = (%d,%d), step = %d\n", m->indx.x, m->indx.y, step);
-  fflush(stdout);
+  //CkPrintf("storeMsg from = (%d,%d), step = %d\n", m->indx.x, m->indx.y, step);
+  //fflush(stdout);
   if(m->rightward) {
     for (int index = indx.y + 1; index < numBlks; index++) {  
         int proc = staticProxy.ckLocalBranch()->blockToProcs[indx.x * numBlks + index][step];

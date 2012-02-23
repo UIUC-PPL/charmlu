@@ -102,14 +102,17 @@ inline void LUBlk::sendDownwardU() {
     sendPEs.insert(staticProxy.ckLocalBranch()->blockToProcs[bx * numBlks + by][is]);
   }
 
-  CkPrintf("sendPEs size = %d\n", sendPEs.size()); fflush(stdout);
+  //CkPrintf("sendPEs size = %d\n", sendPEs.size()); fflush(stdout);
 
   CkVec<CkArrayIndex1D> elms;
   for (std::set<int>::iterator iter = sendPEs.begin(); iter != sendPEs.end(); ++iter) {
     int pe = *iter;
     //scheduler[pe].storeMsg(msg);
-    CkPrintf("pe = %d\n", pe); fflush(stdout);
-    elms.push_back(CkArrayIndex1D(pe));
+    //CkPrintf("pe = %d\n", pe); fflush(stdout);
+    //if (pe != CkMyPe())
+      elms.push_back(CkArrayIndex1D(pe));
+      //else
+      //scheduler[CkMyPe()].ckLocal()->storeMsg(msg);
   }
 
   CProxySection_BlockScheduler bsec =
@@ -143,16 +146,17 @@ inline void LUBlk::sendRightwardL() {
     sendPEs.insert(staticProxy.ckLocalBranch()->blockToProcs[bx * numBlks + by][is]);
   }
 
-  CkPrintf("sendPEs size = %d\n", sendPEs.size()); fflush(stdout);
+  //CkPrintf("sendPEs size = %d\n", sendPEs.size()); fflush(stdout);
 
   CkVec<CkArrayIndex1D> elms;
   for (std::set<int>::iterator iter = sendPEs.begin(); iter != sendPEs.end(); ++iter) {
     int pe = *iter;
 
-    //scheduler[pe].storeMsg(msg);
-
-    CkPrintf("pe = %d\n", pe); fflush(stdout);
+    //CkPrintf("pe = %d\n", pe); fflush(stdout);
+    //if (pe != CkMyPe())
     elms.push_back(CkArrayIndex1D(pe));
+      //else
+      //scheduler[CkMyPe()].ckLocal()->storeMsg(msg);
   }
 
   CProxySection_BlockScheduler bsec =

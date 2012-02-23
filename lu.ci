@@ -56,36 +56,36 @@ module lu {
 	atomic "loadNextState" {
 	  StaticBlockSchedule& sched = *(staticProxy.ckLocalBranch());
 	  StateNode node = sched.getNextState(thisIndex.x, thisIndex.y, currentState);
-	  if (CkMyPe() == 0) {
-	    CkPrintf("(%d,%d): is = %d, proc = %d, type = %d, task = %d, actualProc = %d\n",
-		     thisIndex.x, thisIndex.y, node.is, node.proc, node.taskType, node.taskid,
-		     CkMyPe());
-	    fflush(stdout);
-	  }
+	  // if (CkMyPe() == 0) {
+// 	    CkPrintf("(%d,%d): is = %d, proc = %d, type = %d, task = %d, actualProc = %d\n",
+// 		     thisIndex.x, thisIndex.y, node.is, node.proc, node.taskType, node.taskid,
+// 		     CkMyPe());
+// 	    fflush(stdout);
+// 	  }
  	  
 	  switch (node.taskType) {
 	  case -1:
 	    currentState = -3;
 	    break;
 	  case 100:
-	    thisProxy[thisIndex].trailingUpdateState(node.is, node.taskid, node.proc, node.waitTask,
-						     node.relX, node.relY);
+	    thisProxy[thisIndex].ckLocal()->trailingUpdateState(node.is, node.taskid, node.proc, node.waitTask,
+								node.relX, node.relY);
 	    break;
 	  case 101:
-	    thisProxy[thisIndex].processLState(node.is, node.taskid, node.proc, node.waitTask,
-						     node.relX, node.relY);
+	    thisProxy[thisIndex].ckLocal()->processLState(node.is, node.taskid, node.proc, node.waitTask,
+							  node.relX, node.relY);
 	    break;
 	  case 102:
-	    thisProxy[thisIndex].processUState(node.is, node.taskid, node.proc, node.waitTask,
-						     node.relX, node.relY);
+	    thisProxy[thisIndex].ckLocal()->processUState(node.is, node.taskid, node.proc, node.waitTask,
+							  node.relX, node.relY);
 	    break;
 	  case 103:
-	    thisProxy[thisIndex].diagDecomposeState(node.is, node.taskid, node.proc, node.waitTask,
-						     node.relX, node.relY);
+	    thisProxy[thisIndex].ckLocal()->diagDecomposeState(node.is, node.taskid, node.proc, node.waitTask,
+							       node.relX, node.relY);
 	    break;
 	  case 104:
 	    nproc = node.proc;
-	    thisProxy[thisIndex].migrateState();
+	    thisProxy[thisIndex].ckLocal()->migrateState();
 	    break;
 	  }
 	  currentState++;
@@ -125,9 +125,9 @@ module lu {
       atomic {
 	CkAssert(rx != -5 && ry != -5 || rx == -5 && ry == -5);
 	if (rx != -5 && ry != -5) {
-	  thisProxy(rx,ry).releaseDep(0);
+	  scheduler[CkMyPe()].release(rx,ry);
 	}
-	thisProxy[thisIndex].transition(0);
+	thisProxy[thisIndex].ckLocal()->transition(0);
       }
     };
     
@@ -154,9 +154,9 @@ module lu {
       atomic {
 	CkAssert(rx != -5 && ry != -5 || rx == -5 && ry == -5);
 	if (rx != -5 && ry != -5) {
-	  thisProxy(rx,ry).releaseDep(0);
+	  scheduler[CkMyPe()].release(rx,ry);
 	}
-	thisProxy[thisIndex].transition(0);
+	thisProxy[thisIndex].ckLocal()->transition(0);
       }
     };
 
@@ -183,9 +183,9 @@ module lu {
       atomic {
 	CkAssert(rx != -5 && ry != -5 || rx == -5 && ry == -5);
 	if (rx != -5 && ry != -5) {
-	  thisProxy(rx,ry).releaseDep(0);
+	  scheduler[CkMyPe()].release(rx,ry);
 	}
-	thisProxy[thisIndex].transition(0);
+	thisProxy[thisIndex].ckLocal()->transition(0);
       }
     };
 
@@ -217,9 +217,9 @@ module lu {
       atomic {
 	CkAssert(rx != -5 && ry != -5 || rx == -5 && ry == -5);
 	if (rx != -5 && ry != -5) {
-	  thisProxy(rx,ry).releaseDep(0);
+	  scheduler[CkMyPe()].release(rx,ry);
 	}
-	thisProxy[thisIndex].transition(0);
+	thisProxy[thisIndex].ckLocal()->transition(0);
       }
     };
 
@@ -230,7 +230,7 @@ module lu {
 	//fflush(stdout);
 	char buf[100]; sprintf(buf, "from %d to %d: migrateState", CkMyPe(), nproc); traceUserSuppliedNote(buf);
 	scheduler[CkMyPe()].ckLocal()->unRegisterBlock(thisIndex);
-        thisProxy(thisIndex.x,thisIndex.y).doMigrate(nproc);
+        scheduler[CkMyPe()].notifyMigrate(thisIndex.x, thisIndex.y, nproc);
       }
       when migrateDone(int dummy) atomic {
 	//CkPrintf("(%d,%d): migrate FINISHED current = %d\n", thisIndex.x, thisIndex.y, CkMyPe());
@@ -239,7 +239,7 @@ module lu {
         scheduler[CkMyPe()].ckLocal()->checkMsgs(thisIndex);
       }
       atomic "migrateFinished" {
-	thisProxy[thisIndex].transition(0);
+	thisProxy[thisIndex].ckLocal()->transition(0);
       }
     };
 
@@ -471,6 +471,8 @@ module lu {
     entry void allRegistered(CkReductionMsg *m);
     entry void outputStats();
     entry void storeMsg(blkMsg* m);
+    entry void notifyMigrate(int, int, int);
+    entry void release(int, int);
   }
 };
 

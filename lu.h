@@ -202,7 +202,8 @@ public:
     ArrayElement::ckJustMigrated();
     //CkPrintf("ckJustMigrated()\n");
     fflush(stdout);
-    thisProxy[thisIndex].migrateDone(0);
+    char buf[100]; sprintf(buf, "migrationFinished"); traceUserSuppliedNote(buf);
+    thisProxy[thisIndex].ckLocal()->migrateDone(0);
   }
 
   void doMigrate(int proc) {

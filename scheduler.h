@@ -49,7 +49,9 @@ public:
   void deliver(blkMsg* m, CkIndex2D indx);
   void storeMsg(blkMsg* m);
   void checkMsgs(CkIndex2D indx);
-
+  void release(int x, int y);
+  void notifyMigrate(int, int, int);
+  
 private:
   LUMgr *mgr;
   CProxy_LUBlk luArr;
@@ -57,6 +59,7 @@ private:
   CProxy_StaticBlockSchedule staticProxy;
   map< int, list< blkMsg* > > msgs;
   int numBlks;
+  int nextRelease;
 
   // Memory usage instrumentation
   // Memory occupied before factorization starts (kilobytes)
