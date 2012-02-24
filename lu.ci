@@ -24,6 +24,8 @@ module lu {
     /// Constructor
     entry LUBlk(void);
 
+    entry void warmupSections();
+
     /// Each block starts its participation in the factorization here
     entry void factor() {
       atomic {
@@ -440,7 +442,7 @@ module lu {
 		       CProxy_StaticBlockSchedule staticProxy) {
       if (!started) {
 	when schedulerReady(CkReductionMsg *m) atomic {
-	  init(luCfg, _mgr, bs, initialized, factored, solved, staticProxy);
+	  init(luCfg, _mgr, bs, initialized, factored, solved, luCfg.start, staticProxy);
 	}
 	when regDone(CkReductionMsg *m) atomic { }
 	when multicastRedns(int dummy) {
@@ -473,6 +475,7 @@ module lu {
     entry void storeMsg(blkMsg* m);
     entry void notifyMigrate(int, int, int);
     entry void release(int, int);
+    entry void warmup(rednSetupMsg* msg);
   }
 };
 

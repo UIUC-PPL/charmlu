@@ -149,3 +149,5 @@ void BlockScheduler::allRegistered(CkReductionMsg *m) {
 	     CkCallback(&printMemory, const_cast<char*>("Base")));
   contribute(CkCallback(CkIndex_LUBlk::regDone(NULL), luArr));
 }
+
+void BlockScheduler::warmup(rednSetupMsg* msg) {  }

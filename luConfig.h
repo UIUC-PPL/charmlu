@@ -33,7 +33,10 @@ public:
     p | memThreshold;
     p | mappingScheme;
     p | mcastMgrGID;
+    p | start;
   }
+
+  CkCallback start;
 
   /// The size of the matrix
   int matrixSize;

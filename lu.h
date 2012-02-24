@@ -128,7 +128,7 @@ public:
   }
 
   void init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
-	    CkCallback initDone, CkCallback fznDone, CkCallback slnDone,
+	    CkCallback initDone, CkCallback fznDone, CkCallback slnDone, CkCallback,
 	    CProxy_StaticBlockSchedule staticProxy_);
   void prepareForActivePanel(rednSetupMsg *msg);
   ~LUBlk();
@@ -164,7 +164,10 @@ public:
     p | initDone; 
     p | factorizationDone;
     p | solveDone;
+    p | startCB;
     p | mgrp;
+    p | down;
+    p | right;
     bool hasL = L != NULL;
     bool hasU = U != NULL;
     p | hasL;
@@ -213,10 +216,14 @@ public:
 public:
   int internalStep;
 
+  void warmupSections();
+
 protected:
   // Internal functions for creating messages to encapsulate the priority
   blkMsg* createABlkMsg(double* block, CkIndex2D indx);
   CProxy_BlockScheduler scheduler;
+
+  CProxySection_BlockScheduler down, right;
 
   /// Configuration settings
   LUConfig cfg;
@@ -253,7 +260,7 @@ protected:
   CkMulticastMgr *mcastMgr;
 
   bool updateExecuted;
-  CkCallback initDone, factorizationDone, solveDone;
+  CkCallback initDone, factorizationDone, solveDone, startCB;
 
   // System-generated macro for SDAG code
   LUBlk_SDAG_CODE

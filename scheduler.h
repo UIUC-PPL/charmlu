@@ -51,6 +51,7 @@ public:
   void checkMsgs(CkIndex2D indx);
   void release(int x, int y);
   void notifyMigrate(int, int, int);
+  void warmup(rednSetupMsg* msg);
   
 private:
   LUMgr *mgr;

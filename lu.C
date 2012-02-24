@@ -93,32 +93,8 @@ inline void LUBlk::sendDownwardU() {
 //                                                        thisIndex.y, thisIndex.y, 1);
 
   msg->rightward = false;
-
-  int is = std::min(thisIndex.x, thisIndex.y);
-  std::set<int> sendPEs;
-
-  for (int index = thisIndex.x + 1; index < numBlks; index++) {
-    int bx = index, by = thisIndex.y;
-    sendPEs.insert(staticProxy.ckLocalBranch()->blockToProcs[bx * numBlks + by][is]);
-  }
-
-  //CkPrintf("sendPEs size = %d\n", sendPEs.size()); fflush(stdout);
-
-  CkVec<CkArrayIndex1D> elms;
-  for (std::set<int>::iterator iter = sendPEs.begin(); iter != sendPEs.end(); ++iter) {
-    int pe = *iter;
-    //scheduler[pe].storeMsg(msg);
-    //CkPrintf("pe = %d\n", pe); fflush(stdout);
-    //if (pe != CkMyPe())
-      elms.push_back(CkArrayIndex1D(pe));
-      //else
-      //scheduler[CkMyPe()].ckLocal()->storeMsg(msg);
-  }
-
-  CProxySection_BlockScheduler bsec =
-    CProxySection_BlockScheduler::ckNew(scheduler.ckGetArrayID(), elms.getVec(), elms.size());
-  //bsec.ckSectionDelegate(mcastMgr);
-  bsec.storeMsg(msg);
+  
+  down.storeMsg(msg);
 
   //col.ckSectionDelegate(mcastMgr);
   // if (isOnDiagonal()) {
@@ -139,31 +115,7 @@ inline void LUBlk::sendRightwardL() {
 
   msg->rightward = true;
 
-  int is = std::min(thisIndex.x, thisIndex.y);
-  std::set<int> sendPEs;
-  for (int index = thisIndex.y + 1; index < numBlks; index++) {
-    int bx = thisIndex.x, by = index;
-    sendPEs.insert(staticProxy.ckLocalBranch()->blockToProcs[bx * numBlks + by][is]);
-  }
-
-  //CkPrintf("sendPEs size = %d\n", sendPEs.size()); fflush(stdout);
-
-  CkVec<CkArrayIndex1D> elms;
-  for (std::set<int>::iterator iter = sendPEs.begin(); iter != sendPEs.end(); ++iter) {
-    int pe = *iter;
-
-    //CkPrintf("pe = %d\n", pe); fflush(stdout);
-    //if (pe != CkMyPe())
-    elms.push_back(CkArrayIndex1D(pe));
-      //else
-      //scheduler[CkMyPe()].ckLocal()->storeMsg(msg);
-  }
-
-  CProxySection_BlockScheduler bsec =
-    CProxySection_BlockScheduler::ckNew(scheduler.ckGetArrayID(), elms.getVec(), elms.size());
-  //bsec.ckSectionDelegate(mcastMgr);
-
-  bsec.storeMsg(msg);
+  right.storeMsg(msg);
 
   //row.ckSectionDelegate(mcastMgr);
   // if (isOnDiagonal()) {
@@ -171,6 +123,65 @@ inline void LUBlk::sendRightwardL() {
 //   } else {
 //     row.recvTrailingL(msg);
 //   }
+}
+
+void LUBlk::warmupSections() {
+  if (started) return;
+
+  //if (thisIndex.x == thisIndex.y && thisIndex.x < numBlks - 1 ||
+  //thisIndex.x < thisIndex.y)
+  {
+    int is = std::min(thisIndex.x, thisIndex.y);
+    std::set<int> sendPEs;
+    
+    for (int index = thisIndex.x + 1; index < numBlks; index++) {
+      int bx = index, by = thisIndex.y;
+      sendPEs.insert(staticProxy.ckLocalBranch()->blockToProcs[bx * numBlks + by][is]);
+    }
+    
+    //CkPrintf("sendPEs size = %d\n", sendPEs.size()); fflush(stdout);
+    
+    CkVec<CkArrayIndex1D> elms;
+    for (std::set<int>::iterator iter = sendPEs.begin(); iter != sendPEs.end(); ++iter) {
+      int pe = *iter;
+      //CkPrintf("pe = %d\n", pe);
+      //fflush(stdout);
+      elms.push_back(CkArrayIndex1D(pe));
+    }
+    
+    if (elms.size() > 0) {
+      down = CProxySection_BlockScheduler::ckNew(scheduler.ckGetArrayID(), elms.getVec(), elms.size());
+      down.ckSectionDelegate(mcastMgr);
+      rednSetupMsg *msg = new rednSetupMsg(cfg.mcastMgrGID);
+      down.warmup(msg);
+    }
+  }
+  
+  // if (thisIndex.x == thisIndex.y && thisIndex.x < numBlks - 1 ||
+//       thisIndex.x > thisIndex.y)
+    {
+    int is = std::min(thisIndex.x, thisIndex.y);
+    std::set<int> sendPEs;
+    for (int index = thisIndex.y + 1; index < numBlks; index++) {
+      int bx = thisIndex.x, by = index;
+      sendPEs.insert(staticProxy.ckLocalBranch()->blockToProcs[bx * numBlks + by][is]);
+    }
+    
+    CkVec<CkArrayIndex1D> elms;
+    for (std::set<int>::iterator iter = sendPEs.begin(); iter != sendPEs.end(); ++iter) {
+      int pe = *iter;
+      elms.push_back(CkArrayIndex1D(pe));
+    }
+    
+    if (elms.size() > 0) {
+      right = CProxySection_BlockScheduler::ckNew(scheduler.ckGetArrayID(), elms.getVec(), elms.size());
+      right.ckSectionDelegate(mcastMgr);
+      rednSetupMsg *msg = new rednSetupMsg(cfg.mcastMgrGID);
+      right.warmup(msg);
+    }
+  }
+	
+  contribute(startCB); 
 }
 
 // Internal functions for creating messages to encapsulate the priority
@@ -184,7 +195,9 @@ blkMsg* LUBlk::createABlkMsg(double* block, CkIndex2D indx) {
 void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
                  CProxy_BlockScheduler bs,
 		 CkCallback initialization, CkCallback factorization, CkCallback solution,
+		 CkCallback start_,
 		 CProxy_StaticBlockSchedule staticProxy_) {
+  startCB = start_;
   staticProxy = staticProxy_;
   scheduler = bs;
   scheduler[CkMyPe()].ckLocal()->registerBlock(thisIndex);
