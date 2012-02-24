@@ -20,6 +20,8 @@ module lu {
     /// Constructor
     entry LUBlk(void);
 
+    entry void warmupSections();
+
     /// Each block starts its participation in the factorization here
     entry void factor() {
       // Keep executing trailing updates on this block until it is on
@@ -219,7 +221,7 @@ module lu {
     entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
                        CkCallback initialized, CkCallback factored, CkCallback solved) {
       when schedulerReady(CkReductionMsg *m) atomic {
-	init(luCfg, _mgr, bs, initialized, factored, solved);
+	init(luCfg, _mgr, bs, initialized, factored, solved, luCfg.start);
       }
       when multicastRedns(int dummy) {
         if (isBelowDiagonal()) {
@@ -239,6 +241,7 @@ module lu {
       }
     };
     entry [nokeep] void schedulerReady(CkReductionMsg *m);
+    entry void warmup(rednSetupMsg* msg);
   };
 
   array [1D] BlockScheduler {

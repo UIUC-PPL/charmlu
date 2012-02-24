@@ -226,9 +226,30 @@ public:
   }
 
   void continueIter() {
+    CkPrintf("continueIter\n");
+    fflush(stdout);
+    CkStartQD(CkCallback(CkIndex_LUSolver::actualStart(), thisProxy));
+  }
+
+  void actualStart() {
+    CkPrintf("actualStart\n");
+    fflush(stdout);
+    luArrProxy.warmupSections();
+  }
+
+  void realActualStart() {
+    CkPrintf("realActualStart\n");
+    fflush(stdout);
+    CkStartQD(CkCallback(CkIndex_LUSolver::trueRealActualStart(), thisProxy));
+  }
+
+  void trueRealActualStart() {
+    CkPrintf("trueRealActualStart\n");
+    fflush(stdout);
     startTime = CmiWallTimer();
     luArrProxy.factor();
   }
+
 
   void startNextStep() {
     if (1 && LUcomplete) {
@@ -278,6 +299,7 @@ public:
   }
 
   void continueStartup() {
+    luCfg.start = CkCallback(CkIndex_LUSolver::realActualStart(), thisProxy);
     luArrProxy.startup(luCfg, mgr, bs,
 		       CkCallback(CkIndex_LUSolver::continueIter(), thisProxy),
 		       CkCallback(CkIndex_LUSolver::startNextStep(), thisProxy),

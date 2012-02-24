@@ -24,21 +24,26 @@ public:
   }
 
   void init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
-	    CkCallback initDone, CkCallback fznDone, CkCallback slnDone);
+	    CkCallback initDone, CkCallback fznDone, CkCallback slnDone, CkCallback);
   void prepareForActivePanel(rednSetupMsg *msg);
   ~LUBlk();
   LUBlk(CkMigrateMessage* m) { CkAbort("LU blocks not migratable yet"); }
   // Added for migration
   void pup(PUP::er &p) {  }
+  void warmup(rednSetupMsg* msg) {  }
 
 public:
   int internalStep;
+
+  void warmupSections();
 
 protected:
   // Internal functions for creating messages to encapsulate the priority
   blkMsg* createABlkMsg();
   CProxy_BlockScheduler scheduler;
   BlockScheduler *localScheduler;
+
+  CProxySection_LUBlk down, right;
 
   /// Configuration settings
   LUConfig cfg;
@@ -67,7 +72,7 @@ protected:
   CkMulticastMgr *mcastMgr;
 
   bool updateExecuted;
-  CkCallback initDone, factorizationDone, solveDone;
+  CkCallback initDone, factorizationDone, solveDone, startCB;
 
   // System-generated macro for SDAG code
   LUBlk_SDAG_CODE

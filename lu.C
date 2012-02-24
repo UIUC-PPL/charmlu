@@ -34,6 +34,7 @@ void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
 }
 
 void LUBlk::decompose() {
+#if 0
   for (int j = 0; j < blkSize; j++) {
     for (int i = 0; i <= j; i++) {
       double sum = 0.0;
@@ -49,6 +50,11 @@ void LUBlk::decompose() {
       LU[getIndex(i, j)] /= LU[getIndex(j, j)];
     }
   }
+#else
+  int *ipiv = new int[blkSize];
+  int info;
+  dgetrf(blkSize, blkSize, LU, blkSize, ipiv, &info);
+#endif
 }
 
 // Compute a triangular solve
@@ -80,14 +86,15 @@ void LUBlk::computeL(double *UMsg) {
 inline void LUBlk::sendDownwardU() {
   blkMsg* msg = createABlkMsg();
   //mgr->setPrio(msg, MULT_RECV_U);
-  CProxySection_LUBlk col = CProxySection_LUBlk::ckNew(thisArrayID,
-                                                       thisIndex.x + 1, numBlks - 1, 1,
-                                                       thisIndex.y, thisIndex.y, 1);
+  // CProxySection_LUBlk col = CProxySection_LUBlk::ckNew(thisArrayID,
+//                                                        thisIndex.x + 1, numBlks - 1, 1,
+//                                                        thisIndex.y, thisIndex.y, 1);
+
   //col.ckSectionDelegate(mcastMgr);
   if (isOnDiagonal()) {
-    col.recvU(msg);
+    down.recvU(msg);
   } else {
-    col.recvTrailingU(msg);
+    down.recvTrailingU(msg);
   }
 }
 
@@ -95,15 +102,39 @@ inline void LUBlk::sendDownwardU() {
 inline void LUBlk::sendRightwardL() {
   blkMsg* msg = createABlkMsg();
   //mgr->setPrio(msg, MULT_RECV_L);
-  CProxySection_LUBlk row = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,
-                                                       thisIndex.x, 1, thisIndex.y + 1,
-                                                       numBlks - 1, 1);
+//   CProxySection_LUBlk row = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,
+//                                                        thisIndex.x, 1, thisIndex.y + 1,
+// 						       numBlks - 1, 1);
+
   //row.ckSectionDelegate(mcastMgr);
   if (isOnDiagonal()) {
-    row.recvL(msg);
+    right.recvL(msg);
   } else {
-    row.recvTrailingL(msg);
+    right.recvTrailingL(msg);
   }
+}
+
+void LUBlk::warmupSections() {
+  //if (thisIndex.x == thisIndex.y && thisIndex.x < numBlks - 1 ||
+  //thisIndex.x < thisIndex.y)
+  {
+    down = CProxySection_LUBlk::ckNew(thisArrayID,
+				      thisIndex.x + 1, numBlks - 1, 1,
+				      thisIndex.y, thisIndex.y, 1);
+    down.ckSectionDelegate(mcastMgr);
+    rednSetupMsg *msg = new rednSetupMsg(cfg.mcastMgrGID);
+    down.warmup(msg);
+  }
+  {
+    right = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,
+				       thisIndex.x, 1, thisIndex.y + 1,
+				       numBlks - 1, 1);
+    right.ckSectionDelegate(mcastMgr);
+    rednSetupMsg *msg = new rednSetupMsg(cfg.mcastMgrGID);
+    right.warmup(msg);
+  }
+	
+  contribute(startCB); 
 }
 
 // Internal functions for creating messages to encapsulate the priority
@@ -116,7 +147,9 @@ blkMsg* LUBlk::createABlkMsg() {
 
 void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
                  CProxy_BlockScheduler bs,
-		 CkCallback initialization, CkCallback factorization, CkCallback solution) {
+		 CkCallback initialization, CkCallback factorization, CkCallback solution,
+		 CkCallback start_) {
+  startCB = start_;
   scheduler = bs;
   localScheduler = scheduler[CkMyPe()].ckLocal();
   CkAssert(localScheduler);
