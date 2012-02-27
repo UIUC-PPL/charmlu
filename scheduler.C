@@ -20,6 +20,7 @@
 BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMgr mgr_,
                                 CProxy_StaticBlockSchedule staticProxy_, int numBlks_)
   : luArr(luArr_)
+  , cfg(config)
   , mgr(mgr_.ckLocalBranch())
   , maxMemory(0)
   , maxMemoryIncreases(0)
@@ -27,6 +28,7 @@ BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMg
   , numBlks(numBlks_)
   , nextRelease(-1) {
   staticProxy = staticProxy_;
+  mcastMgr = CProxy_CkMulticastMgr(cfg.mcastMgrGID).ckLocalBranch();
   contribute(CkCallback(CkIndex_LUBlk::schedulerReady(NULL), luArr));
 }
 
@@ -74,7 +76,7 @@ void BlockScheduler::storeMsg(blkMsg* m) {
           tryDeliver(m, sIndx);
         }
     }
-    CmiFree(UsrToEnv(m));
+    //CmiFree(UsrToEnv(m));
   } else {
     for (int index = indx.x + 1; index < numBlks; index++) {
         int proc = staticProxy.ckLocalBranch()->blockToProcs[index * numBlks + indx.y][step];
@@ -86,7 +88,7 @@ void BlockScheduler::storeMsg(blkMsg* m) {
           tryDeliver(m, sIndx);
         }
     }
-    CmiFree(UsrToEnv(m));
+    //CmiFree(UsrToEnv(m));
   }
 }
 
@@ -151,3 +153,65 @@ void BlockScheduler::allRegistered(CkReductionMsg *m) {
 }
 
 void BlockScheduler::warmup(rednSetupMsg* msg) {  }
+
+void BlockScheduler::determineSections() {
+  for (int x = 0; x < numBlks; x++) {
+    for (int y = 0; y < numBlks; y++) {
+      std::vector<int>& procs = staticProxy.ckLocalBranch()->blockToProcs[x * numBlks + y];
+      int lastProc = procs[procs.size() - 1];
+      if (lastProc == thisIndex) {
+	sects[x * numBlks + y]; //= std::make_pair<CProxySection_BlockScheduler,CProxySection_BlockScheduler>(down, right);
+	CProxySection_BlockScheduler& down = sects[x * numBlks + y].first;
+	CProxySection_BlockScheduler& right = sects[x * numBlks + y].second;
+
+	{
+	  int is = std::min(x, y);
+	  std::set<int> sendPEs;
+    
+	  for (int index = x + 1; index < numBlks; index++) {
+	    int bx = index, by = y;
+	    sendPEs.insert(staticProxy.ckLocalBranch()->blockToProcs[bx * numBlks + by][is]);
+	  }
+    
+	  CkVec<CkArrayIndex1D> elms;
+	  for (std::set<int>::iterator iter = sendPEs.begin(); iter != sendPEs.end(); ++iter) {
+	    int pe = *iter;
+	    elms.push_back(CkArrayIndex1D(pe));
+	  }
+    
+	  if (elms.size() > 0) {
+	    down = CProxySection_BlockScheduler::ckNew(thisProxy.ckGetArrayID(), elms.getVec(), elms.size());
+	    down.ckSectionDelegate(mcastMgr);
+	    rednSetupMsg *msg = new rednSetupMsg(cfg.mcastMgrGID);
+	    down.warmup(msg);
+	  }
+	}
+  
+	{
+	  int is = std::min(x, y);
+	  std::set<int> sendPEs;
+	  for (int index = y + 1; index < numBlks; index++) {
+	    int bx = x, by = index;
+	    sendPEs.insert(staticProxy.ckLocalBranch()->blockToProcs[bx * numBlks + by][is]);
+	  }
+    
+	  CkVec<CkArrayIndex1D> elms;
+	  for (std::set<int>::iterator iter = sendPEs.begin(); iter != sendPEs.end(); ++iter) {
+	    int pe = *iter;
+	    elms.push_back(CkArrayIndex1D(pe));
+	  }
+    
+	  if (elms.size() > 0) {
+	    right = CProxySection_BlockScheduler::ckNew(thisProxy.ckGetArrayID(), elms.getVec(), elms.size());
+	    right.ckSectionDelegate(mcastMgr);
+	    rednSetupMsg *msg = new rednSetupMsg(cfg.mcastMgrGID);
+	    right.warmup(msg);
+	  }
+	}
+
+	
+      }
+    }
+  }
+  
+}

@@ -472,10 +472,11 @@ module lu {
                           CProxy_StaticBlockSchedule, int);
     entry void allRegistered(CkReductionMsg *m);
     entry void outputStats();
-    entry void storeMsg(blkMsg* m);
+    entry /*[nokeep]*/ void storeMsg(blkMsg* m);
     entry void notifyMigrate(int, int, int);
     entry void release(int, int);
     entry void warmup(rednSetupMsg* msg);
+    entry void determineSections();
   }
 };
 

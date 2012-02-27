@@ -52,8 +52,12 @@ public:
   void release(int x, int y);
   void notifyMigrate(int, int, int);
   void warmup(rednSetupMsg* msg);
+  void determineSections();
+
+  std::map<int, std::pair<CProxySection_BlockScheduler,CProxySection_BlockScheduler> > sects;
   
 private:
+  CkMulticastMgr *mcastMgr;
   LUMgr *mgr;
   CProxy_LUBlk luArr;
   set<int> myBlocks;
@@ -61,6 +65,7 @@ private:
   map< int, list< blkMsg* > > msgs;
   int numBlks;
   int nextRelease;
+  LUConfig cfg;
 
   // Memory usage instrumentation
   // Memory occupied before factorization starts (kilobytes)

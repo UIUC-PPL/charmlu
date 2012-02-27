@@ -94,7 +94,12 @@ inline void LUBlk::sendDownwardU() {
 
   msg->rightward = false;
   
-  down.storeMsg(msg);
+  BlockScheduler& sched = *(scheduler[CkMyPe()].ckLocal());
+  assert(sched.sects.find(thisIndex.x * numBlks + thisIndex.y) != sched.sects.end());
+
+  sched.sects[thisIndex.x * numBlks + thisIndex.y].first.storeMsg(msg);
+
+  //down.storeMsg(msg);
 
   //col.ckSectionDelegate(mcastMgr);
   // if (isOnDiagonal()) {
@@ -115,7 +120,12 @@ inline void LUBlk::sendRightwardL() {
 
   msg->rightward = true;
 
-  right.storeMsg(msg);
+  BlockScheduler& sched = *(scheduler[CkMyPe()].ckLocal());
+  assert(sched.sects.find(thisIndex.x * numBlks + thisIndex.y) != sched.sects.end());
+
+  sched.sects[thisIndex.x * numBlks + thisIndex.y].second.storeMsg(msg);
+
+  //right.storeMsg(msg);
 
   //row.ckSectionDelegate(mcastMgr);
   // if (isOnDiagonal()) {
@@ -128,58 +138,58 @@ inline void LUBlk::sendRightwardL() {
 void LUBlk::warmupSections() {
   if (started) return;
 
-  //if (thisIndex.x == thisIndex.y && thisIndex.x < numBlks - 1 ||
-  //thisIndex.x < thisIndex.y)
-  {
-    int is = std::min(thisIndex.x, thisIndex.y);
-    std::set<int> sendPEs;
+//   //if (thisIndex.x == thisIndex.y && thisIndex.x < numBlks - 1 ||
+//   //thisIndex.x < thisIndex.y)
+//   {
+//     int is = std::min(thisIndex.x, thisIndex.y);
+//     std::set<int> sendPEs;
     
-    for (int index = thisIndex.x + 1; index < numBlks; index++) {
-      int bx = index, by = thisIndex.y;
-      sendPEs.insert(staticProxy.ckLocalBranch()->blockToProcs[bx * numBlks + by][is]);
-    }
+//     for (int index = thisIndex.x + 1; index < numBlks; index++) {
+//       int bx = index, by = thisIndex.y;
+//       sendPEs.insert(staticProxy.ckLocalBranch()->blockToProcs[bx * numBlks + by][is]);
+//     }
     
-    //CkPrintf("sendPEs size = %d\n", sendPEs.size()); fflush(stdout);
+//     //CkPrintf("sendPEs size = %d\n", sendPEs.size()); fflush(stdout);
     
-    CkVec<CkArrayIndex1D> elms;
-    for (std::set<int>::iterator iter = sendPEs.begin(); iter != sendPEs.end(); ++iter) {
-      int pe = *iter;
-      //CkPrintf("pe = %d\n", pe);
-      //fflush(stdout);
-      elms.push_back(CkArrayIndex1D(pe));
-    }
+//     CkVec<CkArrayIndex1D> elms;
+//     for (std::set<int>::iterator iter = sendPEs.begin(); iter != sendPEs.end(); ++iter) {
+//       int pe = *iter;
+//       //CkPrintf("pe = %d\n", pe);
+//       //fflush(stdout);
+//       elms.push_back(CkArrayIndex1D(pe));
+//     }
     
-    if (elms.size() > 0) {
-      down = CProxySection_BlockScheduler::ckNew(scheduler.ckGetArrayID(), elms.getVec(), elms.size());
-      down.ckSectionDelegate(mcastMgr);
-      rednSetupMsg *msg = new rednSetupMsg(cfg.mcastMgrGID);
-      down.warmup(msg);
-    }
-  }
+//     if (elms.size() > 0) {
+//       down = CProxySection_BlockScheduler::ckNew(scheduler.ckGetArrayID(), elms.getVec(), elms.size());
+//       down.ckSectionDelegate(mcastMgr);
+//       rednSetupMsg *msg = new rednSetupMsg(cfg.mcastMgrGID);
+//       down.warmup(msg);
+//     }
+//   }
   
-  // if (thisIndex.x == thisIndex.y && thisIndex.x < numBlks - 1 ||
-//       thisIndex.x > thisIndex.y)
-    {
-    int is = std::min(thisIndex.x, thisIndex.y);
-    std::set<int> sendPEs;
-    for (int index = thisIndex.y + 1; index < numBlks; index++) {
-      int bx = thisIndex.x, by = index;
-      sendPEs.insert(staticProxy.ckLocalBranch()->blockToProcs[bx * numBlks + by][is]);
-    }
+//   // if (thisIndex.x == thisIndex.y && thisIndex.x < numBlks - 1 ||
+// //       thisIndex.x > thisIndex.y)
+//     {
+//     int is = std::min(thisIndex.x, thisIndex.y);
+//     std::set<int> sendPEs;
+//     for (int index = thisIndex.y + 1; index < numBlks; index++) {
+//       int bx = thisIndex.x, by = index;
+//       sendPEs.insert(staticProxy.ckLocalBranch()->blockToProcs[bx * numBlks + by][is]);
+//     }
     
-    CkVec<CkArrayIndex1D> elms;
-    for (std::set<int>::iterator iter = sendPEs.begin(); iter != sendPEs.end(); ++iter) {
-      int pe = *iter;
-      elms.push_back(CkArrayIndex1D(pe));
-    }
+//     CkVec<CkArrayIndex1D> elms;
+//     for (std::set<int>::iterator iter = sendPEs.begin(); iter != sendPEs.end(); ++iter) {
+//       int pe = *iter;
+//       elms.push_back(CkArrayIndex1D(pe));
+//     }
     
-    if (elms.size() > 0) {
-      right = CProxySection_BlockScheduler::ckNew(scheduler.ckGetArrayID(), elms.getVec(), elms.size());
-      right.ckSectionDelegate(mcastMgr);
-      rednSetupMsg *msg = new rednSetupMsg(cfg.mcastMgrGID);
-      right.warmup(msg);
-    }
-  }
+//     if (elms.size() > 0) {
+//       right = CProxySection_BlockScheduler::ckNew(scheduler.ckGetArrayID(), elms.getVec(), elms.size());
+//       right.ckSectionDelegate(mcastMgr);
+//       rednSetupMsg *msg = new rednSetupMsg(cfg.mcastMgrGID);
+//       right.warmup(msg);
+//     }
+//   }
 	
   contribute(startCB); 
 }

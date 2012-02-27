@@ -235,6 +235,7 @@ public:
   void actualStart() {
     CkPrintf("actualStart\n");
     fflush(stdout);
+    bs.determineSections();
     luArrProxy.warmupSections();
   }
 
@@ -250,7 +251,6 @@ public:
     startTime = CmiWallTimer();
     luArrProxy.factor();
   }
-
 
   void startNextStep() {
     if (1 && LUcomplete) {
