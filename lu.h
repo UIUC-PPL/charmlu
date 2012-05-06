@@ -59,6 +59,7 @@ protected:
   int blkSize, numBlks;
   blkMsg *U;
   int activeCol, ind;
+  int updateCols;
 
   LUMgr *mgr;
 

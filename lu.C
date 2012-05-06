@@ -259,8 +259,27 @@ MaxElm LUBlk::computeMultipliersAndFindColMax(int col, double *U, int startingRo
     for (int j = startingRow; j < blkSize; j++) {
       // Compute the multiplier
       LU[getIndex(j,col)]    = LU[getIndex(j,col)] / U[0];
-      // Update the immediate next column
-      LU[getIndex(j,col+1)] -= LU[getIndex(j,col)] * U[1];
+
+#if 1
+      // Update the next few columns (to the next cache line)
+      switch(col % 8) {
+      case 0: updateCols = 7; break;
+      case 1: updateCols = 6; break;
+      case 2: updateCols = 5; break;
+      case 3: updateCols = 4; break;
+      case 4: updateCols = 3; break;
+      case 5: updateCols = 2; break;
+      case 6: updateCols = 1; break;
+      case 7: updateCols = 8; break;
+      default: CkAbort("Too many columns to update");
+      }
+#else
+      updateCols = 1;
+#endif
+      for (int i = 1; i <= updateCols && col + i < blkSize; ++i) {
+        LU[getIndex(j, col+i)] -= LU[getIndex(j,col)] * U[i];
+      }
+
       // Update the max value thus far
       if ( fabs(LU[getIndex(j,col+1)]) > fabs(maxVal.val) ) {
         maxVal.val = LU[getIndex(j,col+1)];

@@ -196,7 +196,7 @@ module lu {
         when updateSubBlock() atomic "useg_delayed_update" {
           // Delayed update using the U segment from the prev activeCol iteration
           if (pendingUmsg) {
-            updateLsubBlock(activeCol-1, pendingUmsg->data, 2);
+            updateLsubBlock(activeCol-1, pendingUmsg->data, 1 + updateCols);
             dropRef(pendingUmsg);
             pendingUmsg = NULL;
           }
@@ -328,7 +328,8 @@ module lu {
             computeMultipliersAndFindColMax(activeCol, &LU[getIndex(activeCol,activeCol)],
                                             activeCol + 1);
           // Update the sub-block
-          updateLsubBlock(activeCol, &LU[getIndex(activeCol,activeCol)], 2, activeCol+1);
+          updateLsubBlock(activeCol, &LU[getIndex(activeCol,activeCol)],
+                          1 + updateCols, activeCol+1);
         }
       }
 
