@@ -290,7 +290,7 @@ public:
 			 CkCallback(CkIndex_LUSolver::continueIter(), thisProxy),
 			 CkCallback(CkIndex_LUSolver::startNextStep(), thisProxy),
 			 CkCallback(CkIndex_LUSolver::startNextStep(), thisProxy));
-      luArrProxy.initVec();
+      //luArrProxy.initVec();
     }
   }
 
@@ -426,11 +426,6 @@ struct BenchmarkLUBlk : public CBase_BenchmarkLUBlk {
 };
 
 void BenchmarkLUBlk::initVec() {
-  if (!mgr) {
-    thisProxy(thisIndex).initVec();
-    return;
-  }
-
   LUmsg = createABlkMsg();
   LU = LUmsg->data;
   thisProxy(thisIndex).dataReady(0);

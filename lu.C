@@ -12,6 +12,7 @@ using std::min;
 #include "lu.h"
 #include "mapping.h"
 #include "platformBlas.h"
+#include "driver.decl.h"
 
 // Execute a trailing update
 void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
@@ -451,6 +452,11 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
       thisProxy.multicastRedns(0);
     }
   }
+
+  CkArrayID benchmark = thisProxy;
+  CProxy_BenchmarkLUBlk b = benchmark;
+  b(thisIndex).initVec();      
+
   // All chares except members of pivot sections are done with init
 }
 
