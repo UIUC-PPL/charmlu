@@ -362,11 +362,13 @@ public:
 		 {"Abe", 9.332},
                  {"Ranger", 9.2},
                  {"Jaguar/Kraken XT5", 10.3987},
-		 {"BG/P", 3.4}};
+		 {"BG/P", 3.4}
+		 ,{"Jaguar XK6 sans GPUs", 8.8}
+    };
 
     for (int i = 0; i < sizeof(peaks)/sizeof(peaks[0]); ++i) {
       double fractionOfPeak = gflops_per_core / peaks[i].gflops_per_core;
-      std::cout << "If ran on " << peaks[i].machine << ", I think you got \t"
+      std::cout <<  peaks[i].machine << ":\t"
 		<< 100.0*fractionOfPeak << "% of peak" << std::endl;
     }
     double dgemmDuration    = testdgemm(luCfg.blockSize);
