@@ -290,7 +290,7 @@ public:
 			 CkCallback(CkIndex_LUSolver::continueIter(), thisProxy),
 			 CkCallback(CkIndex_LUSolver::startNextStep(), thisProxy),
 			 CkCallback(CkIndex_LUSolver::startNextStep(), thisProxy));
-      luArrProxy.initVec();
+      //luArrProxy.initVec();
     }
   }
 
