@@ -337,6 +337,7 @@ module lu {
       atomic "diag_multicast_L" {
         ckout << "Block " << thisIndex.x << " finished local LU at internalStep "
               << internalStep << ", time = " << CmiWallTimer() - startTime << endl;
+	fflush(stdout);
 
         localScheduler->factorizationDone(thisIndex);
         factored = true;
