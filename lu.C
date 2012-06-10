@@ -229,8 +229,10 @@ CkReductionMsg* CALU_Reduce(int nMsg, CkReductionMsg **msgs) {
   CkAssert(info == 0); // Require that the factorization succeed
 
   for (int i = 0; i < b; ++i) {
-    unsigned int row = out->rows[i];
-    CAPivotMsg *m = getPivotMessage(msgs[row / b]);
+    unsigned int row = out->rows[i] - 1; // Offset because Fortran indexes from 1
+    unsigned int msgnum = row / b;
+    CkAssert(msgnum < nMsg);
+    CAPivotMsg *m = getPivotMessage(msgs[msgnum]);
     memcpy(&out->data[b*i], &m->data[row % b], b*sizeof(double));
     out->rows[i] = m->rows[row % b];
   }
