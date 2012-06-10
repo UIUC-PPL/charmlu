@@ -236,7 +236,7 @@ CkReductionMsg* CALU_Reduce(int nMsg, CkReductionMsg **msgs) {
   }
 
   size_t totalSize = UsrToEnv(out)->getTotalsize();
-  return CkReductionMsg::buildNew(totalSize, CMessage_CAPivotMsg::pack(out));
+  return CkReductionMsg::buildNew(totalSize, UsrToEnv(CMessage_CAPivotMsg::pack(out)));
 }
 
 /// Function that registers this reducer type on every processor
