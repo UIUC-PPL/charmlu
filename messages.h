@@ -91,4 +91,30 @@ struct pivotRowsMsg: public CMessage_pivotRowsMsg, public CkMcastBaseMsg {
     nRows++;
   }
 };
+
+struct CAPivotMsg : public CMessage_CAPivotMsg, public CkMcastBaseMsg {
+  unsigned int blocksize;
+  double *data;
+  unsigned int *rows;
+  
+  // For contribution to the reduction
+  CAPivotMsg(double *block, unsigned int blocksize_, unsigned int blockIndex)
+    : blocksize(blocksize_)
+  {
+    for (unsigned int i = 0; i < blocksize; ++i)
+      rows[i] = blockIndex*blocksize + i;
+    memcpy(data, block, blocksize*blocksize*sizeof(double));
+  }
+
+  // For passing up the reduction tree
+  CAPivotMsg(unsigned int blocksize_)
+    : blocksize(blocksize_)
+  { }
+
+  // For broadcasting down from the diagonal
+  CAPivotMsg(unsigned int blocksize_, unsigned int *rows_)
+    : blocksize(blocksize_)
+  { memcpy(rows, rows_, blocksize*sizeof(unsigned int)); }
+};
+
 #endif

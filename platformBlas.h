@@ -16,7 +16,9 @@ extern "C" {
 #define BLAS_TRANSPOSE 'T'
 #define BLAS_NOTRANSPOSE 'N'
 #define BLAS_RIGHT 'R'
+#define BLAS_LEFT 'L'
 #define BLAS_UPPER 'U'
+#define BLAS_LOWER 'L'
 #define BLAS_UNIT 'U'
 
 #elif USE_ACCELERATE_BLAS
@@ -30,7 +32,9 @@ extern "C" {
 #define BLAS_TRANSPOSE "T"
 #define BLAS_NOTRANSPOSE "N"
 #define BLAS_RIGHT "R"
+#define BLAS_LEFT "L"
 #define BLAS_UPPER "U"
+#define BLAS_LOWER "L"
 #define BLAS_UNIT "U"
 
 #else

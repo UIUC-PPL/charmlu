@@ -119,8 +119,10 @@ protected:
   private:
   /// Perform trailing update based on input matrices (dgemm)
   void updateMatrix(double *incomingL, double *incomingU);
+  void startCALUPivoting();
   /// Performs the triangular solve required to compute a block of the U matrix (dtrsm)
   void computeU(double *LMsg);
+  void computeL(double *Ublock);
   /// Schedule U to be sent downward to the blocks in the same column
   void scheduleDownwardU();
   // Schedule L to be sent rightwards to the blocks in the same row

@@ -180,41 +180,74 @@ void LUBlk::computeU(double *LMsg) {
 #endif
 }
 
+// Compute a triangular solve
+void LUBlk::computeL(double *Ublock) {
+#if USE_ESSL || USE_ACML
+  // Ublock is implicitly transposed by telling dtrsm that it is a
+  // right, upper matrix. Since this also switches the order of
+  // multiplication, the transpose is output to LU.
+  dtrsm(BLAS_LEFT, BLAS_LOWER, BLAS_NOTRANSPOSE, BLAS_UNIT, blkSize, blkSize, 1.0, Ublock, blkSize, LU, blkSize);
+#else
+  cblas_dtrsm(CblasRowMajor, CblasRight, CblasUpper, CblasNoTrans, CblasUnit, blkSize, blkSize, 1.0, Ublock, blkSize, LU, blkSize);
+#endif
+}
+
+CkReduction::reducerType CALUReducer;
+
+void LUBlk::startCALUPivoting() {
+  localScheduler->startedActivePanel();
+  CAPivotMsg* msg = new (blkSize*blkSize, blkSize) CAPivotMsg(LU, blkSize, thisIndex.x);
+  size_t totalSize = UsrToEnv(msg)->getTotalsize();
+  mcastMgr->contribute(totalSize, UsrToEnv(CMessage_CAPivotMsg::pack(msg)), CALUReducer, pivotCookie);
+}
+
+CAPivotMsg* getPivotMessage(CkReductionMsg **msgs, int i) {
+  envelope *env = (envelope*)msgs[i]->getData();
+  CAPivotMsg *m = (CAPivotMsg*)EnvToUsr(env);
+  CkPrintf("unpacking env %p to message %p %d %d %d\n", env, m, m->blocksize, m->data, m->rows);
+  fflush(stdout);
+  return m;
+  return CMessage_CAPivotMsg::unpack(EnvToUsr(env));
+  //return reinterpret_cast<CAPivotMsg*>(msgs[i]->getData());
+}
+
+CkReductionMsg* CALU_Reduce(int nMsg, CkReductionMsg **msgs) {
+  unsigned int b = getPivotMessage(msgs, 0)->blocksize;
+  std::vector<double> data(nMsg*b*b);
+
+  CAPivotMsg *out = new (b*b, b) CAPivotMsg(b);
+
+  for (int i = 0; i < nMsg; ++i) {
+    CAPivotMsg *m = getPivotMessage(msgs, i);
+    CkAssert(m);
+    CkAssert(m->data);
+    memcpy(&data[i*b*b], m->data, b*b*sizeof(double));
+  }
+
+  int info;
+  dgetrf(b*nMsg, b, &data[0], b, (int*) out->rows, &info);
+  CkAssert(info == 0); // Require that the factorization succeed
+
+  for (int i = 0; i < b; ++i) {
+    unsigned int row = out->rows[i];
+    CAPivotMsg *m = getPivotMessage(msgs, row / b);
+    memcpy(&out->data[b*i], &m->data[row % b], b*sizeof(double));
+    out->rows[i] = m->rows[row % b];
+  }
+
+  size_t totalSize = UsrToEnv(out)->getTotalsize();
+  return CkReductionMsg::buildNew(totalSize, CMessage_CAPivotMsg::pack(out));
+}
+
+/// Function that registers this reducer type on every processor
+void registerReducers() {
+  CALUReducer = CkReduction::addReducer(CALU_Reduce);
+}
+
 // Schedule U to be sent downward to the blocks in the same column
 inline void LUBlk::scheduleDownwardU() {
   mgr->setPrio(LUmsg, MULT_RECV_U);
   localScheduler->scheduleSend(thisIndex, internalStep == thisIndex.y - 1);
-}
-
-MaxElm LUBlk::findMaxElm(int startRow, int col, MaxElm first) {
-  MaxElm l = first;
-  for (int row = startRow; row < blkSize; row++)
-    if (fabs(LU[getIndex(row,col)]) > fabs(l.val)) {
-      l.val = LU[getIndex(row,col)];
-      l.loc = row + blkSize * thisIndex.x;
-    }
-  return l;
-}
-
-CkReductionMsg *MaxElm_max(int nMsg, CkReductionMsg **msgs) {
-  CkAssert(nMsg > 0);
-
-  MaxElm *l = (MaxElm*) msgs[0]->getData();
-  for (int i = 1; i < nMsg; ++i) {
-    MaxElm *n = (MaxElm *) msgs[i]->getData();
-    if (fabs(n->val) > fabs(l->val))
-      l = n;
-  }
-
-  return CkReductionMsg::buildNew(sizeof(MaxElm), l);
-}
-
-/// Global that holds the reducer type for MaxElm
-CkReduction::reducerType MaxElmReducer;
-
-/// Function that registers this reducer type on every processor
-void registerMaxElmReducer() {
-  MaxElmReducer = CkReduction::addReducer(MaxElm_max);
 }
 
 /// Update the sub-block of this L block starting at specified
@@ -410,11 +443,7 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
   CkMulticastMgr *mcastMgr = CProxy_CkMulticastMgr(cfg.mcastMgrGID).ckLocalBranch();
 
   /// Chares on the active panels will create sections of their brethren
-#if defined(CHARMLU_USEG_FROM_BELOW)
-  if (isOnDiagonal() || isBelowDiagonal())
-#else
   if (isOnDiagonal())
-#endif
   {
     // Elements in the active panel, not including this block
     CkVec<CkArrayIndex2D> activeElems;
@@ -425,9 +454,7 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
     activePanel.ckSectionDelegate(mcastMgr);
     rednSetupMsg *activePanelMsg = new rednSetupMsg(cfg.mcastMgrGID);
     activePanel.prepareForActivePanel(activePanelMsg);
-  }
-  /// Chares on the array diagonal will now create pivot sections that they will talk to
-  if (isOnDiagonal()) {
+
     // Create the pivot section
     pivotSection = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,numBlks-1,1,thisIndex.y,thisIndex.y,1);
     rowBeforeDiag = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,thisIndex.x,1,0,thisIndex.y-1,1);
@@ -437,7 +464,8 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
     rowBeforeDiag.ckSectionDelegate(mcastMgr);
     rowAfterDiag.ckSectionDelegate(mcastMgr);
     // Set the reduction client for this pivot section
-    mcastMgr->setReductionClient( pivotSection, new CkCallback( CkReductionTarget(LUBlk,colMax), thisProxy(thisIndex.y, thisIndex.y) ) );
+    mcastMgr->setReductionClient( pivotSection, new CkCallback( CkIndex_LUBlk::preprocessFinished(NULL),
+								thisProxy(thisIndex.y, thisIndex.y) ) );
 
     // Invoke a dummy mcast so that all the section members know which section to reduce along
     rednSetupMsg *pivotMsg = new rednSetupMsg(cfg.mcastMgrGID);

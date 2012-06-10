@@ -2,7 +2,7 @@ module luUtils {
   include "set";
 
   // Register the reducer function that handles reductions of MaxElm
-  initnode void registerMaxElmReducer();
+  initnode void registerReducers();
 
   class LUConfig;
   class CProxy_BlockScheduler;
