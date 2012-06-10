@@ -225,7 +225,7 @@ CkReductionMsg* CALU_Reduce(int nMsg, CkReductionMsg **msgs) {
   }
 
   int info;
-  dgetrf(b*nMsg, b, &data[0], b, (int*) out->rows, &info);
+  dgetrf(b*nMsg, b, &data[0], b*nMsg, (int*) out->rows, &info); // XXX: This is currently treating the data as column-major, and LDA is the number of rows(!)
   CkAssert(info == 0); // Require that the factorization succeed
 
   for (int i = 0; i < b; ++i) {
