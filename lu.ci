@@ -236,7 +236,7 @@ module lu {
 	memcpy(LU, pre->data, blockBytes);
 
 	int info;
-	std::vector<int> pivots;
+	std::vector<int> pivots(blkSize);
 	dgetrf(blkSize, blkSize, LU, blkSize, &pivots[0], &info);
 	for (int i = 0; i < blkSize; ++i)
 	  CkAssert(pivots[i] == i);
