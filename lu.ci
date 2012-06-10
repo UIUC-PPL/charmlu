@@ -187,11 +187,11 @@ module lu {
 	for (int i = 0; i < blkSize; ++i) {
 	  if (thisIndex.x == msg->rows[i] / blkSize) {
 	    unsigned int localRow = msg->rows[i] % blkSize;
-	    memcpy(&LU[getIndex(localRow, 0)], msg->data + rowSize*i, rowSize);
+	    memcpy(&LU[getIndex(localRow, 0)], msg->data + blkSize*i, rowSize);
 	  }
 	}
 
-	computeL(msg->data + rowSize * blkSize);
+	computeL(msg->data + blkSize * blkSize);
       }
       atomic "below_send_L" {
         if (pendingUmsg) dropRef(pendingUmsg);
