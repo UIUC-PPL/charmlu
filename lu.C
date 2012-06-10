@@ -201,24 +201,24 @@ void LUBlk::startCALUPivoting() {
   mcastMgr->contribute(totalSize, UsrToEnv(CMessage_CAPivotMsg::pack(msg)), CALUReducer, pivotCookie);
 }
 
-CAPivotMsg* getPivotMessage(CkReductionMsg **msgs, int i) {
-  envelope *env = (envelope*)msgs[i]->getData();
+CAPivotMsg* getPivotMessage(CkReductionMsg *msg, bool unpack = false) {
+  envelope *env = (envelope*)msg->getData();
   CAPivotMsg *m = (CAPivotMsg*)EnvToUsr(env);
-  CkPrintf("unpacking env %p to message %p %d %d %d\n", env, m, m->blocksize, m->data, m->rows);
-  fflush(stdout);
-  return m;
-  return CMessage_CAPivotMsg::unpack(EnvToUsr(env));
-  //return reinterpret_cast<CAPivotMsg*>(msgs[i]->getData());
+  if (unpack) {
+    return CMessage_CAPivotMsg::unpack(EnvToUsr(env));
+  } else {
+    return m;
+  }
 }
 
 CkReductionMsg* CALU_Reduce(int nMsg, CkReductionMsg **msgs) {
-  unsigned int b = getPivotMessage(msgs, 0)->blocksize;
+  unsigned int b = getPivotMessage(msgs[0])->blocksize;
   std::vector<double> data(nMsg*b*b);
 
   CAPivotMsg *out = new (b*b, b) CAPivotMsg(b);
 
   for (int i = 0; i < nMsg; ++i) {
-    CAPivotMsg *m = getPivotMessage(msgs, i);
+    CAPivotMsg *m = getPivotMessage(msgs[i], true);
     CkAssert(m);
     CkAssert(m->data);
     memcpy(&data[i*b*b], m->data, b*b*sizeof(double));
@@ -230,7 +230,7 @@ CkReductionMsg* CALU_Reduce(int nMsg, CkReductionMsg **msgs) {
 
   for (int i = 0; i < b; ++i) {
     unsigned int row = out->rows[i];
-    CAPivotMsg *m = getPivotMessage(msgs, row / b);
+    CAPivotMsg *m = getPivotMessage(msgs[row / b]);
     memcpy(&out->data[b*i], &m->data[row % b], b*sizeof(double));
     out->rows[i] = m->rows[row % b];
   }

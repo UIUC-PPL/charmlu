@@ -226,13 +226,14 @@ module lu {
 	      << CmiWallTimer() - startTime << endl;
 	startCALUPivoting();
       }
-      when preprocessFinished(CAPivotMsg* msg) atomic {
-	CAPivotMsg *Umsg = new (2 * blkSize*blkSize, blkSize) CAPivotMsg(blkSize, msg->rows);
+      when preprocessFinished(CkReductionMsg* msg) atomic {
+        CAPivotMsg *pre = getPivotMessage(msg, true);
+        CAPivotMsg *Umsg = new (2 * blkSize*blkSize, blkSize) CAPivotMsg(blkSize, pre->rows);
 	// Copy in original diagonal data for pivoting
 	size_t blockBytes = blkSize*blkSize*sizeof(double);
 	memcpy(Umsg->data, LU, blockBytes);
 
-	memcpy(LU, msg->data, blockBytes);
+	memcpy(LU, pre->data, blockBytes);
 
 	int info;
 	std::vector<int> pivots;
@@ -246,7 +247,7 @@ module lu {
 
 	// Store the pivot information
 	for (int i = 0; i < blkSize; ++i)
-	  recordPivot(thisIndex.y*blkSize + i, msg->rows[i]);
+	  recordPivot(thisIndex.y*blkSize + i, pre->rows[i]);
 	announceAgglomeratedPivots();
       }
 
@@ -270,7 +271,7 @@ module lu {
         contribute(factorizationDone);
       }
     };
-    entry void preprocessFinished(CAPivotMsg* msg);
+    entry void preprocessFinished(CkReductionMsg* msg);
 
     /**
      * Solve methods
