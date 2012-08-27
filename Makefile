@@ -1,5 +1,5 @@
 include config.mk
-include ../config.mk
+#include ../config.mk
 
 # The relevant source files for this project
 RAWSRC    = lu.C scheduler.C benchmark.C
@@ -12,7 +12,7 @@ BINS      = $(TARGET)
 ARGS      = 64 16 500 8 2
 
 # Specify the compilers, run script, flags etc.
-OPT       = -O3
+OPT       = -O0
 #CPPFLAGS += -DSCHED_PIVOT_REDN
 #CPPFLAGS += -DCHARMLU_USEG_FROM_BELOW
 CPPFLAGS += -DSEND_LIM=$(SEND_LIM) $(BLAS_INC)

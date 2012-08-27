@@ -95,7 +95,7 @@ struct pivotRowsMsg: public CMessage_pivotRowsMsg, public CkMcastBaseMsg {
 struct CAPivotMsg : public CMessage_CAPivotMsg, public CkMcastBaseMsg {
   unsigned int blocksize;
   double *data;
-  unsigned int *rows;
+  int *rows;
   
   // For contribution to the reduction
   CAPivotMsg(double *block, unsigned int blocksize_, unsigned int blockIndex)
@@ -112,9 +112,9 @@ struct CAPivotMsg : public CMessage_CAPivotMsg, public CkMcastBaseMsg {
   { }
 
   // For broadcasting down from the diagonal
-  CAPivotMsg(unsigned int blocksize_, unsigned int *rows_)
+  CAPivotMsg(unsigned int blocksize_, int *rows_)
     : blocksize(blocksize_)
-  { memcpy(rows, rows_, blocksize*sizeof(unsigned int)); }
+  { memcpy(rows, rows_, blocksize*sizeof(int)); }
 };
 
 #endif

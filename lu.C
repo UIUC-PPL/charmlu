@@ -147,9 +147,9 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
   } // end for loop through all sequences
 
   // Send out all the msgs carrying pivot data to other chares
-  for (int i=0; i< numBlks; i++)
+  /*  for (int i=0; i< numBlks; i++)
     if (numMsgsTo[i] > 0)
-      thisProxy(i, thisIndex.y).trailingPivotRowsSwap(outgoingPivotMsgs[i]);
+    thisProxy(i, thisIndex.y).trailingPivotRowsSwap(outgoingPivotMsgs[i]);*/
 
   if (tmpBuf) delete [] tmpBuf;
 }
@@ -194,8 +194,19 @@ void LUBlk::computeL(double *Ublock) {
 
 CkReduction::reducerType CALUReducer;
 
+void printData(double* blk, int size, int ld, char* desc) {
+  CkPrintf("%s\n", desc);
+  for (int i = 0; i < ld; i++) {
+    for (int j = 0; j < size; j++) {
+      CkPrintf("%f ", blk[i * size + j]);
+    }
+    CkPrintf("\n");
+  }
+}
+
 void LUBlk::startCALUPivoting() {
-  localScheduler->startedActivePanel();
+  CkPrintf("(%d,%d): startCALUPivoting\n", thisIndex.x, thisIndex.y);
+  printData(LU, blkSize, blkSize, "startCALUPivoting");
   CAPivotMsg* msg = new (blkSize*blkSize, blkSize) CAPivotMsg(LU, blkSize, thisIndex.x);
   size_t totalSize = UsrToEnv(msg)->getTotalsize();
   mcastMgr->contribute(totalSize, UsrToEnv(CMessage_CAPivotMsg::pack(msg)), CALUReducer, pivotCookie);
@@ -217,15 +228,41 @@ CkReductionMsg* CALU_Reduce(int nMsg, CkReductionMsg **msgs) {
 
   CAPivotMsg *out = new (b*b, b) CAPivotMsg(b);
 
+  //CkPrintf("first elem = %f\n", getPivotMessage(msgs[0], true)->data[0]);
+
+  //printData(getPivotMessage(msgs[0], true)->data, b, b, "reduce input 0");
+  //printData(&getPivotMessage(msgs[1], true)->data[0], b, b, "reduce input 1");
+
   for (int i = 0; i < nMsg; ++i) {
     CAPivotMsg *m = getPivotMessage(msgs[i], true);
     CkAssert(m);
     CkAssert(m->data);
-    memcpy(&data[i*b*b], m->data, b*b*sizeof(double));
+    for (int j = 0; j < b; j++) {
+      for (int k = 0; k < b; k++) {
+        //data[nMsg*k*b + j + i*b] = m->data[j*b + k];
+        //CkAssert(nMsg*k*b + j + i*b < nMsg*b*b);
+        data[k*b + j + i*b*b] = m->data[j*b + k];
+        //CkPrintf("data[%d] = %f\n", k*b + j + i*b*b, data[k*b + j + i*b*b]);
+      }
+    }
+    //memcpy(&data[i*b*b], m->data, b*b*sizeof(double));
   }
 
+  printData(&data[0], b, b*2, "reduce");
+
   int info;
-  dgetrf(b*nMsg, b, &data[0], b*nMsg, (int*) out->rows, &info); // XXX: This is currently treating the data as column-major, and LDA is the number of rows(!)
+  int rows = b;
+  int cols = b * nMsg;
+  int blockSize = b;
+  CkPrintf("%d: rows = %d, cols = %d, blockSize = %d, nMsg = %d\n",
+           CkMyPe(), rows, cols, blockSize, nMsg);
+#if defined(USE_ACCELERATE_BLAS)
+  dgetrf_(&rows, &cols, &data[0], &blockSize, out->rows, &info);
+#else
+  dgetrf(rows, cols, &data[0], blockSize, out->rows, &info);
+#endif
+  if (info != 0)
+    CkPrintf("info = %d\n", info);
   CkAssert(info == 0); // Require that the factorization succeed
 
   for (int i = 0; i < b; ++i) {

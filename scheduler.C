@@ -202,7 +202,10 @@ void BlockScheduler::allRegistered(CkReductionMsg *m) {
 }
 
 void BlockScheduler::startedActivePanel() {
+#if defined(EXCLUSIVE_SCHEDULING_CLASSES)
   numActive++;
+  CkPrintf("%d: startedActivePanel, numActive = %d\n", CkMyPe(), numActive);
+#endif
 }
 
 template <typename K>
@@ -419,8 +422,11 @@ bool BlockScheduler::shouldExecute() {
 }
 
 void BlockScheduler::factorizationDone(CkIndex2D index) {
+#if defined(EXCLUSIVE_SCHEDULING_CLASSES)
   if (index.x >= index.y)
     numActive--;
+  CkPrintf("%d: factorizationDone (%d,%d), numActive = %d\n", CkMyPe(), index.x, index.y, numActive);
+#endif
 
   map<pair<int, int>, list<Update*> >::iterator wanters =
     localWantedBlocks.find(make_pair(index.x, index.y));

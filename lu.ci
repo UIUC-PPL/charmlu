@@ -57,17 +57,20 @@ module lu {
         // control memory consumption and avoid interfering with
         // another local block working in the latency-sensitive active
         // panel.
-        when pivotBatchDone[0](int tag) atomic { updateExecuted = false; }
+        when pivotBatchDone[0](int tag) atomic { updateExecuted = false;
+          CkPrintf("(%d,%d): pivotBatch\n", thisIndex.x, thisIndex.y); }
         while (!updateExecuted) {
           when processTrailingUpdate[internalStep](int step, intptr_t update_ptr)
           atomic "trailing_update" {
             Update &update = *(Update *)update_ptr;
             if (localScheduler->shouldExecute()) {
+              CkPrintf("(%d,%d): updateMatrix\n", thisIndex.x, thisIndex.y); 
               updateMatrix(update.L, update.U);
               thisProxy(thisIndex.x, internalStep).blockUsed(1);
               localScheduler->updateDone(update_ptr);
               updateExecuted = true;
             } else {
+              CkPrintf("(%d,%d): untriggered\n", thisIndex.x, thisIndex.y); 
               update.triggered = false;
               localScheduler->updateUntriggered();
             }
@@ -84,6 +87,7 @@ module lu {
     // Receive and process batches of pivot operations sent out by
     // the current active diagonal chare
     entry [local] void pivotBatch(int tag) {
+/*
       while (pivotBatchTag < (internalStep+1)*blkSize) {
         // Wait for msg carrying the next batch of pivot ops
         when applyTrailingPivots[pivotBatchTag](pivotSequencesMsg *msg) {
@@ -112,13 +116,14 @@ module lu {
           }
         }
       }
+*/
 
       atomic { thisProxy[thisIndex].pivotBatchDone(tag); }
     };
     // Indicate a set of rows which need to be swapped
     entry [nokeep] void applyTrailingPivots(pivotSequencesMsg *msg);
     // Exchange pivot row contents
-    entry void trailingPivotRowsSwap(pivotRowsMsg *msg);
+    //entry void trailingPivotRowsSwap(pivotRowsMsg *msg);
     entry [local] void pivotBatchDone(int tag);
 
     // Describes the control flow of above-diagonal blocks after
@@ -162,7 +167,10 @@ module lu {
         factored = true;
         localScheduler->factorizationDone(thisIndex);
       }
-      atomic "abovediag_iteration_completed" { contribute(factorizationDone); }
+      atomic "abovediag_iteration_completed" {
+        CkPrintf("(%d,%d); contributing\n", thisIndex.x, thisIndex.y);
+        contribute(factorizationDone); 
+      }
       // Swallow excess pivots message broadcast to the entire array
       while (true) { when applyTrailingPivots(pivotSequencesMsg *msg) { } }
     };
@@ -178,9 +186,13 @@ module lu {
 
     // Below diagonal
     entry [local] void factorBelowDiagBlock() {
-      atomic { startCALUPivoting(); }
+      atomic { 
+        localScheduler->startedActivePanel();
+        startCALUPivoting();
+      }
       // below diagonal
       when recvFactoredBlock(CAPivotMsg* msg) atomic {
+        CkPrintf("(%d,%d): recvFactoredBlock with msg %p\n", thisIndex.x, thisIndex.y, msg);
 	size_t rowSize = blkSize * sizeof(double);
 
 	// apply pivots
@@ -194,7 +206,7 @@ module lu {
 	computeL(msg->data + blkSize * blkSize);
       }
       atomic "below_send_L" {
-        if (pendingUmsg) dropRef(pendingUmsg);
+        //if (pendingUmsg) dropRef(pendingUmsg);
         scheduleRightwardL();
         factored = true;
         localScheduler->factorizationDone(thisIndex);
@@ -202,14 +214,22 @@ module lu {
       }
 
       while (blockPulled < numBlks-thisIndex.y-1) {
-        when blockUsed(int count) atomic { blockPulled += count; }
+        when blockUsed(int count) atomic {
+          blockPulled += count;
+          //CkPrintf("(%d,%d): blockPulled = %d, total = %d\n", thisIndex.x, thisIndex.y, blockPulled, numBlks-thisIndex.y-1);
+        }
       }
 
       for (internalStep++; internalStep <= thisIndex.x; internalStep++) {
-        atomic { thisProxy[thisIndex].pivotBatch(2); }
+        atomic { thisProxy[thisIndex].pivotBatch(2);
+          CkPrintf("(%d,%d): pivoting\n", thisIndex.x, thisIndex.y);  
+        }
         when pivotBatchDone[2](int tag) { }
       }
-      atomic "belowdiag_iteration_completed" { contribute(factorizationDone); }
+      atomic "belowdiag_iteration_completed" {
+        CkPrintf("(%d,%d); contributing\n", thisIndex.x, thisIndex.y);
+        contribute(factorizationDone);
+      }
       // Swallow excess pivots message broadcast to the entire array
       while (true) { when applyTrailingPivots(pivotSequencesMsg *msg) { } }
     };
@@ -225,8 +245,10 @@ module lu {
 	      << internalStep << ", start time = " << CmiWallTimer() << ", time = "
 	      << CmiWallTimer() - startTime << endl;
 	startCALUPivoting();
+        localScheduler->startedActivePanel();
       }
       when preprocessFinished(CkReductionMsg* msg) atomic {
+        CkPrintf("(%d,%d) : preprocessFinished with msg %p\n", thisIndex.x, thisIndex.y, msg);
         CAPivotMsg *pre = getPivotMessage(msg, true);
         CAPivotMsg *Umsg = new (2 * blkSize*blkSize, blkSize) CAPivotMsg(blkSize, pre->rows);
 	// Copy in original diagonal data for pivoting
@@ -237,9 +259,23 @@ module lu {
 
 	int info;
 	std::vector<int> pivots(blkSize);
-	dgetrf(blkSize, blkSize, LU, blkSize, &pivots[0], &info);
-	//for (int i = 0; i < blkSize; ++i)
-	//  CkAssert(pivots[i] == i);
+
+        double *tblock = new double[blkSize * blkSize];
+        for (int i = 0; i < blkSize; i++)
+          for (int j = 0; j < blkSize; j++)
+            tblock[i * blkSize + j] = LU[j * blkSize + i];
+
+#if defined(USE_ACCELERATE_BLAS)
+        dgetrf_(&blkSize, &blkSize, tblock, &blkSize, &pivots[0], &info);
+#else
+	dgetrf(blkSize, blkSize, tblock, blkSize, &pivots[0], &info);
+#endif
+        if (info != 0)
+          CkPrintf("info = %d\n", info);
+        CkAssert(info == 0);
+
+	for (int i = 0; i < blkSize; ++i)
+	  CkAssert(pivots[i] == i);
 
 	memcpy(Umsg->data + blkSize*blkSize, LU, blockBytes);
 
@@ -248,7 +284,7 @@ module lu {
 	// Store the pivot information
 	for (int i = 0; i < blkSize; ++i)
 	  recordPivot(thisIndex.y*blkSize + i, pre->rows[i]);
-	announceAgglomeratedPivots();
+        announceAgglomeratedPivots();
       }
 
       atomic "diag_multicast_L" {
@@ -268,6 +304,7 @@ module lu {
         }
         // Contribute to a reduction indicating that this chare is
         // done with its factorization work
+        CkPrintf("(%d,%d); contributing\n", thisIndex.x, thisIndex.y);
         contribute(factorizationDone);
       }
     };
@@ -433,6 +470,6 @@ module luMessages {
 
   message CAPivotMsg {
     double data[];
-    unsigned int rows[];
+    int rows[];
   };
 };
