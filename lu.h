@@ -153,6 +153,7 @@ protected:
   inline int getIndex(int i, int j) {
     return i * blkSize + j;
   }
+  void LUdecompose(double* A);
 
   bool isOnDiagonal()    { return thisIndex.x == thisIndex.y; }
   bool isAboveDiagonal() { return thisIndex.x <  thisIndex.y; }

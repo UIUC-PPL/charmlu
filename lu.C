@@ -34,6 +34,25 @@ void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
 #endif
 }
 
+// simple non-pivoting LU kernel
+void LUBlk::LUdecompose(double* A) {
+  for (int j = 0; j < blkSize; j++) {
+    for (int i = 0; i <= j; i++) {
+      double sum = 0.0;
+      for (int k = 0; k < i; k++)
+	sum += A[getIndex(i, k)] * A[getIndex(k,j)];
+      A[getIndex(i,j)] -= sum;
+    }
+    for (int i = j + 1; i < blkSize; i++) {
+      double sum = 0.0;
+      for (int k = 0; k < j; k++)
+	sum += A[getIndex(i,k)] * A[getIndex(k,j)];
+      A[getIndex(i,j)] -= sum;
+      A[getIndex(i,j)] /= A[getIndex(j,j)];
+    }
+  }
+}
+
 /// Given a set of pivot ops, send out participating row chunks that you own
 void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
   const int *pivotSequence = msg->pivotSequence, *idx = msg->seqIndex;
@@ -147,9 +166,9 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
   } // end for loop through all sequences
 
   // Send out all the msgs carrying pivot data to other chares
-  /*  for (int i=0; i< numBlks; i++)
+  for (int i=0; i< numBlks; i++)
     if (numMsgsTo[i] > 0)
-    thisProxy(i, thisIndex.y).trailingPivotRowsSwap(outgoingPivotMsgs[i]);*/
+      thisProxy(i, thisIndex.y).trailingPivotRowsSwap(outgoingPivotMsgs[i]);
 
   if (tmpBuf) delete [] tmpBuf;
 }
@@ -206,7 +225,7 @@ void printData(double* blk, int size, int ld, char* desc) {
 
 void LUBlk::startCALUPivoting() {
   CkPrintf("(%d,%d): startCALUPivoting\n", thisIndex.x, thisIndex.y);
-  printData(LU, blkSize, blkSize, "startCALUPivoting");
+  //printData(LU, blkSize, blkSize, "startCALUPivoting");
   CAPivotMsg* msg = new (blkSize*blkSize, blkSize) CAPivotMsg(LU, blkSize, thisIndex.x);
   size_t totalSize = UsrToEnv(msg)->getTotalsize();
   mcastMgr->contribute(totalSize, UsrToEnv(CMessage_CAPivotMsg::pack(msg)), CALUReducer, pivotCookie);
@@ -220,6 +239,19 @@ CAPivotMsg* getPivotMessage(CkReductionMsg *msg, bool unpack = false) {
   } else {
     return m;
   }
+}
+
+int* permuteSequenceToPosition(int* sequence, int size) {
+  int* cur = new int[size];
+  for (int i = 0; i < size; i++)
+    cur[i] = i;
+  for (int i = 0; i < size; i++) {
+    std::swap(cur[i], cur[sequence[i]]);
+  /*int tmp = cur[sequence[i]];
+    cur[sequence[i]] = cur[i];
+    cur[i] = tmp;*/
+  }
+  return cur;
 }
 
 CkReductionMsg* CALU_Reduce(int nMsg, CkReductionMsg **msgs) {
@@ -248,31 +280,60 @@ CkReductionMsg* CALU_Reduce(int nMsg, CkReductionMsg **msgs) {
     //memcpy(&data[i*b*b], m->data, b*b*sizeof(double));
   }
 
-  printData(&data[0], b, b*2, "reduce");
+  // printData(&data[0], b, b*1, "reduce");
 
   int info;
-  int rows = b;
-  int cols = b * nMsg;
+  int rows = b * nMsg;
+  int cols = b;
   int blockSize = b;
   CkPrintf("%d: rows = %d, cols = %d, blockSize = %d, nMsg = %d\n",
            CkMyPe(), rows, cols, blockSize, nMsg);
 #if defined(USE_ACCELERATE_BLAS)
   dgetrf_(&rows, &cols, &data[0], &blockSize, out->rows, &info);
 #else
-  dgetrf(rows, cols, &data[0], blockSize, out->rows, &info);
+  info = clapack_dgetrf(CblasRowMajor, rows, cols, &data[0], blockSize, out->rows);
 #endif
   if (info != 0)
     CkPrintf("info = %d\n", info);
   CkAssert(info == 0); // Require that the factorization succeed
 
+  // for (int i = 0; i < b; ++i) {
+  //   CkPrintf("out->rows[%d] = %d\n", i, out->rows[i]);
+  //   //CkAssert(pivots[i] == i + 1);
+  // }
+
+  int* permuted = permuteSequenceToPosition(out->rows, b);
+
+  // for (int i = 0; i < b; ++i) {
+  //   CkPrintf("permuted[%d] = %d\n", i, permuted[i]);
+  //   //CkAssert(pivots[i] == i + 1);
+  // }
+
   for (int i = 0; i < b; ++i) {
-    unsigned int row = out->rows[i] - 1; // Offset because Fortran indexes from 1
+    unsigned int row = permuted[i];
     unsigned int msgnum = row / b;
     CkAssert(msgnum < nMsg);
     CAPivotMsg *m = getPivotMessage(msgs[msgnum]);
-    memcpy(&out->data[b*i], &m->data[row % b], b*sizeof(double));
-    out->rows[i] = m->rows[row % b];
+    memcpy(&out->data[b * i], &m->data[row * b], b * sizeof(double));
   }
+
+  // printData(&out->data[0], b, b*1, "permuted");
+
+  // double* test = new double[b*b];
+  // for (int j = 0; j < b; j++) {
+  //   for (int k = 0; k < b; k++) {
+  //     test[k*b + j] = out->data[j*b + k];
+  //   }
+  // }
+
+  // info = clapack_dgetrf(CblasRowMajor, rows, cols, &test[0], blockSize, out->rows);
+
+  // for (int i = 0; i < b; ++i) {
+  //   CkPrintf("second try[%d] = %d\n", i, out->rows[i]);
+  //   //CkAssert(pivots[i] == i + 1);
+  // }
+
+  delete [] permuted;
 
   size_t totalSize = UsrToEnv(out)->getTotalsize();
   return CkReductionMsg::buildNew(totalSize, UsrToEnv(CMessage_CAPivotMsg::pack(out)));

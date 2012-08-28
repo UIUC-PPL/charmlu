@@ -87,7 +87,6 @@ module lu {
     // Receive and process batches of pivot operations sent out by
     // the current active diagonal chare
     entry [local] void pivotBatch(int tag) {
-/*
       while (pivotBatchTag < (internalStep+1)*blkSize) {
         // Wait for msg carrying the next batch of pivot ops
         when applyTrailingPivots[pivotBatchTag](pivotSequencesMsg *msg) {
@@ -116,14 +115,13 @@ module lu {
           }
         }
       }
-*/
 
       atomic { thisProxy[thisIndex].pivotBatchDone(tag); }
     };
     // Indicate a set of rows which need to be swapped
     entry [nokeep] void applyTrailingPivots(pivotSequencesMsg *msg);
     // Exchange pivot row contents
-    //entry void trailingPivotRowsSwap(pivotRowsMsg *msg);
+    entry void trailingPivotRowsSwap(pivotRowsMsg *msg);
     entry [local] void pivotBatchDone(int tag);
 
     // Describes the control flow of above-diagonal blocks after
@@ -216,7 +214,7 @@ module lu {
       while (blockPulled < numBlks-thisIndex.y-1) {
         when blockUsed(int count) atomic {
           blockPulled += count;
-          //CkPrintf("(%d,%d): blockPulled = %d, total = %d\n", thisIndex.x, thisIndex.y, blockPulled, numBlks-thisIndex.y-1);
+          CkPrintf("(%d,%d): blockPulled = %d, total = %d\n", thisIndex.x, thisIndex.y, blockPulled, numBlks-thisIndex.y-1);
         }
       }
 
@@ -254,8 +252,12 @@ module lu {
 	// Copy in original diagonal data for pivoting
 	size_t blockBytes = blkSize*blkSize*sizeof(double);
 	memcpy(Umsg->data, LU, blockBytes);
-
 	memcpy(LU, pre->data, blockBytes);
+
+	// for (int i = 0; i < blkSize; ++i) {
+	//   CkPrintf("pre->rows[%d] = %d\n", i, pre->rows[i]);
+	//   //CkAssert(pivots[i] == i + 1);
+	// }
 
 	int info;
 	std::vector<int> pivots(blkSize);
@@ -263,19 +265,33 @@ module lu {
         double *tblock = new double[blkSize * blkSize];
         for (int i = 0; i < blkSize; i++)
           for (int j = 0; j < blkSize; j++)
-            tblock[i * blkSize + j] = LU[j * blkSize + i];
+            tblock[getIndex(i,j)] = LU[getIndex(j,i)];
+
+ 	//printData(LU, blkSize, blkSize, "preprocess");
 
 #if defined(USE_ACCELERATE_BLAS)
         dgetrf_(&blkSize, &blkSize, tblock, &blkSize, &pivots[0], &info);
 #else
-	dgetrf(blkSize, blkSize, tblock, blkSize, &pivots[0], &info);
+	info = clapack_dgetrf(CblasColMajor, blkSize, blkSize, &tblock[0], blkSize, &pivots[0]);
 #endif
         if (info != 0)
           CkPrintf("info = %d\n", info);
         CkAssert(info == 0);
 
-	for (int i = 0; i < blkSize; ++i)
-	  CkAssert(pivots[i] == i);
+	// for (int i = 0; i < blkSize; ++i) {
+	//   CkPrintf("pivots[%d] = %d\n", i, pivots[i]);
+	//   //CkAssert(pivots[i] == i);
+	// }
+
+        for (int i = 0; i < blkSize; i++)
+          for (int j = 0; j < blkSize; j++)
+            LU[getIndex(i,j)] = tblock[getIndex(j,i)];
+
+	for (int i = 0; i < blkSize; i++) {
+	  std::swap(bvec[i], bvec[pre->rows[i]]);
+	}
+
+	//LUdecompose(LU);
 
 	memcpy(Umsg->data + blkSize*blkSize, LU, blockBytes);
 
@@ -283,7 +299,7 @@ module lu {
 
 	// Store the pivot information
 	for (int i = 0; i < blkSize; ++i)
-	  recordPivot(thisIndex.y*blkSize + i, pre->rows[i]);
+	  recordPivot(thisIndex.y*blkSize + i, pivots[i]);
         announceAgglomeratedPivots();
       }
 
