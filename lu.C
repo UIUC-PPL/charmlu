@@ -206,11 +206,11 @@ void LUBlk::computeU(double *LMsg) {
 void LUBlk::computeL(double *Ublock) {
 #if USE_ESSL || USE_ACML
   // Ublock is implicitly transposed by telling dtrsm that it is a
-  // right, upper matrix. Since this also switches the order of
+  // left, lower matrix. Since this also switches the order of
   // multiplication, the transpose is output to LU.
-  dtrsm(BLAS_LEFT, BLAS_LOWER, BLAS_NOTRANSPOSE, BLAS_UNIT, blkSize, blkSize, 1.0, Ublock, blkSize, LU, blkSize);
+  dtrsm(BLAS_LEFT, BLAS_LOWER, BLAS_NOTRANSPOSE, BLAS_NONUNIT, blkSize, blkSize, 1.0, Ublock, blkSize, LU, blkSize);
 #else
-  cblas_dtrsm(CblasRowMajor, CblasRight, CblasUpper, CblasNoTrans, CblasUnit, blkSize, blkSize, 1.0, Ublock, blkSize, LU, blkSize);
+  cblas_dtrsm(CblasRowMajor, CblasRight, CblasUpper, CblasNoTrans, CblasNonUnit, blkSize, blkSize, 1.0, Ublock, blkSize, LU, blkSize);
 #endif
 }
 
