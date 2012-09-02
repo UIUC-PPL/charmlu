@@ -103,7 +103,7 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
     // Find the location of this sequence in the msg buffer
     const int *first = pivotSequence + idx[i];
     const int *beyondLast = pivotSequence + idx[i+1];
-    printf("numSequences = %d, beyondLast - first = %d\n", numSequences, beyondLast - first);
+    //printf("numSequences = %d, beyondLast - first = %d\n", numSequences, beyondLast - first);
 
     CkAssert(beyondLast - first >= 2);
 
@@ -177,7 +177,7 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
 
 // Copy received pivot data into its place in this block
 void LUBlk::applySwap(int row, int offset, const double *data, double b) {
-  CkPrintf("(%d,%d): applySwap, offset = %d, b = %f\n", thisIndex.x, thisIndex.y, offset, b);
+  //CkPrintf("(%d,%d): applySwap, offset = %d, b = %f\n", thisIndex.x, thisIndex.y, offset, b);
   bvec[row] = b;
   memcpy( &(LU[getIndex(row,offset)]), data, sizeof(double)*(blkSize-offset) );
 }
@@ -192,6 +192,7 @@ void LUBlk::swapLocal(int row1, int row2, int offset) {
 
 // Compute a triangular solve
 void LUBlk::computeU(double *LMsg) {
+  //CkPrintf("(%d,%d): computeU\n", thisIndex.x, thisIndex.y);
 #if USE_ESSL || USE_ACML
   // LMsg is implicitly transposed by telling dtrsm that it is a
   // right, upper matrix. Since this also switches the order of
@@ -204,6 +205,7 @@ void LUBlk::computeU(double *LMsg) {
 
 // Compute a triangular solve
 void LUBlk::computeL(double *Ublock) {
+  //CkPrintf("(%d,%d): computeL\n", thisIndex.x, thisIndex.y);
 #if USE_ESSL || USE_ACML
   // Ublock is implicitly transposed by telling dtrsm that it is a
   // left, lower matrix. Since this also switches the order of
@@ -217,6 +219,7 @@ void LUBlk::computeL(double *Ublock) {
 CkReduction::reducerType CALUReducer;
 
 void printData(double* blk, int size, int ld, char* desc, int x, int y) {
+#if 0
   CkPrintf("(%d,%d) %s\n", x, y, desc);
   for (int i = 0; i < ld; i++) {
     for (int j = 0; j < size; j++) {
@@ -224,12 +227,13 @@ void printData(double* blk, int size, int ld, char* desc, int x, int y) {
     }
     CkPrintf("\n");
   }
+#endif
 }
 
 void LUBlk::startCALUPivoting() {
-  CkPrintf("(%d,%d): startCALUPivoting\n", thisIndex.x, thisIndex.y);
-  printData(LU, blkSize, blkSize, "startCALUPivoting", thisIndex.x, thisIndex.y);
-  printData(bvec, 1, blkSize, "BVEC startCALUPivoting", thisIndex.x, thisIndex.y);
+  //CkPrintf("(%d,%d): startCALUPivoting\n", thisIndex.x, thisIndex.y);
+  //printData(LU, blkSize, blkSize, "startCALUPivoting", thisIndex.x, thisIndex.y);
+  //printData(bvec, 1, blkSize, "BVEC startCALUPivoting", thisIndex.x, thisIndex.y);
   CAPivotMsg* msg = new (blkSize*blkSize + blkSize, blkSize) CAPivotMsg(LU, bvec, blkSize, thisIndex.x);
   for (int i = 0; i < blkSize; i++) {
     msg->rows[i] = i + thisIndex.x * blkSize;
@@ -263,7 +267,6 @@ int* convertToAbsolutePos(int* pivots, int size, CkReductionMsg **msgs, int b) {
     unsigned int row = pivots[i];
     unsigned int msgnum = row / b;
     CAPivotMsg *m = getPivotMessage(msgs[msgnum]);
-    CkPrintf("row = %d, i = %d, m->rows[row % b] = %d\n", row, i, m->rows[row % b]);
     abs[i] = m->rows[row % b];
   }
   return abs;
@@ -283,10 +286,10 @@ CkReductionMsg* CALU_Reduce(int nMsg, CkReductionMsg **msgs) {
   for (int i = 0; i < nMsg; ++i) {
     CAPivotMsg *m = getPivotMessage(msgs[i], true);
 
-    CkPrintf("i = %d\n", i);
-    for (int j = 0; j < b; j++) {
-      CkPrintf("\tm->rows[%d] = %d\n", j, m->rows[j]);
-    }
+    // CkPrintf("i = %d\n", i);
+    // for (int j = 0; j < b; j++) {
+    //   CkPrintf("\tm->rows[%d] = %d\n", j, m->rows[j]);
+    // }
     
     CkAssert(m);
     CkAssert(m->data);
@@ -301,14 +304,14 @@ CkReductionMsg* CALU_Reduce(int nMsg, CkReductionMsg **msgs) {
     //memcpy(&data[i*b*b], m->data, b*b*sizeof(double));
   }
 
-  printData(&data[0], b*nMsg, b, "reduce", 0, 0);
+  //printData(&data[0], b*nMsg, b, "reduce", 0, 0);
 
   int info;
   int rows = b;
   int cols = b * nMsg;
   int blockSize = b * nMsg;
-  CkPrintf("%d: rows = %d, cols = %d, blockSize = %d, nMsg = %d\n",
-           CkMyPe(), rows, cols, blockSize, nMsg);
+  //CkPrintf("%d: rows = %d, cols = %d, blockSize = %d, nMsg = %d\n",
+  //CkMyPe(), rows, cols, blockSize, nMsg);
 #if defined(USE_ACCELERATE_BLAS)
   dgetrf_(&rows, &cols, &data[0], &blockSize, out->rows, &info);
 #else
@@ -325,7 +328,7 @@ CkReductionMsg* CALU_Reduce(int nMsg, CkReductionMsg **msgs) {
   int* permuted = permuteSequenceToPosition(out->rows, b * nMsg, b);
 
   for (int i = 0; i < b * nMsg; ++i) {
-    CkPrintf("permuted[%d] = %d\n", i, permuted[i]);
+    //CkPrintf("permuted[%d] = %d\n", i, permuted[i]);
   }
 
   for (int i = 0; i < b; ++i) {
@@ -333,18 +336,18 @@ CkReductionMsg* CALU_Reduce(int nMsg, CkReductionMsg **msgs) {
     unsigned int msgnum = row / b;
     CkAssert(msgnum < nMsg);
     CAPivotMsg *m = getPivotMessage(msgs[msgnum]);
-    CkPrintf("row = %d, msgnum = %d, bvec = %f\n", row, msgnum,  m->data[b*b + row % b]);
+    //CkPrintf("row = %d, msgnum = %d, bvec = %f\n", row, msgnum,  m->data[b*b + row % b]);
     memcpy(&out->data[b * i], &m->data[row % b * b], b * sizeof(double));
     out->data[b*b + i] = m->data[b*b + row % b];
   }
 
-  printData(&out->data[0], b, b*1, "permuted", 0, 0);
-  printData(&out->data[b*b], 1, b, "bvec permute", 0, 0);
+  //printData(&out->data[0], b, b*1, "permuted", 0, 0);
+  //printData(&out->data[b*b], 1, b, "bvec permute", 0, 0);
 
   int* absRowPos = convertToAbsolutePos(permuted, b, msgs, b);
 
   for (int i = 0; i < b; ++i) {
-    CkPrintf("abs pos[%d] = %d\n", i, absRowPos[i]);
+    //CkPrintf("abs pos[%d] = %d\n", i, absRowPos[i]);
   }
 
   memcpy(out->rows, absRowPos, sizeof(int) * b);
@@ -461,7 +464,7 @@ bool LUBlk::shouldSendPivots() {
 void LUBlk::announceAgglomeratedPivots() {
   for (std::map<int, int>::iterator iter = pivotRecords.begin();
        iter != pivotRecords.end(); ++iter) {
-    CkPrintf("pos %d with %d\n", iter->first, iter->second);
+    //CkPrintf("pos %d with %d\n", iter->first, iter->second);
   }
 
   // Create and initialize a msg to carry the pivot sequences
@@ -528,8 +531,8 @@ void LUBlk::inferOtherPivotPositions() {
       int place = iter->first, newPlace;
       while ((newPlace = followPivotChain(place)) != -1)
 	place = newPlace;
-      CkPrintf("(%d,%d): inferring position for %d -> %d\n",
-	       thisIndex.x, thisIndex.y, iter->second, place);
+      //CkPrintf("(%d,%d): inferring position for %d -> %d\n",
+      //thisIndex.x, thisIndex.y, iter->second, place);
       pivotRecords[iter->second] = place;
     }
   }
@@ -537,7 +540,7 @@ void LUBlk::inferOtherPivotPositions() {
 
 /// Record
 void LUBlk::recordPivot(const int r1, const int r2) {
-  CkPrintf("recording pivot between %d and %d\n", r1, r2);
+  //CkPrintf("recording pivot between %d and %d\n", r1, r2);
   numRowsSinceLastPivotSend++;
   // If the two rows are the same, then dont record the pivot operation at all
   if (r1 == r2) return;

@@ -57,20 +57,19 @@ module lu {
         // control memory consumption and avoid interfering with
         // another local block working in the latency-sensitive active
         // panel.
-        when pivotBatchDone[0](int tag) atomic { updateExecuted = false;
-          CkPrintf("(%d,%d): pivotBatch\n", thisIndex.x, thisIndex.y); }
+        when pivotBatchDone[0](int tag) atomic { updateExecuted = false; }
         while (!updateExecuted) {
           when processTrailingUpdate[internalStep](int step, intptr_t update_ptr)
           atomic "trailing_update" {
             Update &update = *(Update *)update_ptr;
             if (localScheduler->shouldExecute()) {
-              CkPrintf("(%d,%d): updateMatrix\n", thisIndex.x, thisIndex.y); 
+              //CkPrintf("(%d,%d): updateMatrix\n", thisIndex.x, thisIndex.y); 
               updateMatrix(update.L, update.U);
               thisProxy(thisIndex.x, internalStep).blockUsed(1);
               localScheduler->updateDone(update_ptr);
               updateExecuted = true;
             } else {
-              CkPrintf("(%d,%d): untriggered\n", thisIndex.x, thisIndex.y); 
+              //CkPrintf("(%d,%d): untriggered\n", thisIndex.x, thisIndex.y); 
               update.triggered = false;
               localScheduler->updateUntriggered();
             }
@@ -97,12 +96,8 @@ module lu {
           }
           // Wait for all incoming pivot data from this batch
           while (pendingIncomingPivots > 0) {
-	    atomic {
-	      CkPrintf("(%d,%d): waiting on pivots\n", thisIndex.x, thisIndex.y);
-	    }
             when trailingPivotRowsSwap[pivotBatchTag](pivotRowsMsg *aMsg)
               atomic "acceptIncomingPivots" {
-	      CkPrintf("(%d,%d): acceptIncomingPivots\n", thisIndex.x, thisIndex.y);
               for (int i = 0; i < aMsg->nRows; i++) {
                 CkAssert(thisIndex.x == aMsg->rowNum[i]/blkSize);
                 applySwap(aMsg->rowNum[i] % blkSize, 0,
@@ -114,8 +109,6 @@ module lu {
           }
           // Increment the batch tag to the next expected
           atomic {
-	    CkPrintf("(%d,%d): finished pivoting\n", thisIndex.x, thisIndex.y);
-	    printData(bvec, 1, blkSize, "finished pivoting", thisIndex.x, thisIndex.y);
             pivotBatchTag += msg->numRowsProcessed;
             CmiFree(UsrToEnv(msg));
           }
@@ -172,7 +165,7 @@ module lu {
         localScheduler->factorizationDone(thisIndex);
       }
       atomic "abovediag_iteration_completed" {
-        CkPrintf("(%d,%d); contributing\n", thisIndex.x, thisIndex.y);
+        //CkPrintf("(%d,%d); contributing\n", thisIndex.x, thisIndex.y);
         contribute(factorizationDone); 
       }
       // Swallow excess pivots message broadcast to the entire array
@@ -196,28 +189,25 @@ module lu {
       }
       // below diagonal
       when recvFactoredBlock(CAPivotMsg* msg) atomic {
-        CkPrintf("(%d,%d): recvFactoredBlock with msg %p\n", thisIndex.x, thisIndex.y, msg);
+        //CkPrintf("(%d,%d): recvFactoredBlock with msg %p\n", thisIndex.x, thisIndex.y, msg);
 	size_t rowSize = blkSize * sizeof(double);
 
 	// apply pivots
 
 	for (int i = 0; i < blkSize; ++i) {
-	  CkPrintf("%d: data incoming = %f\n", i, msg->data[2*blkSize*blkSize + i]);
-	}
-	for (int i = 0; i < blkSize; ++i) {
 	  if (thisIndex.x == msg->rows[i] / blkSize) {
-	    CkPrintf("swapping in: perm msg->rows[%d] = %d\n", i, msg->rows[i]);
+	    //CkPrintf("swapping in: perm msg->rows[%d] = %d\n", i, msg->rows[i]);
 	    int localRow = msg->rows[i] % blkSize;
 	    int remoteRow = inferPivotPosition(msg->rows, blkSize, msg->rows[i]);
-	    CkPrintf("swapping in: (abs %d, local %d) for diag index %d\n", msg->rows[i],
-		     localRow, remoteRow);
+	    //CkPrintf("swapping in: (abs %d, local %d) for diag index %d\n", msg->rows[i],
+	    //localRow, remoteRow);
 	    memcpy(&LU[getIndex(localRow, 0)], msg->data + blkSize*remoteRow, rowSize);
 	    bvec[localRow] = msg->data[2*blkSize*blkSize + remoteRow];
 	  }
 	}
 
-	printData(LU, blkSize, blkSize, "recv un-factored", thisIndex.x, thisIndex.y);
-	printData(bvec, 1, blkSize, "BVEC-after swap", thisIndex.x, thisIndex.y);
+	//printData(LU, blkSize, blkSize, "recv un-factored", thisIndex.x, thisIndex.y);
+	//printData(bvec, 1, blkSize, "BVEC-after swap", thisIndex.x, thisIndex.y);
 
 	computeL(msg->data + blkSize * blkSize);
       }
@@ -232,18 +222,18 @@ module lu {
       while (blockPulled < numBlks-thisIndex.y-1) {
         when blockUsed(int count) atomic {
           blockPulled += count;
-          CkPrintf("(%d,%d): blockPulled = %d, total = %d\n", thisIndex.x, thisIndex.y, blockPulled, numBlks-thisIndex.y-1);
+          //CkPrintf("(%d,%d): blockPulled = %d, total = %d\n", thisIndex.x, thisIndex.y, blockPulled, numBlks-thisIndex.y-1);
         }
       }
 
       for (internalStep++; internalStep <= thisIndex.x; internalStep++) {
         atomic { thisProxy[thisIndex].pivotBatch(2);
-          CkPrintf("(%d,%d): pivoting\n", thisIndex.x, thisIndex.y);  
+          //CkPrintf("(%d,%d): pivoting\n", thisIndex.x, thisIndex.y);  
         }
         when pivotBatchDone[2](int tag) { }
       }
       atomic "belowdiag_iteration_completed" {
-        CkPrintf("(%d,%d); contributing\n", thisIndex.x, thisIndex.y);
+        //CkPrintf("(%d,%d); contributing\n", thisIndex.x, thisIndex.y);
         contribute(factorizationDone);
       }
       // Swallow excess pivots message broadcast to the entire array
@@ -264,7 +254,7 @@ module lu {
         localScheduler->startedActivePanel();
       }
       when preprocessFinished(CkReductionMsg* msg) atomic {
-        CkPrintf("(%d,%d) : preprocessFinished with msg %p\n", thisIndex.x, thisIndex.y, msg);
+        //CkPrintf("(%d,%d) : preprocessFinished with msg %p\n", thisIndex.x, thisIndex.y, msg);
         CAPivotMsg *pre = getPivotMessage(msg, true);
 
 	// for (int i = 0; i < blkSize; ++i) {
@@ -286,9 +276,9 @@ module lu {
 
 	memcpy(LU, pre->data, blockBytes);
 
-	for (int i = 0; i < blkSize; ++i) {
-	  CkPrintf("pre->rows[%d] = %d\n", i, pre->rows[i]);
-	}
+	// for (int i = 0; i < blkSize; ++i) {
+	//   CkPrintf("pre->rows[%d] = %d\n", i, pre->rows[i]);
+	// }
 
 	int info;
 	std::vector<int> pivots(blkSize);
@@ -298,7 +288,7 @@ module lu {
           for (int j = 0; j < blkSize; j++)
             tblock[getIndex(i,j)] = LU[getIndex(j,i)];
 
- 	printData(LU, blkSize, blkSize, "preprocess", thisIndex.x, thisIndex.y);
+ 	//printData(LU, blkSize, blkSize, "preprocess", thisIndex.x, thisIndex.y);
 
 #if defined(USE_ACCELERATE_BLAS)
         dgetrf_(&blkSize, &blkSize, tblock, &blkSize, &pivots[0], &info);
@@ -310,7 +300,7 @@ module lu {
         CkAssert(info == 0);
 
 	 for (int i = 0; i < blkSize; ++i) {
-	   CkPrintf("pivots[%d] = %d\n", i, pivots[i]);
+	   //CkPrintf("pivots[%d] = %d\n", i, pivots[i]);
 	   CkAssert(pivots[i] == i);
 	 }
 
@@ -332,9 +322,9 @@ module lu {
 
 	activePanel.recvFactoredBlock(Umsg);
 
-	for (int i = 0; i < blkSize; ++i) {
-	  CkPrintf("diag pre->rows[%d] = %d\n", i, pre->rows[i]);
-	}
+	// for (int i = 0; i < blkSize; ++i) {
+	//   CkPrintf("diag pre->rows[%d] = %d\n", i, pre->rows[i]);
+	// }
 
 	memcpy(bvec, &pre->data[blkSize * blkSize], blkSize * sizeof(double));
 
@@ -344,10 +334,9 @@ module lu {
 	}
 
 	inferOtherPivotPositions();
-
-	printData(bvec, 1, blkSize, "BVEC-after swap", thisIndex.x, thisIndex.y);
-
         announceAgglomeratedPivots();
+
+	//printData(bvec, 1, blkSize, "BVEC-after swap", thisIndex.x, thisIndex.y);
       }
 
       atomic "diag_multicast_L" {
@@ -367,7 +356,7 @@ module lu {
         }
         // Contribute to a reduction indicating that this chare is
         // done with its factorization work
-        CkPrintf("(%d,%d); contributing\n", thisIndex.x, thisIndex.y);
+        //CkPrintf("(%d,%d); contributing\n", thisIndex.x, thisIndex.y);
         contribute(factorizationDone);
       }
     };
