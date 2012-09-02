@@ -509,7 +509,7 @@ int LUBlk::followPivotChain(int place) {
 
 int LUBlk::followPivotChain(int* rows, int size, int place) {
   for (int i = 0; i < size; i++) {
-    if (rows[i] == place) return i;
+    if (rows[i] == place) return i + min(thisIndex.x, thisIndex.y) * blkSize;
   }
   return -1;
 }
@@ -518,7 +518,7 @@ int LUBlk::inferPivotPosition(int* rows, int size, int place) {
   int newPlace;
   while ((newPlace = followPivotChain(rows, size, place)) != -1)
     place = newPlace;
-  return place;
+  return place % blkSize;
 }
 
 void LUBlk::inferOtherPivotPositions() {
