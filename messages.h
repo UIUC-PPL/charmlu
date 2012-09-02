@@ -98,12 +98,13 @@ struct CAPivotMsg : public CMessage_CAPivotMsg, public CkMcastBaseMsg {
   int *rows;
   
   // For contribution to the reduction
-  CAPivotMsg(double *block, unsigned int blocksize_, unsigned int blockIndex)
+  CAPivotMsg(double *block, double* bvec, unsigned int blocksize_, unsigned int blockIndex)
     : blocksize(blocksize_)
   {
     for (unsigned int i = 0; i < blocksize; ++i)
       rows[i] = blockIndex*blocksize + i;
     memcpy(data, block, blocksize*blocksize*sizeof(double));
+    memcpy(data + blocksize*blocksize, bvec, blocksize*sizeof(double));
   }
 
   // For passing up the reduction tree

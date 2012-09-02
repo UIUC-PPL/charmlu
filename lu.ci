@@ -97,8 +97,12 @@ module lu {
           }
           // Wait for all incoming pivot data from this batch
           while (pendingIncomingPivots > 0) {
+	    atomic {
+	      CkPrintf("(%d,%d): waiting on pivots\n", thisIndex.x, thisIndex.y);
+	    }
             when trailingPivotRowsSwap[pivotBatchTag](pivotRowsMsg *aMsg)
               atomic "acceptIncomingPivots" {
+	      CkPrintf("(%d,%d): acceptIncomingPivots\n", thisIndex.x, thisIndex.y);
               for (int i = 0; i < aMsg->nRows; i++) {
                 CkAssert(thisIndex.x == aMsg->rowNum[i]/blkSize);
                 applySwap(aMsg->rowNum[i] % blkSize, 0,
@@ -110,6 +114,8 @@ module lu {
           }
           // Increment the batch tag to the next expected
           atomic {
+	    CkPrintf("(%d,%d): finished pivoting\n", thisIndex.x, thisIndex.y);
+	    printData(bvec, 1, blkSize, "finished pivoting", thisIndex.x, thisIndex.y);
             pivotBatchTag += msg->numRowsProcessed;
             CmiFree(UsrToEnv(msg));
           }
@@ -194,12 +200,22 @@ module lu {
 	size_t rowSize = blkSize * sizeof(double);
 
 	// apply pivots
+
+	for (int i = 0; i < blkSize; ++i) {
+	  CkPrintf("%d: data incoming = %f\n", i, msg->data[2*blkSize*blkSize + i]);
+	}
 	for (int i = 0; i < blkSize; ++i) {
 	  if (thisIndex.x == msg->rows[i] / blkSize) {
+	    CkPrintf("swapping in: perm msg->rows[%d] = %d\n", i, msg->rows[i]);
 	    unsigned int localRow = msg->rows[i] % blkSize;
 	    memcpy(&LU[getIndex(localRow, 0)], msg->data + blkSize*i, rowSize);
+	    CkPrintf("swapping in: bvec[%d] = msg->data[%d]\n", i, localRow);
+	    bvec[localRow] = msg->data[2*blkSize*blkSize + i];
 	  }
 	}
+
+	printData(LU, blkSize, blkSize, "recv un-factored", thisIndex.x, thisIndex.y);
+	printData(bvec, 1, blkSize, "BVEC-after swap", thisIndex.x, thisIndex.y);
 
 	computeL(msg->data + blkSize * blkSize);
       }
@@ -248,16 +264,26 @@ module lu {
       when preprocessFinished(CkReductionMsg* msg) atomic {
         CkPrintf("(%d,%d) : preprocessFinished with msg %p\n", thisIndex.x, thisIndex.y, msg);
         CAPivotMsg *pre = getPivotMessage(msg, true);
-        CAPivotMsg *Umsg = new (2 * blkSize*blkSize, blkSize) CAPivotMsg(blkSize, pre->rows);
+
+	// for (int i = 0; i < blkSize; ++i) {
+	//   pre->rows[i] = thisIndex.x * blkSize + i;
+	// }
+
+        CAPivotMsg *Umsg = new (2 * blkSize*blkSize + blkSize, blkSize) CAPivotMsg(blkSize, pre->rows);
 	// Copy in original diagonal data for pivoting
 	size_t blockBytes = blkSize*blkSize*sizeof(double);
+
+	for (int i = 0; i < blkSize; ++i)
+	  if (pre->rows[i] >= blkSize * thisIndex.x &&
+	      pre->rows[i] <  blkSize * (thisIndex.x + 1))
+	    std::swap_ranges(&(LU[getIndex(i,0)]), &(LU[getIndex(i,blkSize)]), &(LU[getIndex(pre->rows[i] % blkSize,0)]));
+
 	memcpy(Umsg->data, LU, blockBytes);
 	memcpy(LU, pre->data, blockBytes);
 
-	// for (int i = 0; i < blkSize; ++i) {
-	//   CkPrintf("pre->rows[%d] = %d\n", i, pre->rows[i]);
-	//   //CkAssert(pivots[i] == i + 1);
-	// }
+	for (int i = 0; i < blkSize; ++i) {
+	  CkPrintf("pre->rows[%d] = %d\n", i, pre->rows[i]);
+	}
 
 	int info;
 	std::vector<int> pivots(blkSize);
@@ -267,7 +293,7 @@ module lu {
           for (int j = 0; j < blkSize; j++)
             tblock[getIndex(i,j)] = LU[getIndex(j,i)];
 
- 	//printData(LU, blkSize, blkSize, "preprocess");
+ 	printData(LU, blkSize, blkSize, "preprocess", thisIndex.x, thisIndex.y);
 
 #if defined(USE_ACCELERATE_BLAS)
         dgetrf_(&blkSize, &blkSize, tblock, &blkSize, &pivots[0], &info);
@@ -278,28 +304,47 @@ module lu {
           CkPrintf("info = %d\n", info);
         CkAssert(info == 0);
 
-	// for (int i = 0; i < blkSize; ++i) {
-	//   CkPrintf("pivots[%d] = %d\n", i, pivots[i]);
-	//   //CkAssert(pivots[i] == i);
-	// }
+	 for (int i = 0; i < blkSize; ++i) {
+	   CkPrintf("pivots[%d] = %d\n", i, pivots[i]);
+	   CkAssert(pivots[i] == i);
+	 }
 
         for (int i = 0; i < blkSize; i++)
           for (int j = 0; j < blkSize; j++)
             LU[getIndex(i,j)] = tblock[getIndex(j,i)];
 
-	for (int i = 0; i < blkSize; i++) {
-	  std::swap(bvec[i], bvec[pre->rows[i]]);
-	}
-
+	// for testing without pivoting
 	//LUdecompose(LU);
 
+	for (int i = 0; i < blkSize; ++i)
+	  if (pre->rows[i] >= blkSize * thisIndex.x &&
+	      pre->rows[i] <  blkSize * (thisIndex.x + 1))
+	    std::swap(bvec[i], bvec[pre->rows[i] % blkSize]);
+
 	memcpy(Umsg->data + blkSize*blkSize, LU, blockBytes);
+	memcpy(Umsg->data + 2*blkSize*blkSize, bvec, blkSize * sizeof(double));
 
 	activePanel.recvFactoredBlock(Umsg);
 
+	for (int i = 0; i < blkSize; ++i) {
+	  CkPrintf("diag pre->rows[%d] = %d\n", i, pre->rows[i]);
+	}
+
+	memcpy(bvec, &pre->data[blkSize * blkSize], blkSize * sizeof(double));
+
 	// Store the pivot information
-	for (int i = 0; i < blkSize; ++i)
-	  recordPivot(thisIndex.y*blkSize + i, pivots[i]);
+	for (int i = 0; i < blkSize; ++i) {
+	  // if (pre->rows[i] >= blkSize * thisIndex.x &&
+	  //     pre->rows[i] <  blkSize * (thisIndex.x + 1)) {
+	  //   //std::swap(bvec[i], bvec[pre->rows[i]]);
+	  //   numRowsSinceLastPivotSend++;
+	  // } else {
+	  recordPivot(thisIndex.x*blkSize + i, pre->rows[i]);
+	  //}
+	}
+
+	printData(bvec, 1, blkSize, "BVEC-after swap", thisIndex.x, thisIndex.y);
+
         announceAgglomeratedPivots();
       }
 

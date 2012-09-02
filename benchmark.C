@@ -445,6 +445,10 @@ void BenchmarkLUBlk::initVec() {
   bvec = new double[blkSize];
 
   seed_b = 9934835;
+
+  //for (int i = 0; i < blkSize; i++)
+  //bvec[i] = i + thisIndex.x * blkSize;
+
   genVec(bvec);
 }
 
