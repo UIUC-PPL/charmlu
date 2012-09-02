@@ -207,10 +207,12 @@ module lu {
 	for (int i = 0; i < blkSize; ++i) {
 	  if (thisIndex.x == msg->rows[i] / blkSize) {
 	    CkPrintf("swapping in: perm msg->rows[%d] = %d\n", i, msg->rows[i]);
-	    unsigned int localRow = msg->rows[i] % blkSize;
-	    memcpy(&LU[getIndex(localRow, 0)], msg->data + blkSize*i, rowSize);
-	    CkPrintf("swapping in: bvec[%d] = msg->data[%d]\n", i, localRow);
-	    bvec[localRow] = msg->data[2*blkSize*blkSize + i];
+	    int localRow = msg->rows[i] % blkSize;
+	    int remoteRow = inferPivotPosition(msg->rows, blkSize, msg->rows[i]);
+	    CkPrintf("swapping in: (abs %d, local %d) for diag index %d\n", msg->rows[i],
+		     localRow, remoteRow);
+	    memcpy(&LU[getIndex(localRow, 0)], msg->data + blkSize*remoteRow, rowSize);
+	    bvec[localRow] = msg->data[2*blkSize*blkSize + remoteRow];
 	  }
 	}
 
@@ -273,12 +275,15 @@ module lu {
 	// Copy in original diagonal data for pivoting
 	size_t blockBytes = blkSize*blkSize*sizeof(double);
 
+	memcpy(Umsg->data, LU, blockBytes);
+
 	for (int i = 0; i < blkSize; ++i)
 	  if (pre->rows[i] >= blkSize * thisIndex.x &&
 	      pre->rows[i] <  blkSize * (thisIndex.x + 1))
-	    std::swap_ranges(&(LU[getIndex(i,0)]), &(LU[getIndex(i,blkSize)]), &(LU[getIndex(pre->rows[i] % blkSize,0)]));
+	    std::swap_ranges(&(LU[getIndex(i,0)]),
+			     &(LU[getIndex(i,blkSize)]),
+			     &(LU[getIndex(pre->rows[i] % blkSize,0)]));
 
-	memcpy(Umsg->data, LU, blockBytes);
 	memcpy(LU, pre->data, blockBytes);
 
 	for (int i = 0; i < blkSize; ++i) {
@@ -316,13 +321,14 @@ module lu {
 	// for testing without pivoting
 	//LUdecompose(LU);
 
+	memcpy(Umsg->data + 2*blkSize*blkSize, bvec, blkSize * sizeof(double));
+
 	for (int i = 0; i < blkSize; ++i)
 	  if (pre->rows[i] >= blkSize * thisIndex.x &&
 	      pre->rows[i] <  blkSize * (thisIndex.x + 1))
 	    std::swap(bvec[i], bvec[pre->rows[i] % blkSize]);
 
 	memcpy(Umsg->data + blkSize*blkSize, LU, blockBytes);
-	memcpy(Umsg->data + 2*blkSize*blkSize, bvec, blkSize * sizeof(double));
 
 	activePanel.recvFactoredBlock(Umsg);
 
@@ -334,14 +340,10 @@ module lu {
 
 	// Store the pivot information
 	for (int i = 0; i < blkSize; ++i) {
-	  // if (pre->rows[i] >= blkSize * thisIndex.x &&
-	  //     pre->rows[i] <  blkSize * (thisIndex.x + 1)) {
-	  //   //std::swap(bvec[i], bvec[pre->rows[i]]);
-	  //   numRowsSinceLastPivotSend++;
-	  // } else {
 	  recordPivot(thisIndex.x*blkSize + i, pre->rows[i]);
-	  //}
 	}
+
+	inferOtherPivotPositions();
 
 	printData(bvec, 1, blkSize, "BVEC-after swap", thisIndex.x, thisIndex.y);
 

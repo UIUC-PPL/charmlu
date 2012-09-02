@@ -154,6 +154,10 @@ protected:
     return i * blkSize + j;
   }
   void LUdecompose(double* A);
+  void inferOtherPivotPositions();
+  int inferPivotPosition(int* rows, int size, int place);
+  int followPivotChain(int* rows, int size, int place);
+  int followPivotChain(int place);
 
   bool isOnDiagonal()    { return thisIndex.x == thisIndex.y; }
   bool isAboveDiagonal() { return thisIndex.x <  thisIndex.y; }

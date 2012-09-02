@@ -499,23 +499,49 @@ void LUBlk::announceAgglomeratedPivots() {
   numRowsSinceLastPivotSend = 0;
 }
 
-/// Record the effect of a pivot operation in terms of actual row numbers
+int LUBlk::followPivotChain(int place) {
+  for (std::map<int, int>::iterator iter = pivotRecords.begin();
+       iter != pivotRecords.end(); ++iter) {
+    if (iter->second == place) return iter->first;
+  }
+  return -1;
+}
+
+int LUBlk::followPivotChain(int* rows, int size, int place) {
+  for (int i = 0; i < size; i++) {
+    if (rows[i] == place) return i;
+  }
+  return -1;
+}
+
+int LUBlk::inferPivotPosition(int* rows, int size, int place) {
+  int newPlace;
+  while ((newPlace = followPivotChain(rows, size, place)) != -1)
+    place = newPlace;
+  return place;
+}
+
+void LUBlk::inferOtherPivotPositions() {
+  for (std::map<int, int>::iterator iter = pivotRecords.begin();
+       iter != pivotRecords.end(); ++iter) {
+    if (iter->second >= (thisIndex.x + 1) * blkSize) {
+      int place = iter->first, newPlace;
+      while ((newPlace = followPivotChain(place)) != -1)
+	place = newPlace;
+      CkPrintf("(%d,%d): inferring position for %d -> %d\n",
+	       thisIndex.x, thisIndex.y, iter->second, place);
+      pivotRecords[iter->second] = place;
+    }
+  }
+}
+
+/// Record
 void LUBlk::recordPivot(const int r1, const int r2) {
   CkPrintf("recording pivot between %d and %d\n", r1, r2);
   numRowsSinceLastPivotSend++;
   // If the two rows are the same, then dont record the pivot operation at all
   if (r1 == r2) return;
-  int prev = -1;
-  if (pivotRecords.find(r1) != pivotRecords.end()) {
-    prev = pivotRecords[r1];
-  }
   pivotRecords[r1] = r2;
-  if (pivotRecords.find(r2) == pivotRecords.end()) {
-    if (prev == -1)
-      pivotRecords[r2] = r1;
-    else
-      pivotRecords[r2] = prev;
-  }
 }
 
 void LUBlk::resetMessage(bool reverse) {
