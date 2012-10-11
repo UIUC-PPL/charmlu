@@ -5,10 +5,11 @@
 #include <ckmulticast.h>
 #include <algorithm>
 
+extern CmiNodeLock msgRefCntLock;
 /// Utility to retain a reference to a reference-counted message
-static inline void takeRef(void *m) { CmiReference(UsrToEnv(m)); }
+static inline void takeRef(void *m) { CmiLock(msgRefCntLock); CmiReference(UsrToEnv(m)); CmiUnlock(msgRefCntLock); }
 /// Utility to drop a reference to a reference-counted message
-static inline void dropRef(void *m) { CmiFree(UsrToEnv(m)); }
+static inline void dropRef(void *m) { CmiLock(msgRefCntLock); CmiFree(UsrToEnv(m)); CmiUnlock(msgRefCntLock); }
 
 /// A block of the matrix, with ornamentation for setup-free multicast
 struct blkMsg: public CkMcastBaseMsg, CMessage_blkMsg {

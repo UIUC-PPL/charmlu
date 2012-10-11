@@ -14,6 +14,11 @@ using std::min;
 #include "platformBlas.h"
 #include "driver.decl.h"
 
+// Lock to modify msg counts
+CmiNodeLock msgRefCntLock;
+
+void initMsgRefCntLock() { msgRefCntLock = CmiCreateLock(); }
+
 // Execute a trailing update
 void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
 #if USE_ESSL || USE_ACML
