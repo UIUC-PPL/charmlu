@@ -1,8 +1,14 @@
 #ifndef LU_MESSAGES_H
 #define LU_MESSAGES_H
 
-#include "lu.decl.h"
+#include "luMessages.decl.h"
+#include <ckmulticast.h>
 #include <algorithm>
+
+/// Utility to retain a reference to a reference-counted message
+static inline void takeRef(void *m) { CmiReference(UsrToEnv(m)); }
+/// Utility to drop a reference to a reference-counted message
+static inline void dropRef(void *m) { CmiFree(UsrToEnv(m)); }
 
 /// A block of the matrix, with ornamentation for setup-free multicast
 struct blkMsg: public CkMcastBaseMsg, CMessage_blkMsg {

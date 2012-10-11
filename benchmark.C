@@ -10,8 +10,19 @@
 #include <limits>
 #include <iostream>
 
+#if CHARMLU_DEBUG >= 2
+  #define VERBOSE_VALIDATION(...) CkPrintf(__VA_ARGS__)
+#else
+  #define VERBOSE_VALIDATION(...)
+#endif
+
 #define _QUOTEIT(x) #x
 #define INQUOTES(x) _QUOTEIT(x)
+
+/// The build system should define this macro to be the commit identifier
+#ifndef LU_REVISION
+    #define LU_REVISION Unknown
+#endif
 
 //A class for randomly generating matrix elements' value
 #define MAXINT (~(1<<31))
@@ -120,7 +131,7 @@ struct Benchmark : public CBase_Benchmark {
       }
     }
     else
-      luCfg.mappingScheme = 1;
+      luCfg.mappingScheme = 2;
 
     if (luCfg.matrixSize >= std::numeric_limits<short>::max() &&
         sizeof(CMK_REFNUM_TYPE) != sizeof(int)) {
@@ -154,7 +165,6 @@ struct Benchmark : public CBase_Benchmark {
              luCfg.memThreshold,
              SEND_LIM,
              luCfg.mappingScheme,
-             luCfg.mappingScheme == 1 ? "Balanced Snake" :
              (luCfg.mappingScheme == 2 ? "Block Cyclic" : "2D Tiling")
              );
     if (luCfg.mappingScheme == 3)
@@ -215,7 +225,6 @@ class LUSolver : public CBase_LUSolver {
   bool solved, LUcomplete;
   CProxy_BenchmarkLUBlk luArrProxy;
   CProxy_BlockScheduler bs;
-  int mappingScheme;
   CkCallback finishedSolve;
 
 public:
@@ -226,15 +235,6 @@ public:
   , finishedSolve(finishedSolve) {
     // Create a multicast manager group
     luCfg.mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
-
-    luCfg.traceTrailingUpdate = traceRegisterUserEvent("Trailing Update");
-    luCfg.traceComputeU = traceRegisterUserEvent("Compute U");
-    luCfg.traceComputeL = traceRegisterUserEvent("Compute L");
-    luCfg.traceSolveLocalLU = traceRegisterUserEvent("Solve local LU");
-
-    traceRegisterUserEvent("Local Multicast Deliveries", 10000);
-    traceRegisterUserEvent("Remote Multicast Forwarding - preparing", 10001);
-    traceRegisterUserEvent("Remote Multicast Forwarding - sends", 10002);
 
     thisProxy.startNextStep();
   }
@@ -252,9 +252,6 @@ public:
       luArrProxy.startValidation();
     } else if (!solved && LUcomplete) {
       CkPrintf("starting solve at wall time: %f\n", CmiWallTimer());
-      #if defined(LU_TRACING)
-      traceToggler::stop();
-      #endif
       for (int i = 0; i < luCfg.numBlocks; i++)
         luArrProxy(i, i).forwardSolve();
       solved = true;
@@ -263,15 +260,9 @@ public:
       opts.setAnytimeMigration(false)
 	  .setStaticInsertion(true);
       CkGroupID map;
-      switch (mappingScheme) {
-      case 0:
-	map = CProxy_BlockCyclicMap::ckNew();
-	break;
-      case 1:
-        map = CProxy_LUBalancedSnakeMap::ckNew(luCfg.numBlocks, luCfg.blockSize);
-	break;
+      switch (luCfg.mappingScheme) {
       case 2:
-        map = CProxy_RealBlockCyclicMap::ckNew(1, luCfg.numBlocks);
+        map = CProxy_BlockCyclicMap::ckNew(1, luCfg.numBlocks);
         break;
       case 3:
         map = CProxy_PE2DTilingMap::ckNew(luCfg.peTileRows, luCfg.peTileCols,
@@ -299,7 +290,7 @@ public:
 			 CkCallback(CkIndex_LUSolver::continueIter(), thisProxy),
 			 CkCallback(CkIndex_LUSolver::startNextStep(), thisProxy),
 			 CkCallback(CkIndex_LUSolver::startNextStep(), thisProxy));
-      luArrProxy.initVec();
+      //luArrProxy.initVec();
     }
   }
 
@@ -371,11 +362,13 @@ public:
 		 {"Abe", 9.332},
                  {"Ranger", 9.2},
                  {"Jaguar/Kraken XT5", 10.3987},
-		 {"BG/P", 3.4}};
+		 {"BG/P", 3.4}
+		 ,{"Jaguar XK6 sans GPUs", 8.8}
+    };
 
     for (int i = 0; i < sizeof(peaks)/sizeof(peaks[0]); ++i) {
       double fractionOfPeak = gflops_per_core / peaks[i].gflops_per_core;
-      std::cout << "If ran on " << peaks[i].machine << ", I think you got \t"
+      std::cout <<  peaks[i].machine << ":\t"
 		<< 100.0*fractionOfPeak << "% of peak" << std::endl;
     }
     double dgemmDuration    = testdgemm(luCfg.blockSize);

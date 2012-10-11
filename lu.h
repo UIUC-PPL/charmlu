@@ -10,50 +10,6 @@
 #include <vector>
 using std::min;
 
-#if CHARMLU_DEBUG >= 1
-  #define DEBUG_PRINT(FORMAT, ...) CkPrintf("(%d: [%d,%d]@%d) " FORMAT "\n", CkMyPe(), thisIndex.x, thisIndex.y, internalStep ,##__VA_ARGS__)
-  #define DEBUG_SCHED(FORMAT, ...) CkPrintf("(%d S): " FORMAT "\n", CkMyPe() ,##__VA_ARGS__)
-#else
-  #define DEBUG_PRINT(...)
-  #define DEBUG_SCHED(...)
-#endif
-
-#if CHARMLU_DEBUG >= 2
-  #define DEBUG_PIVOT(...) CkPrintf(__VA_ARGS__)
-  #define VERBOSE_PROGRESS(...) CkPrintf(__VA_ARGS__)
-  #define VERY_VERBOSE_PIVOT_AGGLOM(...) CkPrintf(__VA_ARGS__)
-  #define VERBOSE_VALIDATION(...) CkPrintf(__VA_ARGS__)
-  #define VERBOSE_PIVOT_RECORDING
-  #define VERBOSE_PIVOT_AGGLOM
-#else
-  #define DEBUG_PIVOT(...)
-  #define VERBOSE_PROGRESS(...)
-  #define VERY_VERBOSE_PIVOT_AGGLOM(...)
-  #define VERBOSE_VALIDATION(...)
-#endif
-
-struct MaxElm {
-  double val;
-  int loc;
-  MaxElm(): val(0.0), loc(-1) { }
-  MaxElm(double _val, int _loc): val(_val), loc(_loc) { }
-};
-
-/// Global that holds the reducer type for MaxElm
-extern CkReduction::reducerType MaxElmReducer;
-//extern CmiNodeLock lock;
-
-static inline void takeRef(void *m) {
-//    CmiLock(lock);
-    CmiReference(UsrToEnv(m));
-//    CmiUnlock(lock);
-}
-static inline void dropRef(void *m) {
-//    CmiLock(lock);
-    CmiFree(UsrToEnv(m));
-//    CmiUnlock(lock);
-}
-
 /**
  * 2D chare array that embodies a block of the input matrix
  *
@@ -61,50 +17,25 @@ static inline void dropRef(void *m) {
  */
 class LUBlk: public CBase_LUBlk {
 public:
-  /// Performs the triangular solve required to compute a block of the U matrix (dtrsm)
-  void computeU(double *LMsg);
-  /// Perform trailing update based on input matrices (dgemm)
-  void updateMatrix(double *incomingL, double *incomingU);
-  //broadcast the U downwards to the blocks in the same column
-  void setupMsg(bool reverse);
-  // Schedule U to be sent downward to the blocks in the same column
-  void scheduleDownwardU();
-  // Schedule L to be sent rightwards to the blocks in the same row
-  void scheduleRightwardL();
-  void sendBlocks(int);
+  //------ Public Interface for Block Scheduler Object (for memory management) ------
+  /// Broadcast the U downwards to the blocks in the same column
+  void resetMessage(bool reverse);
+  /// Sends out the block to requesting PE if / when this block has been factored
   void requestBlock(int pe, int rx, int ry);
+  /// Gives the local scheduler object access to this block's data
   double *accessLocalBlock();
 
-  /// Solution
-  void localSolve(double *xvec, double *preVec);
-  void localForward(double *xvec);
-  void localBackward(double *xvec);
-  void offDiagSolve(BVecMsg *m);
-
-  LUBlk()
-    : factored(false)
-    , blockPulled(0), blocksAfter(0), maxRequestingPEs(0)
-    , isOnDiagonal   ( thisIndex.x == thisIndex.y)
-    , isAboveDiagonal( thisIndex.x <  thisIndex.y)
-    , isBelowDiagonal( thisIndex.x >  thisIndex.y) {
+  /// Constructor
+  LUBlk() : factored(false), blockPulled(0), blocksAfter(0), maxRequestingPEs(0) {
+    // allow SDAG to initialize its internal state for this chare
     __sdag_init();
-#if defined(LU_TRACING)
-    traceEnd();
-#endif
   }
 
-  void traceOn() {
-#if defined(LU_TRACING)
-    traceBegin();
-#endif
-  }
-
-  void flushLogs();
   void init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
 	    CkCallback initDone, CkCallback fznDone, CkCallback slnDone);
   void prepareForActivePanel(rednSetupMsg *msg);
   ~LUBlk();
-  LUBlk(CkMigrateMessage* m): isOnDiagonal(false), isAboveDiagonal(false), isBelowDiagonal(false) { CkAbort("LU blocks not migratable yet"); }
+  LUBlk(CkMigrateMessage* m) { CkAbort("LU blocks not migratable yet"); }
   // Added for migration
   void pup(PUP::er &p) {  }
 
@@ -138,11 +69,9 @@ protected:
   double startTime;
 
   // Variables for pivoting SDAG code
-  int row1Index, row2Index, localRow1, localRow2,
-    otherRowIndex, thisLocalRow, globalThisRow, globalOtherRow;
-  bool remoteSwap, ownedPivotThisStep;
+  bool ownedPivotThisStep;
   // Stores the local column max which is a candidate for that column's pivot element
-  MaxElm pivotCandidate;
+  MaxElm pivotCandidate, pivot;
   int pivotBlk;
   /// Tag for all msgs associated with a single batch of pivots
   int pivotBatchTag;
@@ -188,6 +117,14 @@ protected:
   LUBlk_SDAG_CODE
 
   private:
+  /// Perform trailing update based on input matrices (dgemm)
+  void updateMatrix(double *incomingL, double *incomingU);
+  /// Performs the triangular solve required to compute a block of the U matrix (dtrsm)
+  void computeU(double *LMsg);
+  /// Schedule U to be sent downward to the blocks in the same column
+  void scheduleDownwardU();
+  // Schedule L to be sent rightwards to the blocks in the same row
+  void scheduleRightwardL();
   // Copy received pivot data into its place in this block
   void applySwap(int row, int offset, const double *data, double b);
   // Exchange local data
@@ -215,5 +152,7 @@ protected:
     return i * blkSize + j;
   }
 
-  const bool isOnDiagonal, isAboveDiagonal, isBelowDiagonal;
+  bool isOnDiagonal()    { return thisIndex.x == thisIndex.y; }
+  bool isAboveDiagonal() { return thisIndex.x <  thisIndex.y; }
+  bool isBelowDiagonal() { return thisIndex.x >  thisIndex.y; }
 };

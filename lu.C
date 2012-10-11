@@ -2,178 +2,20 @@
  * @file A Charm++ implementation of LU
  */
 
-#include "luConfig.h"
-
-/// The build system should define this macro to be the commit identifier
-#ifndef LU_REVISION
-    #define LU_REVISION Unknown
-#endif
-
-#include <string.h>
-#include <iostream>
-#include <sstream>
-#include <map>
 #include <algorithm>
 using std::min;
-#include <limits>
 #include <cmath>
-
-#include "platformBlas.h"
-
-#if USE_MEMALIGN
-#include <malloc.h>
-#endif
-
-#include "lu.decl.h"
-#include <trace-projections.h>
-#include <ckmulticast.h>
-#include <queueing.h> // for access to memory threshold setting
+#include <limits>
+#include <map>
+#include <string.h>
 
 #include "lu.h"
-#include "manager.h"
 #include "mapping.h"
-#include "messages.h"
+#include "platformBlas.h"
+#include "driver.decl.h"
 
-// Define static variable
-#if defined(LU_TRACING)
-  int traceToggler::traceCmdHandlerID;
-#endif
-
-CkReductionMsg *maxMaxElm(int nMsg, CkReductionMsg **msgs) {
-  CkAssert(nMsg > 0);
-
-  MaxElm *l = (MaxElm*) msgs[0]->getData();
-  for (int i = 1; i < nMsg; ++i) {
-    MaxElm *n = (MaxElm *) msgs[i]->getData();
-    if (fabs(n->val) > fabs(l->val))
-      l = n;
-  }
-
-  return CkReductionMsg::buildNew(sizeof(MaxElm), l);
-}
-
-/// Global that holds the reducer type for MaxElm
-CkReduction::reducerType MaxElmReducer;
-
-/// Function that registers this reducer type on every processor
-void registerMaxElmReducer() {
-  MaxElmReducer = CkReduction::addReducer(maxMaxElm);
-}
-
-struct traceLU {
-  int step, event;
-  double startTime;
-  traceLU(int internalStep, int eventType)
-    : step(internalStep), event(eventType), startTime(CkWallTimer()) {
-    traceUserSuppliedData(internalStep);
-    traceMemoryUsage();
-  }
-
-  ~traceLU() {
-    traceUserBracketEvent(event, startTime, CkWallTimer());
-  }
-};
-
-void LUBlk::flushLogs() {
-#if defined(LU_TRACING)
-  flushTraceLog();
-#endif
-}
-
-void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
-                 CProxy_BlockScheduler bs,
-		 CkCallback initialization, CkCallback factorization, CkCallback solution) {
-  scheduler = bs;
-  localScheduler = scheduler[CkMyPe()].ckLocal();
-  CkAssert(localScheduler);
-  localScheduler->registerBlock(thisIndex);
-  contribute(CkCallback(CkIndex_BlockScheduler::allRegistered(NULL), bs));
-  cfg = _cfg;
-  blkSize = cfg.blockSize;
-  numBlks = cfg.numBlocks;
-  mgr = _mgr.ckLocalBranch();
-  suggestedPivotBatchSize = cfg.pivotBatchSize;
-  schedAdaptMemThresholdMB = cfg.memThreshold;
-  initDone = initialization;
-  factorizationDone = factorization;
-  solveDone = solution;
-  internalStep = 0;
-
-  CkAssert(blkSize > 0);
-
-  traceUserSuppliedData(-1);
-  traceMemoryUsage();
-
-  CkMulticastMgr *mcastMgr = CProxy_CkMulticastMgr(cfg.mcastMgrGID).ckLocalBranch();
-
-  /// Chares on the active panels will create sections of their brethren
-#if defined(CHARMLU_USEG_FROM_BELOW)
-  if (thisIndex.x >= thisIndex.y)
-#else
-  if (thisIndex.x == thisIndex.y)
-#endif
-  {
-    // Elements in the active panel, not including this block
-    CkVec<CkArrayIndex2D> activeElems;
-    for (int i = thisIndex.y+1; i < numBlks; i++)
-      if (i != thisIndex.x)
-        activeElems.push_back(CkArrayIndex2D(i, thisIndex.y));
-    activePanel = CProxySection_LUBlk::ckNew(thisArrayID, activeElems.getVec(), activeElems.size());
-    activePanel.ckSectionDelegate(mcastMgr);
-    rednSetupMsg *activePanelMsg = new rednSetupMsg(cfg.mcastMgrGID);
-    activePanel.prepareForActivePanel(activePanelMsg);
-  }
-  /// Chares on the array diagonal will now create pivot sections that they will talk to
-  if (thisIndex.x == thisIndex.y) {
-    // Create the pivot section
-    pivotSection = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,numBlks-1,1,thisIndex.y,thisIndex.y,1);
-    rowBeforeDiag = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,thisIndex.x,1,0,thisIndex.y-1,1);
-    rowAfterDiag = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,thisIndex.x,1,thisIndex.y+1,numBlks-1,1);
-    // Delegate pivot section to the manager
-    pivotSection.ckSectionDelegate(mcastMgr);
-    rowBeforeDiag.ckSectionDelegate(mcastMgr);
-    rowAfterDiag.ckSectionDelegate(mcastMgr);
-    // Set the reduction client for this pivot section
-    mcastMgr->setReductionClient( pivotSection, new CkCallback( CkIndex_LUBlk::colMax(0), thisProxy(thisIndex.y, thisIndex.y) ) );
-
-    // Invoke a dummy mcast so that all the section members know which section to reduce along
-    rednSetupMsg *pivotMsg = new rednSetupMsg(cfg.mcastMgrGID);
-    rednSetupMsg *rowBeforeMsg = new rednSetupMsg(cfg.mcastMgrGID);
-    rednSetupMsg *rowAfterMsg = new rednSetupMsg(cfg.mcastMgrGID);
-
-    pivotSection.prepareForPivotRedn(pivotMsg);
-    rowBeforeDiag.prepareForRowBeforeDiag(rowBeforeMsg);
-    rowAfterDiag.prepareForRowAfterDiag(rowAfterMsg);
-
-    if (thisIndex.x == 0) {
-      thisProxy.multicastRedns(0);
-    }
-  }
-  // All chares except members of pivot sections are done with init
-}
-
-void LUBlk::prepareForActivePanel(rednSetupMsg *msg) { }
-
-LUBlk::~LUBlk() {
-  delete LUmsg;
-  LU = NULL;
-}
-
-void LUBlk::computeU(double *LMsg) {
-  traceLU t(internalStep, cfg.traceComputeU);
-#if USE_ESSL || USE_ACML
-  // LMsg is implicitly transposed by telling dtrsm that it is a
-  // right, upper matrix. Since this also switches the order of
-  // multiplication, the transpose is output to LU.
-  dtrsm(BLAS_RIGHT, BLAS_UPPER, BLAS_NOTRANSPOSE, BLAS_UNIT, blkSize, blkSize, 1.0, LMsg, blkSize, LU, blkSize);
-#else
-  cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, blkSize, blkSize, 1.0, LMsg, blkSize, LU, blkSize);
-#endif
-}
-
+// Execute a trailing update
 void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
-  traceLU t(internalStep, cfg.traceTrailingUpdate);
-
 #if USE_ESSL || USE_ACML
   // By switching the order of incomingU and incomingL the transpose
   // is applied implicitly: C' = B*A
@@ -192,239 +34,8 @@ void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
 #endif
 }
 
-void LUBlk::setupMsg(bool reverse) {
-  // Setup multicast of message to a dynamic set of processors
-  blkMsg *m = LUmsg;
-
-  CkAssert(requestingPEs.size() <= maxRequestingPEs);
-
-  std::sort(requestingPEs.begin(), requestingPEs.end());
-  if (reverse) std::reverse(requestingPEs.begin(), requestingPEs.end());
-
-  DEBUG_PRINT("Preparing block for delivery to %d PEs", requestingPEs.size());
-
-  // Junk value to catch bugs
-  m->npes_sender = -1;
-  m->npes_receiver = requestingPEs.size();
-  m->offset = 0;
-  memcpy(m->pes, &requestingPEs[0], sizeof(requestingPEs[0])*m->npes_receiver);
-
-  requestingPEs.clear();
-}
-
-// Schedule U to be sent downward to the blocks in the same column
-inline void LUBlk::scheduleDownwardU() {
-  traceUserSuppliedData(internalStep);
-  traceMemoryUsage();
-  mgr->setPrio(LUmsg, MULT_RECV_U);
-
-  DEBUG_PRINT("Multicast to part of column %d", thisIndex.y);
-  localScheduler->scheduleSend(thisIndex, internalStep == thisIndex.y - 1);
-}
-
-// Schedule L to be sent rightward to the blocks in the same row
-inline void LUBlk::scheduleRightwardL() {
-  traceUserSuppliedData(internalStep);
-  traceMemoryUsage();
-  mgr->setPrio(LUmsg, MULT_RECV_L);
-
-  DEBUG_PRINT("Multicast block to part of row %d", thisIndex.x);
-  localScheduler->scheduleSend(thisIndex, true);
-}
-
-void LUBlk::requestBlock(int pe, int rx, int ry) {
-  if (factored) {
-    requestingPEs.push_back(pe);
-
-    bool onActive = false;
-    if (thisIndex.x > thisIndex.y && internalStep == thisIndex.y)
-      onActive = true;
-    else if (thisIndex.x < thisIndex.y && internalStep == thisIndex.y - 1)
-      onActive = true;
-
-    localScheduler->scheduleSend(thisIndex, onActive);
-  } else {
-    DEBUG_PRINT("Queueing remote block for pe %d", pe);
-    requestingPEs.push_back(pe);
-  }
-}
-
-double* LUBlk::accessLocalBlock() {
-  return LU;
-}
-
-void LUBlk::localSolve(double *xvec, double *preVec) {
-  for (int i = 0; i < blkSize; i++) {
-    xvec[i] = 0.0;
-  }
-
-  for (int i = 0; i < blkSize; i++) {
-    for (int j = 0; j < blkSize; j++) {
-      xvec[i] += LU[getIndex(i,j)] * preVec[j];
-    }
-  }
-}
-
-void LUBlk::localForward(double *xvec) {
-  for (int i = 0; i < blkSize; i++) {
-    for (int j = 0; j < i; j++) {
-      xvec[i] -= LU[getIndex(i,j)] * xvec[j];
-    }
-  }
-}
-
-void LUBlk::localBackward(double *xvec) {
-  for (int i = blkSize-1; i >= 0; i--) {
-    for (int j = i+1; j < blkSize; j++) {
-      xvec[i] -= LU[getIndex(i,j)] * xvec[j];
-    }
-    xvec[i] /= LU[getIndex(i,i)];
-  }
-}
-
-
-void LUBlk::offDiagSolve(BVecMsg *m) {
-  if (thisIndex.x == thisIndex.y)
-    return;
-
-  // Perform local solve and reduce left-of-diagonal row to diagonal
-  double *xvec = new double[blkSize];
-  localSolve(xvec, m->data);
-  CkCallback cb(CkIndex_LUBlk::recvSolveData(0), thisProxy(thisIndex.x, thisIndex.x));
-  mcastMgr->contribute(sizeof(double) * blkSize, xvec, CkReduction::sum_double,
-		       m->forward ? rowBeforeCookie : rowAfterCookie, cb, thisIndex.x);
-  delete[] xvec;
-}
-
-// Copy received pivot data into its place in this block
-void LUBlk::applySwap(int row, int offset, const double *data, double b) {
-  DEBUG_PIVOT("(%d, %d): remote pivot inserted at %d\n", thisIndex.x, thisIndex.y, row);
-  bvec[row] = b;
-  memcpy( &(LU[getIndex(row,offset)]), data, sizeof(double)*(blkSize-offset) );
-}
-
-// Exchange local data
-void LUBlk::swapLocal(int row1, int row2, int offset) {
-  if (row1 == row2) return;
-  std::swap(bvec[row1], bvec[row2]);
-  /// @todo: Is this better or is it better to do 3 memcpys
-  std::swap_ranges(&(LU[getIndex(row1,offset)]), &(LU[getIndex(row1,blkSize)]), &(LU[getIndex(row2,offset)]) );
-}
-
-void LUBlk::doPivotLocal(int row1, int row2) {
-  // The chare indices where the two rows are located
-  row1Index = row1 / blkSize;
-  row2Index = row2 / blkSize;
-  // The local indices of the two rows within their blocks
-  localRow1 = row1 % blkSize;
-  localRow2 = row2 % blkSize;
-  remoteSwap = false;
-
-  // If this block holds portions of both the current row and pivot row, its a local swap
-  if (row1Index == thisIndex.x && row2Index == thisIndex.x) {
-    swapLocal(localRow1, localRow2);
-    // else if this block holds portions of at just one row, its a remote swap
-  } else if (row1Index == thisIndex.x) {
-    thisLocalRow = localRow1;
-    otherRowIndex = row2Index;
-    globalThisRow = row1;
-    globalOtherRow = row2;
-    remoteSwap = true;
-  } else if (row2Index == thisIndex.x) {
-    thisLocalRow = localRow2;
-    otherRowIndex = row1Index;
-    globalThisRow = row2;
-    globalOtherRow = row1;
-    remoteSwap = true;
-  }
-  // else this block has no data affected by this pivot op
-}
-
-/// Record the effect of a pivot operation in terms of actual row numbers
-void LUBlk::recordPivot(const int r1, const int r2) {
-  numRowsSinceLastPivotSend++;
-  // If the two rows are the same, then dont record the pivot operation at all
-  if (r1 == r2) return;
-  std::map<int,int>::iterator itr1, itr2;
-  // The records for the two rows (already existing or freshly created)
-  itr1 = (pivotRecords.insert(std::make_pair(r1,r1))).first;
-  itr2 = (pivotRecords.insert(std::make_pair(r2,r2))).first;
-  // Swap the values (the actual rows living in these two positions)
-  std::swap(itr1->second, itr2->second);
-}
-
-/**
- * Is it time to send out the next batch of pivots?
- * @note: Any runtime adaptivity should be plugged here
- */
-bool LUBlk::shouldSendPivots() {
-  return (numRowsSinceLastPivotSend >= suggestedPivotBatchSize);
-}
-
-/// Periodically send out the agglomerated pivot operations
-void LUBlk::announceAgglomeratedPivots() {
-#if defined(VERBOSE_PIVOT_RECORDING) || defined(VERBOSE_PIVOT_AGGLOM)
-  std::stringstream pivotLog;
-  pivotLog<<"["<<thisIndex.x<<","<<thisIndex.y<<"]"
-          <<" announcing "<<pivotRecords.size()<<" pivot operations in batch "<<pivotBatchTag<<std::endl;
-#endif
-
-  // Create and initialize a msg to carry the pivot sequences
-  pivotSequencesMsg *msg = new (numRowsSinceLastPivotSend+1, numRowsSinceLastPivotSend*2, sizeof(int)*8) pivotSequencesMsg(pivotBatchTag, numRowsSinceLastPivotSend);
-  msg->numSequences = 0;
-  memset(msg->seqIndex, 0, sizeof(int) * numRowsSinceLastPivotSend);
-  memset(msg->pivotSequence, 0, sizeof(int) * numRowsSinceLastPivotSend*2);
-
-  /// Parse the pivot operations and construct optimized pivot sequences
-  int seqNo = -1, i = 0;
-  std::map<int,int>::iterator itr = pivotRecords.begin();
-  while (itr != pivotRecords.end()) {
-#ifdef VERBOSE_PIVOT_RECORDING
-    pivotLog<<std::endl;
-#endif
-    msg->seqIndex[++seqNo] = i;
-    int chainStart = itr->first;
-    msg->pivotSequence[i++] = chainStart;
-#ifdef VERBOSE_PIVOT_RECORDING
-    pivotLog<<chainStart;
-#endif
-    while (itr->second != chainStart) {
-      msg->pivotSequence[i] = itr->second;
-#ifdef VERBOSE_PIVOT_RECORDING
-      pivotLog<<" <-- "<<itr->second;
-#endif
-      std::map<int,int>::iterator prev = itr;
-      itr = pivotRecords.find(itr->second);
-      pivotRecords.erase(prev);
-      i++;
-    }
-    pivotRecords.erase(itr);
-    itr = pivotRecords.begin();
-  }
-  msg->seqIndex[++seqNo] = i; ///< @note: Just so that we know where the last sequence ends
-  msg->numSequences = seqNo;
-#if defined(VERBOSE_PIVOT_RECORDING) || defined(VERBOSE_PIVOT_AGGLOM)
-  CkPrintf("%s\n", pivotLog.str().c_str());
-#endif
-
-  mgr->setPrio(msg, PIVOT_RIGHT_SEC, -1, thisIndex.y);
-  thisProxy.applyTrailingPivots(msg);
-
-  // Prepare for the next batch of agglomeration
-  pivotRecords.clear();
-  pivotBatchTag += numRowsSinceLastPivotSend;
-  numRowsSinceLastPivotSend = 0;
-}
-
 /// Given a set of pivot ops, send out participating row chunks that you own
 void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
-#ifdef VERBOSE_PIVOT_AGGLOM
-  std::stringstream pivotLog;
-  pivotLog << "[" << thisIndex.x << "," << thisIndex.y << "]"
-           <<" processing "<< msg->numSequences
-           <<" pivot sequences in batch " << pivotBatchTag;
-#endif
-
   const int *pivotSequence = msg->pivotSequence, *idx = msg->seqIndex;
   int numSequences = msg->numSequences;
 
@@ -469,9 +80,6 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
 
   // Parse each sequence independently
   for (int i=0; i < numSequences; i++) {
-#ifdef VERBOSE_PIVOT_AGGLOM
-    pivotLog << "\n[" << thisIndex.x << "," << thisIndex.y << "] sequence " << i << ": ";
-#endif
 
     // Find the location of this sequence in the msg buffer
     const int *first = pivotSequence + idx[i];
@@ -496,9 +104,6 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
       if (tmpBuf == 0) tmpBuf = new double[blkSize];
       memcpy(tmpBuf, &LU[getIndex(*ringStart%blkSize,0)], blkSize*sizeof(double));
       tmpB = bvec[*ringStart%blkSize];
-#ifdef VERBOSE_PIVOT_AGGLOM
-      pivotLog << "tmp <-cpy- "<< *ringStart << "; ";
-#endif
     }
 
     // Process all the pivot operations in the circular sequence
@@ -513,16 +118,10 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
         // If you're sending to yourself, memcopy
         if (toChareIdx == thisIndex.x) {
           applySwap(*to%blkSize, 0, &LU[getIndex(fromLocal,0)], bvec[fromLocal]);
-#ifdef VERBOSE_PIVOT_AGGLOM
-          pivotLog << *to << " <-cpy- " << *from << "; ";
-#endif
         }
         // else, copy the data into the appropriate msg
         else {
           outgoingPivotMsgs[*to/blkSize]->copyRow(*to, &LU[getIndex(fromLocal,0)], bvec[fromLocal]);
-#ifdef VERBOSE_PIVOT_AGGLOM
-          pivotLog << *to << " <-msg- " << *from << "; ";
-#endif
         }
       }
       // else, the source data is remote
@@ -530,15 +129,9 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
         // if the current destination row belongs to me, make sure I expect the remote data
         if (*to / blkSize == thisIndex.x) {
           pendingIncomingPivots++;
-#ifdef VERBOSE_PIVOT_AGGLOM
-          pivotLog << *to << " <-inwd- " << *from << "; ";
-#endif
         }
         // else, i dont worry about this portion of the exchange sequence which is completely remote
         else {
-#ifdef VERBOSE_PIVOT_AGGLOM
-          pivotLog << *to << " <-noop- " << *from << "; ";
-#endif
         }
       }
       // Setup a circular traversal of the pivot sequence
@@ -550,9 +143,6 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
     // by copying the temp buffer back into the matrix block
     if (isSequenceLocal) {
       applySwap(*(beyondLast - 1) % blkSize, 0, tmpBuf, tmpB);
-#ifdef VERBOSE_PIVOT_AGGLOM
-      pivotLog << *(beyondLast-1) << "<-cpy- tmp " << "; ";
-#endif
     }
   } // end for loop through all sequences
 
@@ -562,18 +152,38 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
       thisProxy(i, thisIndex.y).trailingPivotRowsSwap(outgoingPivotMsgs[i]);
 
   if (tmpBuf) delete [] tmpBuf;
-#ifdef VERBOSE_PIVOT_AGGLOM
-  CkPrintf("%s\n",pivotLog.str().c_str());
+}
+
+// Copy received pivot data into its place in this block
+void LUBlk::applySwap(int row, int offset, const double *data, double b) {
+  bvec[row] = b;
+  memcpy( &(LU[getIndex(row,offset)]), data, sizeof(double)*(blkSize-offset) );
+}
+
+// Exchange local data
+void LUBlk::swapLocal(int row1, int row2, int offset) {
+  if (row1 == row2) return;
+  std::swap(bvec[row1], bvec[row2]);
+  /// @todo: Is this better or is it better to do 3 memcpys
+  std::swap_ranges(&(LU[getIndex(row1,offset)]), &(LU[getIndex(row1,blkSize)]), &(LU[getIndex(row2,offset)]) );
+}
+
+// Compute a triangular solve
+void LUBlk::computeU(double *LMsg) {
+#if USE_ESSL || USE_ACML
+  // LMsg is implicitly transposed by telling dtrsm that it is a
+  // right, upper matrix. Since this also switches the order of
+  // multiplication, the transpose is output to LU.
+  dtrsm(BLAS_RIGHT, BLAS_UPPER, BLAS_NOTRANSPOSE, BLAS_UNIT, blkSize, blkSize, 1.0, LMsg, blkSize, LU, blkSize);
+#else
+  cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, blkSize, blkSize, 1.0, LMsg, blkSize, LU, blkSize);
 #endif
 }
 
-// Internal functions for creating messages to encapsulate the priority
-blkMsg* LUBlk::createABlkMsg() {
-  int prioBits = mgr->bitsOfPrio();
-  maxRequestingPEs = CProxy_LUMap(cfg.map).ckLocalBranch()->pesInPanel(thisIndex);
-  blkMsg *msg = new (blkSize*blkSize, maxRequestingPEs, prioBits) blkMsg(thisIndex);
-  memset(msg->pes, -1, maxRequestingPEs*sizeof(int));
-  return msg;
+// Schedule U to be sent downward to the blocks in the same column
+inline void LUBlk::scheduleDownwardU() {
+  mgr->setPrio(LUmsg, MULT_RECV_U);
+  localScheduler->scheduleSend(thisIndex, internalStep == thisIndex.y - 1);
 }
 
 MaxElm LUBlk::findMaxElm(int startRow, int col, MaxElm first) {
@@ -586,11 +196,32 @@ MaxElm LUBlk::findMaxElm(int startRow, int col, MaxElm first) {
   return l;
 }
 
+CkReductionMsg *MaxElm_max(int nMsg, CkReductionMsg **msgs) {
+  CkAssert(nMsg > 0);
+
+  MaxElm *l = (MaxElm*) msgs[0]->getData();
+  for (int i = 1; i < nMsg; ++i) {
+    MaxElm *n = (MaxElm *) msgs[i]->getData();
+    if (fabs(n->val) > fabs(l->val))
+      l = n;
+  }
+
+  return CkReductionMsg::buildNew(sizeof(MaxElm), l);
+}
+
+/// Global that holds the reducer type for MaxElm
+CkReduction::reducerType MaxElmReducer;
+
+/// Function that registers this reducer type on every processor
+void registerMaxElmReducer() {
+  MaxElmReducer = CkReduction::addReducer(MaxElm_max);
+}
+
 /// Update the sub-block of this L block starting at specified
 /// offset from the active column
 void LUBlk::updateLsubBlock(int activeCol, double* U, int offset, int startingRow) {
   // Should only get called on L blocks
-  CkAssert(thisIndex.x >= thisIndex.y);
+  CkAssert(isOnDiagonal() || isBelowDiagonal());
   // Check for input edge cases
   if ((activeCol + offset) >= blkSize || startingRow >= blkSize)
     return;
@@ -614,13 +245,12 @@ void LUBlk::updateLsubBlock(int activeCol, double* U, int offset, int startingRo
 #endif
 }
 
-
 /// Compute the multipliers based on the pivot value in the
 /// received row of U and also find the candidate pivot in
 /// the immediate next column (after updating it simultaneously)
 MaxElm LUBlk::computeMultipliersAndFindColMax(int col, double *U, int startingRow) {
   // Should only get called on L blocks
-  CkAssert(thisIndex.x >= thisIndex.y);
+  CkAssert(isOnDiagonal() || isBelowDiagonal());
   MaxElm maxVal;
   // Check for input edge cases
   if (col >= blkSize || startingRow >= blkSize)
@@ -649,5 +279,194 @@ MaxElm LUBlk::computeMultipliersAndFindColMax(int col, double *U, int startingRo
   return maxVal;
 }
 
+// Schedule L to be sent rightward to the blocks in the same row
+inline void LUBlk::scheduleRightwardL() {
+  mgr->setPrio(LUmsg, MULT_RECV_L);
+  localScheduler->scheduleSend(thisIndex, true);
+}
+
+/**
+ * Is it time to send out the next batch of pivots?
+ * @note: Any runtime adaptivity should be plugged here
+ */
+bool LUBlk::shouldSendPivots() {
+  return (numRowsSinceLastPivotSend >= suggestedPivotBatchSize);
+}
+
+/// Periodically send out the agglomerated pivot operations
+void LUBlk::announceAgglomeratedPivots() {
+  // Create and initialize a msg to carry the pivot sequences
+  pivotSequencesMsg *msg = new (numRowsSinceLastPivotSend+1, numRowsSinceLastPivotSend*2, sizeof(int)*8) pivotSequencesMsg(pivotBatchTag, numRowsSinceLastPivotSend);
+  msg->numSequences = 0;
+  memset(msg->seqIndex, 0, sizeof(int) * numRowsSinceLastPivotSend);
+  memset(msg->pivotSequence, 0, sizeof(int) * numRowsSinceLastPivotSend*2);
+
+  /// Parse the pivot operations and construct optimized pivot sequences
+  int seqNo = -1, i = 0;
+  std::map<int,int>::iterator itr = pivotRecords.begin();
+  while (itr != pivotRecords.end()) {
+    msg->seqIndex[++seqNo] = i;
+    int chainStart = itr->first;
+    msg->pivotSequence[i++] = chainStart;
+    while (itr->second != chainStart) {
+      msg->pivotSequence[i] = itr->second;
+      std::map<int,int>::iterator prev = itr;
+      itr = pivotRecords.find(itr->second);
+      pivotRecords.erase(prev);
+      i++;
+    }
+    pivotRecords.erase(itr);
+    itr = pivotRecords.begin();
+  }
+  msg->seqIndex[++seqNo] = i; ///< @note: Just so that we know where the last sequence ends
+  msg->numSequences = seqNo;
+
+  mgr->setPrio(msg, PIVOT_RIGHT_SEC, -1, thisIndex.y);
+  thisProxy.applyTrailingPivots(msg);
+
+  // Prepare for the next batch of agglomeration
+  pivotRecords.clear();
+  pivotBatchTag += numRowsSinceLastPivotSend;
+  numRowsSinceLastPivotSend = 0;
+}
+
+/// Record the effect of a pivot operation in terms of actual row numbers
+void LUBlk::recordPivot(const int r1, const int r2) {
+  numRowsSinceLastPivotSend++;
+  // If the two rows are the same, then dont record the pivot operation at all
+  if (r1 == r2) return;
+  std::map<int,int>::iterator itr1, itr2;
+  // The records for the two rows (already existing or freshly created)
+  itr1 = (pivotRecords.insert(std::make_pair(r1,r1))).first;
+  itr2 = (pivotRecords.insert(std::make_pair(r2,r2))).first;
+  // Swap the values (the actual rows living in these two positions)
+  std::swap(itr1->second, itr2->second);
+}
+
+void LUBlk::resetMessage(bool reverse) {
+  // Setup multicast of message to a dynamic set of processors
+  blkMsg *m = LUmsg;
+
+  CkAssert(requestingPEs.size() <= maxRequestingPEs);
+
+  std::sort(requestingPEs.begin(), requestingPEs.end());
+  if (reverse) std::reverse(requestingPEs.begin(), requestingPEs.end());
+
+  // Junk value to catch bugs
+  m->npes_sender = -1;
+  m->npes_receiver = requestingPEs.size();
+  m->offset = 0;
+  memcpy(m->pes, &requestingPEs[0], sizeof(requestingPEs[0])*m->npes_receiver);
+
+  requestingPEs.clear();
+}
+
+void LUBlk::requestBlock(int pe, int rx, int ry) {
+  requestingPEs.push_back(pe);
+  if (factored) {
+    bool onActive = false;
+    if      (isBelowDiagonal() && internalStep == thisIndex.y)
+      onActive = true;
+    else if (isAboveDiagonal() && internalStep == thisIndex.y - 1)
+      onActive = true;
+
+    localScheduler->scheduleSend(thisIndex, onActive);
+  }
+}
+
+double* LUBlk::accessLocalBlock() {
+  return LU;
+}
+
+// Internal functions for creating messages to encapsulate the priority
+blkMsg* LUBlk::createABlkMsg() {
+  int prioBits = mgr->bitsOfPrio();
+  maxRequestingPEs = CProxy_LUMap(cfg.map).ckLocalBranch()->pesInPanel(thisIndex);
+  blkMsg *msg = new (blkSize*blkSize, maxRequestingPEs, prioBits) blkMsg(thisIndex);
+  memset(msg->pes, -1, maxRequestingPEs*sizeof(int));
+  return msg;
+}
+
+void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
+                 CProxy_BlockScheduler bs,
+		 CkCallback initialization, CkCallback factorization, CkCallback solution) {
+  scheduler = bs;
+  localScheduler = scheduler[CkMyPe()].ckLocal();
+  CkAssert(localScheduler);
+  localScheduler->registerBlock(thisIndex);
+  contribute(CkCallback(CkIndex_BlockScheduler::allRegistered(NULL), bs));
+  cfg = _cfg;
+  blkSize = cfg.blockSize;
+  numBlks = cfg.numBlocks;
+  mgr = _mgr.ckLocalBranch();
+  suggestedPivotBatchSize = cfg.pivotBatchSize;
+  initDone = initialization;
+  factorizationDone = factorization;
+  solveDone = solution;
+  internalStep = 0;
+
+  CkAssert(blkSize > 0);
+
+  CkMulticastMgr *mcastMgr = CProxy_CkMulticastMgr(cfg.mcastMgrGID).ckLocalBranch();
+
+  /// Chares on the active panels will create sections of their brethren
+#if defined(CHARMLU_USEG_FROM_BELOW)
+  if (isOnDiagonal() || isBelowDiagonal())
+#else
+  if (isOnDiagonal())
+#endif
+  {
+    // Elements in the active panel, not including this block
+    CkVec<CkArrayIndex2D> activeElems;
+    for (int i = thisIndex.y+1; i < numBlks; i++)
+      if (i != thisIndex.x)
+        activeElems.push_back(CkArrayIndex2D(i, thisIndex.y));
+    activePanel = CProxySection_LUBlk::ckNew(thisArrayID, activeElems.getVec(), activeElems.size());
+    activePanel.ckSectionDelegate(mcastMgr);
+    rednSetupMsg *activePanelMsg = new rednSetupMsg(cfg.mcastMgrGID);
+    activePanel.prepareForActivePanel(activePanelMsg);
+  }
+  /// Chares on the array diagonal will now create pivot sections that they will talk to
+  if (isOnDiagonal()) {
+    // Create the pivot section
+    pivotSection = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,numBlks-1,1,thisIndex.y,thisIndex.y,1);
+    rowBeforeDiag = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,thisIndex.x,1,0,thisIndex.y-1,1);
+    rowAfterDiag = CProxySection_LUBlk::ckNew(thisArrayID, thisIndex.x,thisIndex.x,1,thisIndex.y+1,numBlks-1,1);
+    // Delegate pivot section to the manager
+    pivotSection.ckSectionDelegate(mcastMgr);
+    rowBeforeDiag.ckSectionDelegate(mcastMgr);
+    rowAfterDiag.ckSectionDelegate(mcastMgr);
+    // Set the reduction client for this pivot section
+    mcastMgr->setReductionClient( pivotSection, new CkCallback( CkReductionTarget(LUBlk,colMax), thisProxy(thisIndex.y, thisIndex.y) ) );
+
+    // Invoke a dummy mcast so that all the section members know which section to reduce along
+    rednSetupMsg *pivotMsg = new rednSetupMsg(cfg.mcastMgrGID);
+    rednSetupMsg *rowBeforeMsg = new rednSetupMsg(cfg.mcastMgrGID);
+    rednSetupMsg *rowAfterMsg = new rednSetupMsg(cfg.mcastMgrGID);
+
+    pivotSection.prepareForPivotRedn(pivotMsg);
+    rowBeforeDiag.prepareForRowBeforeDiag(rowBeforeMsg);
+    rowAfterDiag.prepareForRowAfterDiag(rowAfterMsg);
+
+    if (thisIndex.x == 0) {
+      thisProxy.multicastRedns(0);
+    }
+  }
+
+  CkArrayID us = thisProxy;
+  CProxy_BenchmarkLUBlk usProxy = us;
+  usProxy(thisIndex).initVec();
+
+  // All chares except members of pivot sections are done with init
+}
+
+void LUBlk::prepareForActivePanel(rednSetupMsg *msg) { }
+
+LUBlk::~LUBlk() {
+  delete LUmsg;
+  LU = NULL;
+}
+
 #include "luUtils.def.h"
 #include "lu.def.h"
+#include "luMessages.def.h"

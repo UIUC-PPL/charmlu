@@ -1,7 +1,7 @@
 #ifndef LU_MANAGER_H
 #define LU_MANAGER_H
 
-#include "lu.decl.h"
+#include "luUtils.decl.h"
 #include "messages.h"
 #include <algorithm>
 

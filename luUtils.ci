@@ -1,11 +1,5 @@
 module luUtils {
   include "set";
-  include "traceToggler.h";
-  initproc void traceToggler::registerHandler();
-
-  message BlockReadyMsg;
-
-  message rednSetupMsg;
 
   // Register the reducer function that handles reductions of MaxElm
   initnode void registerMaxElmReducer();
@@ -28,23 +22,7 @@ module luUtils {
   };
 
   group BlockCyclicMap : LUMap {
-    entry BlockCyclicMap();
-  };
-
-  group RealBlockCyclicMap : LUMap {
-    entry RealBlockCyclicMap(int r, int num_blocks);
-  };
-
-  group LUSnakeMap : LUMap {
-    entry LUSnakeMap(int, int);
-  };
-
-  group LUBalancedSnakeMap : LUMap {
-    entry LUBalancedSnakeMap(int, int);
-  };
-
-  group LUBalancedSnakeMap2 : LUMap {
-    entry LUBalancedSnakeMap2(int, int);
+    entry BlockCyclicMap(int r, int num_blocks);
   };
 
   group PE2DTilingMap: LUMap {

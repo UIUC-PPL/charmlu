@@ -1,12 +1,8 @@
 #ifndef LU_CONFIG_H
 #define LU_CONFIG_H
 
-#include "pup.h"
+#include <pup.h>
 #include <charm++.h>
-
-#ifndef STOP_AFTER
-  #define STOP_AFTER -1
-#endif
 
 /// Class the stores configurations relevant to the LU factorization library
 class LUConfig {
@@ -21,13 +17,11 @@ public:
     , peTileStride(0)
     , memThreshold(0)
     , mappingScheme(0)
-    , tracePeriodFraction(0.25)
-    , numStepsToTrace(3)
-    , numTimesToTrace(1 + 1.0 / tracePeriodFraction)
   { }
 
   /// Serialization function
   void pup(PUP::er &p) {
+    p | matrixSize;
     p | blockSize;
     p | numBlocks;
     p | pivotBatchSize;
@@ -38,13 +32,6 @@ public:
     p | peTileStride;
     p | memThreshold;
     p | mappingScheme;
-    p | tracePeriodFraction;
-    p | numStepsToTrace;
-    p | numTimesToTrace;
-    p | traceTrailingUpdate;
-    p | traceComputeU;
-    p | traceComputeL;
-    p | traceSolveLocalLU;
     p | mcastMgrGID;
   }
 
@@ -70,20 +57,6 @@ public:
   int memThreshold;
   /// The mapping scheme
   int mappingScheme;
-  /// The period (as a fraction of numBlocks) with which to toggle tracing
-  double tracePeriodFraction;
-  /// The number of active panels to trace each time
-  int numStepsToTrace;
-  /// The number of times when tracing will be active (computed from above two)
-  int numTimesToTrace;
-  /// Projections user event ID for trailing updates
-  int traceTrailingUpdate;
-  /// Projections user event ID for triangular solves on active row
-  int traceComputeU;
-  /// Projections user event ID for triangular solves
-  int traceComputeL;
-  /// Projections user event ID for local block factorization
-  int traceSolveLocalLU;
   /// The group ID of the multicast manager
   CkGroupID mcastMgrGID;
 };
