@@ -88,10 +88,7 @@ module lu {
         // Wait for msg carrying the next batch of pivot ops
         when applyTrailingPivots[pivotBatchTag](pivotSequencesMsg *msg) {
           // Send out any pivot data owned by this chare
-          atomic "sendOutgoingPivots" {
-            sendPendingPivots(msg);
-            CmiReference(UsrToEnv(msg));
-          }
+          atomic "sendOutgoingPivots" { sendPendingPivots(msg); }
           // Wait for all incoming pivot data from this batch
           while (pendingIncomingPivots > 0) {
             when trailingPivotRowsSwap[pivotBatchTag](pivotRowsMsg *aMsg)
@@ -106,10 +103,7 @@ module lu {
             }
           }
           // Increment the batch tag to the next expected
-          atomic {
-            pivotBatchTag += msg->numRowsProcessed;
-            CmiFree(UsrToEnv(msg));
-          }
+          atomic { pivotBatchTag += msg->numRowsProcessed; }
         }
       }
 
