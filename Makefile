@@ -7,6 +7,7 @@ INTF      = luUtils.ci lu.ci driver.ci
 
 # Specify the exe name and the arguments to run it with
 NP        = 4
+PPN       = 1
 TARGET    = charmlu
 BINS      = $(TARGET)
 ARGS      = 64 16 500 8 2
@@ -20,7 +21,7 @@ CXXFLAGS += -language charm++ $(OPT)
 LDFLAGS  += -module comlib -module CkMulticast $(BLAS_LD)
 LDLIBS   += $(BLAS_LIBS)
 EXEC      = ./charmrun
-EXECFLAGS = +p$(NP) ++local
+EXECFLAGS = +p$(NP) ++ppn $(PPN) ++local
 TEST_SCRIPT=test_lu.pl
 ifdef $(NODELIST)
   EXECFLAGS += ++nodelist $(NODELIST)
