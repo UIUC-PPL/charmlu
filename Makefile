@@ -1,5 +1,5 @@
 include config.mk
-include ../config.mk
+CHARMC ?= $(HOME)/charm/bin/charmc
 
 # The relevant source files for this project
 RAWSRC    = lu.C scheduler.C benchmark.C
