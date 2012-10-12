@@ -63,9 +63,9 @@ BLAS_LIBS = -lcblas
 
 # To compile on BG/Q with ESSL:
 #SEND_LIM ?= 500
-#BGQ_ESSL  = /soft/libraries/essl/current/
+#BGQ_ESSL  = /soft/libraries/essl/current
 #BGQ_LIBS  = -L$(BGQ_ESSL)/lib64 \
-#            -L/soft/compilers/ibmcmp-apr2012/xlf/bg/14.1/lib64
+#            -L/soft/compilers/ibmcmp-aug2012-interim120809/xlf/bg/14.1/lib64
 #
 #BLAS_INC  = -DUSE_ESSL=1 -I$(BGQ_ESSL)/include -DUSE_MEMALIGN=1
 #BLAS_LD   = $(BGQ_LIBS)
