@@ -9,7 +9,6 @@ INTF      = luUtils.ci lu.ci driver.ci
 # Specify the exe name and the arguments to run it with
 NP        = 4
 TARGET    = charmlu
-BINS      = $(TARGET)
 ARGS      = 64 16 500 8 2
 
 # Specify the compilers, run script, flags etc.
@@ -20,6 +19,7 @@ CPPFLAGS += -DSEND_LIM=$(SEND_LIM) $(BLAS_INC)
 CXXFLAGS += -language charm++ $(OPT)
 LDFLAGS  += -module comlib -module CkMulticast $(BLAS_LD)
 LDLIBS   += $(BLAS_LIBS)
+
 EXEC      = ./charmrun
 EXECFLAGS = +p$(NP) ++local
 TEST_SCRIPT=test_lu.pl
@@ -49,19 +49,17 @@ ifneq ($(REVNUM),)
   CPPFLAGS += -DLU_REVISION=$(REVNUM)
 endif
 
-.PHONY: all clean realclean again test bgtest translateInterface
+.PHONY: all clean again test regtest
 
-all: $(BINS)
+all: $(TARGET)
 
-charmlu: CXX = $(CHARMC)
-charmlu: $(RAWSRC:.C=.o)
+$(TARGET): CXX = $(CHARMC)
+$(TARGET): $(RAWSRC:.C=.o)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 clean:
 	$(RM) $(wildcard *.decl.h *.def.h *.d *.di *.o *.stamp) charmrun
-
-realclean: clean
-	$(RM) $(wildcard *.log *.projrc *.sts) $(BINS)
+	$(RM) $(wildcard *.log *.projrc *.sts) $(TARGET)
 
 again: 
 	$(MAKE) clean; $(MAKE)
@@ -72,10 +70,6 @@ test: all
 
 regtest: $(TARGET)
 	perl $(TEST_SCRIPT) $(EXEC) $(EXECFLAGS) $(TARGET)
-
-# A test program for getting essl working on BG/P
-#link-test-essl : link-test-essl.cxx
-#	/soft/apps/ibmcmp-jan2010/vacpp/bg/9.0/bin/bgxlc++ link-test-essl.cxx $(BLAS_INC) $(BLAS_LD)
 
 ####### Pattern rules
 # Rule to generate dependency information for C++ source files
