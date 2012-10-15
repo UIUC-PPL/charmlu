@@ -1,5 +1,6 @@
 include config.mk
-CHARMC ?= $(HOME)/charm/bin/charmc
+# Just point to the appropriate charm directory
+CHARMHOME ?= $(HOME)/charm
 
 # The relevant source files for this project
 RAWSRC    = lu.C scheduler.C benchmark.C
@@ -28,6 +29,10 @@ endif
 
 
 ########### This stuff should be able take care of itself ############
+
+CHARMINC = $(CHARMHOME)/include
+CHARMBIN = $(CHARMHOME)/bin
+CHARMC   = $(CHARMBIN)/charmc
 
 REVNUM = 
 ifneq ($(REVNUM),)
@@ -61,9 +66,6 @@ regtest: $(TARGET)
 # A test program for getting essl working on BG/P
 #link-test-essl : link-test-essl.cxx
 #	/soft/apps/ibmcmp-jan2010/vacpp/bg/9.0/bin/bgxlc++ link-test-essl.cxx $(BLAS_INC) $(BLAS_LD)
-
-CHARMINC = $(shell dirname $(CHARMC))/../include
-CHARMBIN = $(shell dirname $(CHARMC))
 
 ####### Pattern rules
 # Rule to generate dependency information for C++ source files
