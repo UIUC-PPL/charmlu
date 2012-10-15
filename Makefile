@@ -34,7 +34,17 @@ CHARMINC = $(CHARMHOME)/include
 CHARMBIN = $(CHARMHOME)/bin
 CHARMC   = $(CHARMBIN)/charmc
 
-REVNUM = 
+# The base directory of this project
+base     ?= .
+# The git binary
+GIT       = $(shell which git)
+# Compute the revision number (hash) of the build and feed it to the code
+ifeq ($(GIT),)
+  $(warning Cannot find the git binary. Will not compute the revision number)
+else
+  REVNUM  = $(shell $(GIT) --git-dir=$(base)/.git rev-parse HEAD)
+endif
+ 
 ifneq ($(REVNUM),)
   CPPFLAGS += -DLU_REVISION=$(REVNUM)
 endif
