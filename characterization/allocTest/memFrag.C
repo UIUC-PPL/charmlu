@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <vector>
 #include <algorithm>
+#include <numeric>
 
 /*readonly*/ CProxy_Main mainProxy;
 
@@ -35,17 +36,21 @@ public:
 
     if (++numFinished == CkNumPes()) {
 
+      double MBperBlock = blocksize * blocksize * 8.0 / 1024 / 1024;
+      int minBlocks = * std::min_element(numblocks.begin(), numblocks.end());
+      int maxBlocks = * std::max_element(numblocks.begin(), numblocks.end());
+      int sumBlocks =   std::accumulate(numblocks.begin(), numblocks.end(), 0);
+
       CkPrintf("\nblock size: %d x %d doubles", blocksize, blocksize);
-      CkPrintf("\nmem size  : %d KB", 8.0 * blocksize*blocksize / 1024);
+      CkPrintf("\nblock size: %f MB", MBperBlock);
 
-      CkPrintf("\nmin number of blocks that fit on any given PE: %d",
-                    * std::min_element(numblocks.begin(), numblocks.end()) );
-      CkPrintf("\nmax number of blocks that fit on any given PE: %d",
-                    * std::max_element(numblocks.begin(), numblocks.end()) );
-
+      CkPrintf("\ntotal number of blocks that fit on all PEs   : %d (%f MB)", sumBlocks, sumBlocks * MBperBlock);
+      CkPrintf("\nmin number of blocks that fit on any given PE: %d (%f MB)", minBlocks, minBlocks * MBperBlock);
+      CkPrintf("\nmax number of blocks that fit on any given PE: %d (%f MB)", maxBlocks, maxBlocks * MBperBlock);
       for (int i=0; i<numblocks.size(); i++)
-        CkPrintf("%d: %d\n",i, numblocks[i]);
+        CkPrintf("\nPE %d: %d blocks (%f MB)",i, numblocks[i], numblocks[i] * MBperBlock);
 
+      CkPrintf("\n\n");
       CkExit();
     }
   }
