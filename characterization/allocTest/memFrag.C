@@ -1,4 +1,4 @@
-#include "hello.decl.h"
+#include "allocTest.decl.h"
 #include <stdio.h>
 #include <vector>
 #include <algorithm>
@@ -25,7 +25,7 @@ public:
     CkPrintf("Running memory fragmentation test on %d processors\n", CkNumPes());
     mainProxy = thisProxy;
 
-    CProxy_Hello grp = CProxy_Hello::ckNew();
+    CProxy_BlockAllocator grp = CProxy_BlockAllocator::ckNew();
     grp.fillAndTestMem(blocksize);
   }
 
@@ -57,7 +57,7 @@ private:
 };
 
 
-class Hello : public CBase_Hello
+class BlockAllocator : public CBase_BlockAllocator
 {
 public:
   void fillAndTestMem(int blocksize)
@@ -79,4 +79,4 @@ public:
   }
 };
 
-#include "hello.def.h"
+#include "allocTest.def.h"

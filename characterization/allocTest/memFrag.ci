@@ -1,4 +1,4 @@
-mainmodule hello {
+mainmodule allocTest {
   readonly CProxy_Main mainProxy;
 
   mainchare Main {
@@ -6,8 +6,8 @@ mainmodule hello {
     entry void done(int pe, int numAllocated);
   };
 
-  group Hello {
-    entry Hello(void);
+  group BlockAllocator {
+    entry BlockAllocator(void);
     entry void fillAndTestMem(int blocksize);
   };        	
 };
