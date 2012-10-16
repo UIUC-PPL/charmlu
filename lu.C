@@ -5,9 +5,6 @@
 #include <algorithm>
 using std::min;
 
-// define static variable
-int traceToggler::traceCmdHandlerID;
-
 #include <cmath>
 #include <limits>
 #include <map>
@@ -17,6 +14,13 @@ int traceToggler::traceCmdHandlerID;
 #include "mapping.h"
 #include "platformBlas.h"
 #include "driver.decl.h"
+
+#include "traceToggler.h"
+
+#if defined(TRACE_TOGGLER_H)
+// define static variable
+int traceToggler::traceCmdHandlerID;
+#endif
 
 // Execute a trailing update
 void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
