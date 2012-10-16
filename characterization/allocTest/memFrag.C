@@ -17,25 +17,35 @@ public:
     blocksize = atoi(m->argv[1]);
     delete m;
 
+    // Other initialization
+    numFinished = 0;
+    numblocks.resize(CkNumPes(), 0);
+
     //Start the computation
-    CkPrintf("Running memory fragmentation on %d processors\n", CkNumPes());
+    CkPrintf("Running memory fragmentation test on %d processors\n", CkNumPes());
     mainProxy = thisProxy;
 
     CProxy_Hello grp = CProxy_Hello::ckNew();
     grp.fillAndTestMem(blocksize);
   }
 
-  void done(int numAllocated)
+  void done(int pe, int numAllocated)
   {
-    numblocks.push_back(numAllocated);
+    numblocks[pe] = numAllocated;
 
-    if (numblocks.size() == CkNumPes()) {
+    if (++numFinished == CkNumPes()) {
+
       CkPrintf("\nblock size: %d x %d doubles", blocksize, blocksize);
       CkPrintf("\nmem size  : %d KB", 8.0 * blocksize*blocksize / 1024);
+
       CkPrintf("\nmin number of blocks that fit on any given PE: %d",
                     * std::min_element(numblocks.begin(), numblocks.end()) );
       CkPrintf("\nmax number of blocks that fit on any given PE: %d",
                     * std::max_element(numblocks.begin(), numblocks.end()) );
+
+      for (int i=0; i<numblocks.size(); i++)
+        CkPrintf("%d: %d\n",i, numblocks[i]);
+
       CkExit();
     }
   }
@@ -43,6 +53,7 @@ public:
 private:
   int blocksize;
   std::vector<int> numblocks;
+  int numFinished;
 };
 
 
@@ -64,7 +75,7 @@ public:
       blocks.clear();
     }
 
-    mainProxy.done(numAllocated);
+    mainProxy.done(CkMyPe(), numAllocated);
   }
 };
 
