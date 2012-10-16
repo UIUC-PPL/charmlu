@@ -23,6 +23,7 @@ module lu {
 
     /// Each block starts its participation in the factorization here
     entry void factor() {
+      atomic { traceEnd(); }
       // Keep executing trailing updates on this block until it is on
       // the active block row or column
       atomic { thisProxy[thisIndex].updateUntilActive(); }
@@ -49,7 +50,11 @@ module lu {
         pivotBatchTag = 0;
       }
       for (internalStep = 0; internalStep < min(thisIndex.x, thisIndex.y); internalStep++) {
-        atomic { thisProxy[thisIndex].pivotBatch(0); }
+        atomic {
+          if (internalStep > 5) traceBegin();
+
+          thisProxy[thisIndex].pivotBatch(0);
+        }
 
         // After a panel's worth of pivots have arrived, this block is
         // ready to execute a trailing update. We let the local
