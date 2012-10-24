@@ -45,15 +45,9 @@ struct BlockState {
   // Have pivots been completed for this step?
   bool pivotsDone;
 
-  BlockState(CkIndex2D index)
-    : ix(index.x), iy(index.y), pendingDependencies(0),
-      updatesCompleted(0), updatesPlanned(0),
-      pivotsDone(false)
-  { }
+  BlockState(CkIndex2D index) : ix(index.x), iy(index.y), pendingDependencies(0), updatesCompleted(0), updatesPlanned(0), pivotsDone(false) { }
 
-  bool operator==(const BlockState &rhs) {
-    return ix == rhs.ix && iy == rhs.iy;
-  }
+  bool operator==(const BlockState &rhs) { return ix == rhs.ix && iy == rhs.iy; }
 };
 
 typedef std::list<BlockState> StateList;
@@ -76,10 +70,8 @@ struct Update {
   // Try to deliver the data to this update, using the src X and Y coordinate
   // to determine whether it's a L or U block
   void tryDeliver(int srcx, int srcy, double *data) {
-    if (srcx == target->ix && srcy == t)
-      L = data;
-    else if (srcy == target->iy && srcx == t)
-      U = data;
+    if (srcx == target->ix && srcy == t) L = data;
+    else if (srcy == target->iy && srcx == t) U = data;
   }
 
   // If this condition holds, this is a triangular solve
@@ -88,12 +80,9 @@ struct Update {
   // U have arrived
   bool ready() { return L && (U || isComputeU()) && !triggered; }
 
-  Update(BlockState *target_, int step)
-    : target(target_), triggered(false), t(step), L(NULL), U(NULL) { }
+  Update(BlockState *target_, int step) : target(target_), triggered(false), t(step), L(NULL), U(NULL) { }
 
-  bool operator==(const Update &rhs) {
-    return target == rhs.target && t == rhs.t && L == rhs.L && U == rhs.U;
-  }
+  bool operator==(const Update &rhs) { return target == rhs.target && t == rhs.t && L == rhs.L && U == rhs.U; }
 };
 
 /**
