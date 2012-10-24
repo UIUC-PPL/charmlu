@@ -215,7 +215,9 @@ module lu {
         pivotBatchTag += blkSize;
       }
 
-      while (blockPulled < numBlks-thisIndex.y-1) when blockUsed(int count) serial { blockPulled += count; }
+      while (blockPulled < numBlks-thisIndex.y-1) {
+        when blockUsed(int count) serial { blockPulled += count; }
+      }
 
       for (internalStep++; internalStep <= thisIndex.x; internalStep++) {
         serial { thisProxy[thisIndex].pivotBatch(2); }
