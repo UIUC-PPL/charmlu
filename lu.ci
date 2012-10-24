@@ -195,9 +195,7 @@ module lu {
         atomic "below_find_pivot" {
           // Contribute to a reduction along the active panel to identify the pivot row
           mcastMgr->contribute(sizeof(MaxElm), &pivotCandidate, MaxElmReducer, pivotCookie);
-#ifndef SCHED_PIVOT_REDN
           thisProxy[thisIndex].updateSubBlock();
-#endif
         }
         when updateSubBlock() atomic "useg_delayed_update" {
           // Delayed update using the U segment from the prev activeCol iteration
@@ -475,9 +473,6 @@ module lu {
           when prepareForPivotRedn(rednSetupMsg *msg) atomic {
             mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
             CkGetSectionInfo(pivotCookie, msg);
-#ifdef SCHED_PIVOT_REDN
-            mcastMgr->setReductionProgressEvent(pivotCookie, CkCallback(CkIndex_LUBlk::updateSubBlock(), CkArrayIndex2D(thisIndex.x,thisIndex.y), thisArrayID) );
-#endif
           }
         }
         if (isBelowDiagonal()) {
