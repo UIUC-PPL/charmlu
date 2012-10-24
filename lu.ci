@@ -207,21 +207,28 @@ module lu {
             pendingUmsg = NULL;
           }
           ownedPivotThisStep = false;
-          thisProxy[thisIndex].belowPivot(activeCol);
         }
-        // Wait for the post-diagonal U segment from the original owner of the pivot row
-        when USegCompute(UMsg* anUmsg) atomic "below_recv_useg" {
-          // Release the pivotRowSwap trigger to free memory
-          if (!ownedPivotThisStep)
-            thisProxy(thisIndex).pivotRowSwap(internalStep*blkSize + activeCol, -1, 0, NULL, -1, true);
-          if (activeCol == 0) {
-            localScheduler->startedActivePanel();
+        case {
+          when pivotRowSwap[internalStep*blkSize + activeCol](int rowIndex, int pivotRow, int len, double data[len],
+                                                              double b) atomic "below_send_remote_pivot" {
+            ownedPivotThisStep = true;
+            CkAssert(pivotRow / blkSize == thisIndex.x);
+            CkEntryOptions opts;
+            thisProxy(thisIndex.y, thisIndex.y)
+              .pivotRowSwap(internalStep*blkSize + activeCol, pivotRow, blkSize,
+                            &LU[getIndex(pivotRow % blkSize,0)], bvec[pivotRow % blkSize],
+                            &(mgr->setPrio(SEND_PIVOT_DATA, opts)));
+            applySwap(pivotRow % blkSize, 0, data, b);
           }
+          when USegCompute(UMsg* anUmsg) atomic { pendingUmsg = anUmsg; takeRef(pendingUmsg); }
+        }
+        if (ownedPivotThisStep)
+          when USegCompute(UMsg* anUmsg) atomic { pendingUmsg = anUmsg; takeRef(pendingUmsg); }
+        // Wait for the post-diagonal U segment from the original owner of the pivot row
+        atomic "below_recv_useg" {
+          if (activeCol == 0) localScheduler->startedActivePanel();
           // Compute multipliers and update just one column to find the next candidate pivot
-          pivotCandidate = computeMultipliersAndFindColMax(activeCol, anUmsg->data);
-          // Save the Umsg for later use
-          pendingUmsg = anUmsg;
-          takeRef(pendingUmsg);
+          pivotCandidate = computeMultipliersAndFindColMax(activeCol, pendingUmsg->data);
         }
       }
       atomic "below_send_L" {
@@ -303,14 +310,12 @@ module lu {
 	      thisProxy(pivot.loc / blkSize, thisIndex.y)
 		.pivotRowSwap(internalStep*blkSize + activeCol, pivot.loc, blkSize,
 			      &LU[getIndex((activeCol + blkSize * thisIndex.y) % blkSize,0)],
-			      bvec[(activeCol + blkSize * thisIndex.y) % blkSize], false,
+			      bvec[(activeCol + blkSize * thisIndex.y) % blkSize],
                               &(mgr->setPrio(DIAG_SEND_PIVOT, opts)));
 	    }
 	    when pivotRowSwap[internalStep*blkSize + activeCol](int rowIndex, int pivotRow, int len,
-                                                                const double data[len], double b, bool noop)
+                                                                const double data[len], double b)
             atomic "diag_receive_remote_pivot" {
-              CkAssert(!noop);
-
 #if !defined(CHARMLU_USEG_FROM_BELOW)
 	      UMsg *anUmsg = new(blkSize - activeCol, sizeof(int)*8) UMsg(blkSize - activeCol, data + activeCol);
               mgr->setPrio(anUmsg, DIAG_SEND_USEG);
@@ -366,48 +371,13 @@ module lu {
       }
     };
 
-    entry void belowPivot(int targetCol) {
-      // Wait for the replacement row from the diagonal chare so that
-      // you have the updated block
-      when pivotRowSwap[internalStep*blkSize + targetCol](int rowIndex, int pivotRow, int len, double data[len],
-                                                          double b, bool noop) {
-        if (!noop) {
-          atomic "below_send_remote_pivot" {
-	    ownedPivotThisStep = true;
-            CkAssert(pivotRow / blkSize == thisIndex.x);
-            CkEntryOptions opts;
-            thisProxy(thisIndex.y, thisIndex.y)
-              .pivotRowSwap(internalStep*blkSize + targetCol, pivotRow, blkSize,
-                            &LU[getIndex(pivotRow % blkSize,0)], bvec[pivotRow % blkSize], false,
-                            &(mgr->setPrio(SEND_PIVOT_DATA, opts)));
-          }
-          atomic "below_send_useg" {
-#if defined(CHARMLU_USEG_FROM_BELOW)
-            UMsg *anUmsg = new(blkSize - targetCol, sizeof(int)*8) UMsg(blkSize - targetCol, &LU[getIndex(pivotRow % blkSize,targetCol)]);
-            mgr->setPrio(anUmsg, BELOW_SEND_USEG, internalStep*blkSize + targetCol);
-            CkSetRefNum(anUmsg, internalStep*blkSize + targetCol);
-            pendingUmsg = (UMsg*)CkCopyMsg((void**)(&anUmsg));
-            activePanel.USegCompute(anUmsg);
-#endif
-          }
-          atomic "below_recv_remote_pivot" {
-            applySwap(pivotRow % blkSize, 0, data, b);
-#if defined(CHARMLU_USEG_FROM_BELOW)
-            thisProxy[thisIndex].USegCompute(pendingUmsg);
-#endif
-          }
-        }
-      }
-    };
-
     /**
      * Active panel methods
      */
     // The reduction to find the maximum element in the column
     entry [reductiontarget] void colMax(MaxElm pivotFound);
     // Pivot data to swap along with row index
-    entry void pivotRowSwap(int rowIndex, int pivotRow, int len,
-                            const double data[len], double b, bool noop);
+    entry void pivotRowSwap(int rowIndex, int pivotRow, int len, const double data[len], double b);
     // U-Segment for the next computation
     entry [nokeep] void USegCompute(UMsg* msg);
     // Using the U-Segment previously received, update the sub-block
