@@ -78,7 +78,6 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
     // Find the location of this sequence in the msg buffer
     const int *first = pivotSequence + idx[i];
     const int *beyondLast = pivotSequence + idx[i+1];
-    CkAssert(beyondLast - first >= 2);
 
     // Identify a remote row in the pivot sequence as a point at which to
     // start and stop processing the circular pivot sequence
@@ -178,8 +177,6 @@ MaxElm LUBlk::findMaxElm(int startRow, int col, MaxElm first) {
 }
 
 CkReductionMsg *MaxElm_max(int nMsg, CkReductionMsg **msgs) {
-  CkAssert(nMsg > 0);
-
   MaxElm *l = (MaxElm*) msgs[0]->getData();
   for (int i = 1; i < nMsg; ++i) {
     MaxElm *n = (MaxElm *) msgs[i]->getData();
@@ -200,8 +197,6 @@ void registerMaxElmReducer() {
 /// Update the sub-block of this L block starting at specified
 /// offset from the active column
 void LUBlk::updateLsubBlock(int activeCol, double* U, int offset, int startingRow) {
-  // Should only get called on L blocks
-  CkAssert(isOnDiagonal() || isBelowDiagonal());
   // Check for input edge cases
   if ((activeCol + offset) >= blkSize || startingRow >= blkSize)
     return;
@@ -229,8 +224,6 @@ void LUBlk::updateLsubBlock(int activeCol, double* U, int offset, int startingRo
 /// received row of U and also find the candidate pivot in
 /// the immediate next column (after updating it simultaneously)
 MaxElm LUBlk::computeMultipliersAndFindColMax(int col, double *U, int startingRow) {
-  // Should only get called on L blocks
-  CkAssert(isOnDiagonal() || isBelowDiagonal());
   MaxElm maxVal;
   // Check for input edge cases
   if (col >= blkSize || startingRow >= blkSize)
@@ -358,12 +351,10 @@ blkMsg* LUBlk::createABlkMsg() {
   return msg;
 }
 
-void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
-                 CProxy_BlockScheduler bs,
-		 CkCallback initialization, CkCallback factorization, CkCallback solution) {
+void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
+                 CkCallback initialization, CkCallback factorization, CkCallback solution) {
   scheduler = bs;
   localScheduler = scheduler[CkMyPe()].ckLocal();
-  CkAssert(localScheduler);
   localScheduler->registerBlock(thisIndex);
   contribute(CkCallback(CkIndex_BlockScheduler::allRegistered(NULL), bs));
   cfg = _cfg;

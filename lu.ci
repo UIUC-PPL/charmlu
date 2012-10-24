@@ -92,7 +92,6 @@ module lu {
             when trailingPivotRowsSwap[pivotBatchTag](pivotRowsMsg *aMsg)
               serial "acceptIncomingPivots" {
               for (int i = 0; i < aMsg->nRows; i++) {
-                CkAssert(thisIndex.x == aMsg->rowNum[i]/blkSize);
                 applySwap(aMsg->rowNum[i] % blkSize, 0, &(aMsg->rows[i * blkSize]), aMsg->rhs[i]);
                 pendingIncomingPivots--;
               }
@@ -191,7 +190,6 @@ module lu {
           when pivotRowSwap[internalStep*blkSize + activeCol](int rowIndex, int pivotRow, int len, double data[len],
                                                               double b) serial "below_send_remote_pivot" {
             ownedPivotThisStep = true;
-            CkAssert(pivotRow / blkSize == thisIndex.x);
             CkEntryOptions opts;
             thisProxy(thisIndex.y, thisIndex.y)
               .pivotRowSwap(internalStep*blkSize + activeCol, pivotRow, blkSize,
