@@ -328,7 +328,7 @@ double* LUBlk::accessLocalBlock() { return LU; }
 // Internal functions for creating messages to encapsulate the priority
 blkMsg* LUBlk::createABlkMsg() {
   int prioBits = mgr->bitsOfPrio();
-  maxRequestingPEs = CProxy_LUMap(cfg.map).ckLocalBranch()->pesInPanel(thisIndex);
+  maxRequestingPEs = CProxy_PE2DTilingMap(cfg.map).ckLocalBranch()->pesInPanel(thisIndex);
   blkMsg *msg = new (blkSize*blkSize, maxRequestingPEs, prioBits) blkMsg(thisIndex);
   memset(msg->pes, -1, maxRequestingPEs*sizeof(int));
   return msg;

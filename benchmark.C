@@ -97,41 +97,37 @@ struct Benchmark : public CBase_Benchmark {
     else
       luCfg.pivotBatchSize = luCfg.blockSize / 4;
 
-    if (m->argc >= 6) {
-      luCfg.mappingScheme = atoi(m->argv[5]);
-      if (luCfg.mappingScheme == 3) {
-        if (m->argc < 8) {
-          std::pair<int,int> tileDims = computePETileDimensions();
-          luCfg.peTileRows = tileDims.first;
-          luCfg.peTileCols = tileDims.second;
-        }
-        else {
-          luCfg.peTileRows = atoi(m->argv[6]);
-          luCfg.peTileCols = atoi(m->argv[7]);
-        }
-        if (m->argc < 9)
-          luCfg.peTileRotate = 0;
-        else
-          luCfg.peTileRotate = atoi(m->argv[8]);
-
-        if (m->argc < 10)
-          luCfg.peTileStride = luCfg.peTileCols;
-        else
-          luCfg.peTileStride = atoi(m->argv[9]);
-
-        int peTileSize = luCfg.peTileRows * luCfg.peTileCols;
-
-        if (peTileSize > CkNumPes())
-          CkAbort("The PE tile dimensions are too big for the num of PEs available!");
-
-        if (peTileSize < CkNumPes())
-          CkPrintf("WARNING: Configured to use a PE tile size (%d x %d)"
-                   " (for 2D tile mapping) that does not use all the PEs(%d)\n",
-                   luCfg.peTileRows, luCfg.peTileCols, CkNumPes());
+    luCfg.mappingScheme = 3;
+    if (luCfg.mappingScheme == 3) {
+      if (m->argc < 8) {
+        std::pair<int,int> tileDims = computePETileDimensions();
+        luCfg.peTileRows = tileDims.first;
+        luCfg.peTileCols = tileDims.second;
       }
+      else {
+        luCfg.peTileRows = atoi(m->argv[6]);
+        luCfg.peTileCols = atoi(m->argv[7]);
+      }
+      if (m->argc < 9)
+        luCfg.peTileRotate = 0;
+      else
+        luCfg.peTileRotate = atoi(m->argv[8]);
+
+      if (m->argc < 10)
+        luCfg.peTileStride = luCfg.peTileCols;
+      else
+        luCfg.peTileStride = atoi(m->argv[9]);
+
+      int peTileSize = luCfg.peTileRows * luCfg.peTileCols;
+
+      if (peTileSize > CkNumPes())
+        CkAbort("The PE tile dimensions are too big for the num of PEs available!");
+
+      if (peTileSize < CkNumPes())
+        CkPrintf("WARNING: Configured to use a PE tile size (%d x %d)"
+                 " (for 2D tile mapping) that does not use all the PEs(%d)\n",
+                 luCfg.peTileRows, luCfg.peTileCols, CkNumPes());
     }
-    else
-      luCfg.mappingScheme = 2;
 
     if (luCfg.matrixSize >= std::numeric_limits<short>::max() &&
         sizeof(CMK_REFNUM_TYPE) != sizeof(int)) {
@@ -261,9 +257,6 @@ public:
 	  .setStaticInsertion(true);
       CkGroupID map;
       switch (luCfg.mappingScheme) {
-      case 2:
-        map = CProxy_BlockCyclicMap::ckNew(1, luCfg.numBlocks);
-        break;
       case 3:
         map = CProxy_PE2DTilingMap::ckNew(luCfg.peTileRows, luCfg.peTileCols,
                                           luCfg.peTileRotate, luCfg.peTileStride,
