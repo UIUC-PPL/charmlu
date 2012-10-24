@@ -226,7 +226,7 @@ module lu {
       }
       serial "belowdiag_iteration_completed" { contribute(factorizationDone); }
       // Swallow excess pivots message broadcast to the entire array
-      while (true) { when applyTrailingPivots(pivotSequencesMsg *msg) { } }
+      while (true) when applyTrailingPivots(pivotSequencesMsg *msg) { }
     };
     // Indicate when this block has been used for remote calculations,
     // to let subsequent pivoting go ahead
@@ -344,12 +344,11 @@ module lu {
      * Solve methods
      */
     entry void forwardSolve() {
-      if (thisIndex.x > 0) {
+      if (thisIndex.x > 0)
         // All except the first diag chare have to wait for their row reductions
         when recvSolveData(int count, double preVec[count]) serial {
           for (int i = 0; i < blkSize; i++) bvec[i] -= preVec[i];
         }
-      }
       serial {
         for (int i = 0; i < blkSize; i++)
           for (int j = 0; j < i; j++)
@@ -378,8 +377,7 @@ module lu {
         if (thisIndex.x == 0) solveDone.send();
         else {
           // Broadcast upward from diagonal
-          CProxySection_LUBlk col =
-            CProxySection_LUBlk::ckNew(thisArrayID, 0, thisIndex.x-1, 1, thisIndex.y, thisIndex.y, 1);
+          CProxySection_LUBlk col = CProxySection_LUBlk::ckNew(thisArrayID, 0, thisIndex.x-1, 1, thisIndex.y, thisIndex.y, 1);
           col.ckSectionDelegate(mcastMgr);
           BVecMsg *m = new (blkSize) BVecMsg(blkSize, bvec, false);
           col.offDiagSolve(m);
@@ -416,30 +414,21 @@ module lu {
      */
     entry void startup(const LUConfig luCfg, CProxy_LUMgr _mgr, CProxy_BlockScheduler bs,
                        CkCallback initialized, CkCallback factored, CkCallback solved) {
-      when schedulerReady(CkReductionMsg *m) serial {
-	init(luCfg, _mgr, bs, initialized, factored, solved);
-      }
+      when schedulerReady(CkReductionMsg *m) serial { init(luCfg, _mgr, bs, initialized, factored, solved); }
       when multicastRedns() {
-        if (isOnDiagonal() || isBelowDiagonal()) {
-          when prepareForPivotRedn(rednSetupMsg *msg) serial {
+        if (isOnDiagonal() || isBelowDiagonal()) when prepareForPivotRedn(rednSetupMsg *msg) serial {
             mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
             CkGetSectionInfo(pivotCookie, msg);
           }
-        }
-        if (isBelowDiagonal()) {
-          when prepareForRowBeforeDiag(rednSetupMsg *msg) serial {
+        if (isBelowDiagonal()) when prepareForRowBeforeDiag(rednSetupMsg *msg) serial {
             mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
             CkGetSectionInfo(rowBeforeCookie, msg);
           }
-        } else if (isAboveDiagonal()) {
-          when prepareForRowAfterDiag(rednSetupMsg *msg) serial {
+        else if (isAboveDiagonal()) when prepareForRowAfterDiag(rednSetupMsg *msg) serial {
             mcastMgr = CProxy_CkMulticastMgr(msg->rednMgrGID).ckLocalBranch();
             CkGetSectionInfo(rowAfterCookie, msg);
           }
-        }
-	when dataReady() serial {
-	  contribute(initDone);
-	}
+	when dataReady() serial { contribute(initDone); }
       }
     };
     entry [nokeep] void schedulerReady(CkReductionMsg *m);
