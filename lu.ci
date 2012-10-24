@@ -199,8 +199,7 @@ module lu {
           }
           when USegCompute(UMsg* anUmsg) serial { pendingUmsg = anUmsg; takeRef(pendingUmsg); }
         }
-        if (ownedPivotThisStep)
-          when USegCompute(UMsg* anUmsg) serial { pendingUmsg = anUmsg; takeRef(pendingUmsg); }
+        if (ownedPivotThisStep) when USegCompute(UMsg* anUmsg) serial { pendingUmsg = anUmsg; takeRef(pendingUmsg); }
         // Wait for the post-diagonal U segment from the original owner of the pivot row
         serial "below_recv_useg" {
           if (activeCol == 0) localScheduler->startedActivePanel();
@@ -216,9 +215,7 @@ module lu {
         pivotBatchTag += blkSize;
       }
 
-      while (blockPulled < numBlks-thisIndex.y-1) {
-        when blockUsed(int count) serial { blockPulled += count; }
-      }
+      while (blockPulled < numBlks-thisIndex.y-1) when blockUsed(int count) serial { blockPulled += count; }
 
       for (internalStep++; internalStep <= thisIndex.x; internalStep++) {
         serial { thisProxy[thisIndex].pivotBatch(2); }
