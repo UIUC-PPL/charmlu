@@ -165,8 +165,6 @@ public:
   void pumpMessages();
   // If an active column is finished, release dependencies for it
   void releaseActiveColumn(const int y, const int t);
-  // Output statistics on maximum memory used, etc.
-  void outputStats();
 
 private:
   LUMgr *mgr;
@@ -228,12 +226,6 @@ private:
   // Add a new dependence for a panel for the next step
   template <typename K>
   void addDependence(std::map<K, Panel> &panels, K index, StateList::iterator block);
-
-  // Memory usage instrumentation
-  // Memory occupied before factorization starts (kilobytes)
-  int baseMemory;
-  // Maximum memory usage seen (kilobytes)
-  int maxMemory, maxMemoryIncreases, maxMemoryStep;
 };
 
 #endif

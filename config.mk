@@ -1,16 +1,16 @@
 #------------------------------------------------
 # To compile on order or faith(Ubuntu):
-SEND_LIM  = 2
-BLAS_INC  = -DUSE_CBLAS_H=1
-BLAS_LD   =
-BLAS_LIBS = -lcblas
+# SEND_LIM  = 2
+# BLAS_INC  = -DUSE_CBLAS_H=1
+# BLAS_LD   =
+# BLAS_LIBS = -lcblas
 
 
 # To compile on hope (OSX):
-#SEND_LIM ?= 2
-#BLAS_INC  = -DUSE_ACCELERATE_BLAS=1
-#BLAS_LD   =
-#BLAS_LIBS = -framework Accelerate
+SEND_LIM ?= 2
+BLAS_INC  = -DUSE_ACCELERATE_BLAS=1
+BLAS_LD   =
+BLAS_LIBS = -framework Accelerate
 
 
 # To compile on Cray XT5 with "module load atlas/3.8.3"

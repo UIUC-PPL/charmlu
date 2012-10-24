@@ -379,7 +379,6 @@ public:
     CkPrintf("The dgemm %d x %d takes %g ms and achieves %g GFlop/sec\n", luCfg.blockSize,
              luCfg.blockSize, dgemmDuration*1000, dgemmGFlopPerSec);
     CkPrintf("Percent of DGEMM is: %g%%\n", gflops_per_core / dgemmGFlopPerSec * 100.0);
-    bs.outputStats();
   }
 
   void calcScaledResidual(CkReductionMsg *msg) {

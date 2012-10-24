@@ -22,8 +22,7 @@ struct blkMsg: public CkMcastBaseMsg, CMessage_blkMsg {
   /// Whether the message has gone to the first half of its destination list
   bool firstHalfSent;
 
-  blkMsg(CkIndex2D index_)
-    : src(index_), npes_sender(0), npes_receiver(0), offset(0), firstHalfSent(false) {
+  blkMsg(CkIndex2D index_) : src(index_), npes_sender(0), npes_receiver(0), offset(0), firstHalfSent(false) {
     CkSetRefNum(this, std::min(src.x, src.y));
     CkSetQueueing(this, CK_QUEUEING_IFIFO);
   }
@@ -31,10 +30,7 @@ struct blkMsg: public CkMcastBaseMsg, CMessage_blkMsg {
 
 struct BlockReadyMsg : public CkMcastBaseMsg, CMessage_BlockReadyMsg {
   CkIndex2D src;
-
-  BlockReadyMsg(CkIndex2D idx) : src(idx) {
-    CkSetRefNum(this, std::min(src.x, src.y));
-  }
+  BlockReadyMsg(CkIndex2D idx) : src(idx) { CkSetRefNum(this, std::min(src.x, src.y)); }
 };
 
 struct rednSetupMsg: public CkMcastBaseMsg, public CMessage_rednSetupMsg {
@@ -58,9 +54,7 @@ struct UMsg : public CMessage_UMsg, public CkMcastBaseMsg {
   /// The post-diagonal portion of the active row
   double *data;
 
-  UMsg(const int numElements, double *useg) {
-    memcpy(data, useg, numElements * sizeof(double));
-  }
+  UMsg(const int numElements, double *useg) { memcpy(data, useg, numElements * sizeof(double)); }
 };
 
 struct pivotSequencesMsg: public CMessage_pivotSequencesMsg, public CkMcastBaseMsg {

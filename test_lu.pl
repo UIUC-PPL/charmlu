@@ -72,6 +72,7 @@ sub run_tests {
     for my $key (sort keys %tests) {
         print "Executing test $key...";
         my $ex =  join(' ', @ARGV) . " @{$tests{$key}}";
+        print "\n$ex\n";
         my $res = `$ex 2>&1 | grep residual`;
         if ($res =~ /residual = ([\d\.]*)/ and $1 < 16) {
             print "PASSED r = $1\n";

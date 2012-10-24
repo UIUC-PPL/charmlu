@@ -15,13 +15,6 @@ using std::min;
 #include "platformBlas.h"
 #include "driver.decl.h"
 
-#include "traceToggler.h"
-
-#if defined(TRACE_TOGGLER_H)
-// define static variable
-int traceToggler::traceCmdHandlerID;
-#endif
-
 // Execute a trailing update
 void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
 #if USE_ESSL || USE_ACML
@@ -52,16 +45,12 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
   memset(numMsgsTo, 0, sizeof(int)*numBlks);
   for (int i = 0; i < numSequences; i++) {
     for (int j = idx[i]; j < idx[i+1]; j++) {
-      int recverIdx = pivotSequence[j]/blkSize;
-      int senderIdx = -1;
+      int recverIdx = pivotSequence[j]/blkSize, senderIdx = -1;
       // circular traversal of pivot sequence
-      if (j < idx[i+1]-1)
-        senderIdx = pivotSequence[j+1]/blkSize;
-      else
-        senderIdx = pivotSequence[idx[i]]/blkSize;
+      if (j < idx[i+1]-1) senderIdx = pivotSequence[j+1]/blkSize;
+      else senderIdx = pivotSequence[idx[i]]/blkSize;
       // If this chare the sending to another chare
-      if (thisIndex.x == senderIdx && thisIndex.x != recverIdx)
-        numMsgsTo[recverIdx]++;
+      if (thisIndex.x == senderIdx && thisIndex.x != recverIdx) numMsgsTo[recverIdx]++;
     }
   }
 
@@ -76,10 +65,8 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
       outgoingPivotMsgs[i] = new (numMsgsTo[i], numMsgsTo[i]*blkSize, numMsgsTo[i], sizeof(int)*8)
         pivotRowsMsg(blkSize, pivotBatchTag);
       // Set a priority thats a function of your location wrt to the critical path
-      if (thisIndex.y < internalStep)
-        mgr->setPrio(outgoingPivotMsgs[i], PIVOT_NOT_CRITICAL);
-      else
-        mgr->setPrio(outgoingPivotMsgs[i], PIVOT_CRITICAL);
+      if (thisIndex.y < internalStep) mgr->setPrio(outgoingPivotMsgs[i], PIVOT_NOT_CRITICAL);
+      else mgr->setPrio(outgoingPivotMsgs[i], PIVOT_CRITICAL);
     }
   }
 
@@ -88,7 +75,6 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
 
   // Parse each sequence independently
   for (int i=0; i < numSequences; i++) {
-
     // Find the location of this sequence in the msg buffer
     const int *first = pivotSequence + idx[i];
     const int *beyondLast = pivotSequence + idx[i+1];
@@ -97,8 +83,7 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
     // Identify a remote row in the pivot sequence as a point at which to
     // start and stop processing the circular pivot sequence
     const int *ringStart = first;
-    while ((*ringStart / blkSize == thisIndex.x) && (ringStart < beyondLast))
-      ringStart++;
+    while ((*ringStart / blkSize == thisIndex.x) && (ringStart < beyondLast)) ringStart++;
     const int *ringStop = ringStart;
 
     // If there are no remote rows in the sequence, we *have* to use a tmp buffer
@@ -124,40 +109,28 @@ void LUBlk::sendPendingPivots(const pivotSequencesMsg *msg) {
         int toChareIdx = *to / blkSize;
         int fromLocal  = *from % blkSize;
         // If you're sending to yourself, memcopy
-        if (toChareIdx == thisIndex.x) {
-          applySwap(*to%blkSize, 0, &LU[getIndex(fromLocal,0)], bvec[fromLocal]);
-        }
+        if (toChareIdx == thisIndex.x) applySwap(*to%blkSize, 0, &LU[getIndex(fromLocal,0)], bvec[fromLocal]);
         // else, copy the data into the appropriate msg
-        else {
-          outgoingPivotMsgs[*to/blkSize]->copyRow(*to, &LU[getIndex(fromLocal,0)], bvec[fromLocal]);
-        }
+        else outgoingPivotMsgs[*to/blkSize]->copyRow(*to, &LU[getIndex(fromLocal,0)], bvec[fromLocal]);
       }
       // else, the source data is remote
       else {
         // if the current destination row belongs to me, make sure I expect the remote data
-        if (*to / blkSize == thisIndex.x) {
-          pendingIncomingPivots++;
-        }
+        if (*to / blkSize == thisIndex.x) pendingIncomingPivots++;
         // else, i dont worry about this portion of the exchange sequence which is completely remote
-        else {
-        }
       }
       // Setup a circular traversal of the pivot sequence
-      if (++to == beyondLast)
-        to = first;
+      if (++to == beyondLast) to = first;
     } while (to != ringStop); // Keep going till you complete the ring
 
     // If the sequence was completely local, complete the circular sequence
     // by copying the temp buffer back into the matrix block
-    if (isSequenceLocal) {
-      applySwap(*(beyondLast - 1) % blkSize, 0, tmpBuf, tmpB);
-    }
+    if (isSequenceLocal) applySwap(*(beyondLast - 1) % blkSize, 0, tmpBuf, tmpB);
   } // end for loop through all sequences
 
   // Send out all the msgs carrying pivot data to other chares
   for (int i=0; i< numBlks; i++)
-    if (numMsgsTo[i] > 0)
-      thisProxy(i, thisIndex.y).trailingPivotRowsSwap(outgoingPivotMsgs[i]);
+    if (numMsgsTo[i] > 0) thisProxy(i, thisIndex.y).trailingPivotRowsSwap(outgoingPivotMsgs[i]);
 
   if (tmpBuf) delete [] tmpBuf;
 }
@@ -210,8 +183,7 @@ CkReductionMsg *MaxElm_max(int nMsg, CkReductionMsg **msgs) {
   MaxElm *l = (MaxElm*) msgs[0]->getData();
   for (int i = 1; i < nMsg; ++i) {
     MaxElm *n = (MaxElm *) msgs[i]->getData();
-    if (fabs(n->val) > fabs(l->val))
-      l = n;
+    if (fabs(n->val) > fabs(l->val)) l = n;
   }
 
   return CkReductionMsg::buildNew(sizeof(MaxElm), l);
@@ -279,10 +251,9 @@ MaxElm LUBlk::computeMultipliersAndFindColMax(int col, double *U, int startingRo
     // Convert local row num to global rownum
     maxVal.loc += thisIndex.x*blkSize;
   }
-  else {
+  else
     for (int j = startingRow; j < blkSize; j++)
-      LU[getIndex(j,col)]    = LU[getIndex(j,col)] / U[0];
-  }
+      LU[getIndex(j,col)] = LU[getIndex(j,col)] / U[0];
 
   return maxVal;
 }
@@ -343,10 +314,9 @@ void LUBlk::recordPivot(const int r1, const int r2) {
   numRowsSinceLastPivotSend++;
   // If the two rows are the same, then dont record the pivot operation at all
   if (r1 == r2) return;
-  std::map<int,int>::iterator itr1, itr2;
   // The records for the two rows (already existing or freshly created)
-  itr1 = (pivotRecords.insert(std::make_pair(r1,r1))).first;
-  itr2 = (pivotRecords.insert(std::make_pair(r2,r2))).first;
+  std::map<int,int>::iterator itr1 = (pivotRecords.insert(std::make_pair(r1,r1))).first;
+  std::map<int,int>::iterator itr2 = (pivotRecords.insert(std::make_pair(r2,r2))).first;
   // Swap the values (the actual rows living in these two positions)
   std::swap(itr1->second, itr2->second);
 }
@@ -355,13 +325,9 @@ void LUBlk::resetMessage(bool reverse) {
   // Setup multicast of message to a dynamic set of processors
   blkMsg *m = LUmsg;
 
-  CkAssert(requestingPEs.size() <= maxRequestingPEs);
-
   std::sort(requestingPEs.begin(), requestingPEs.end());
   if (reverse) std::reverse(requestingPEs.begin(), requestingPEs.end());
 
-  // Junk value to catch bugs
-  m->npes_sender = -1;
   m->npes_receiver = requestingPEs.size();
   m->offset = 0;
   memcpy(m->pes, &requestingPEs[0], sizeof(requestingPEs[0])*m->npes_receiver);
@@ -373,11 +339,8 @@ void LUBlk::requestBlock(int pe, int rx, int ry) {
   requestingPEs.push_back(pe);
   if (factored) {
     bool onActive = false;
-    if      (isBelowDiagonal() && internalStep == thisIndex.y)
-      onActive = true;
-    else if (isAboveDiagonal() && internalStep == thisIndex.y - 1)
-      onActive = true;
-
+    if (isBelowDiagonal() && internalStep == thisIndex.y) onActive = true;
+    else if (isAboveDiagonal() && internalStep == thisIndex.y - 1) onActive = true;
     localScheduler->scheduleSend(thisIndex, onActive);
   }
 }
@@ -413,17 +376,10 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
   solveDone = solution;
   internalStep = 0;
 
-  CkAssert(blkSize > 0);
-
   CkMulticastMgr *mcastMgr = CProxy_CkMulticastMgr(cfg.mcastMgrGID).ckLocalBranch();
 
   /// Chares on the active panels will create sections of their brethren
-#if defined(CHARMLU_USEG_FROM_BELOW)
-  if (isOnDiagonal() || isBelowDiagonal())
-#else
-  if (isOnDiagonal())
-#endif
-  {
+  if (isOnDiagonal()) {
     // Elements in the active panel, not including this block
     CkVec<CkArrayIndex2D> activeElems;
     for (int i = thisIndex.y+1; i < numBlks; i++)
@@ -456,9 +412,7 @@ void LUBlk::init(const LUConfig _cfg, CProxy_LUMgr _mgr,
     rowBeforeDiag.prepareForRowBeforeDiag(rowBeforeMsg);
     rowAfterDiag.prepareForRowAfterDiag(rowAfterMsg);
 
-    if (thisIndex.x == 0) {
-      thisProxy.multicastRedns();
-    }
+    if (thisIndex.x == 0) thisProxy.multicastRedns();
   }
 
   CkArrayID benchmark = thisProxy;
