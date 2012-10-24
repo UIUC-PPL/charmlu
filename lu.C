@@ -20,18 +20,11 @@ void LUBlk::updateMatrix(double *incomingL, double *incomingU) {
 #if USE_ESSL || USE_ACML
   // By switching the order of incomingU and incomingL the transpose
   // is applied implicitly: C' = B*A
-  dgemm( BLAS_NOTRANSPOSE, BLAS_NOTRANSPOSE,
-         blkSize, blkSize, blkSize,
-         -1.0, incomingU,
-         blkSize, incomingL, blkSize,
-         1.0, LU, blkSize);
+  dgemm(BLAS_NOTRANSPOSE, BLAS_NOTRANSPOSE, blkSize, blkSize, blkSize, -1.0, incomingU,
+        blkSize, incomingL, blkSize, 1.0, LU, blkSize);
 #else
-  cblas_dgemm( CblasRowMajor,
-               CblasNoTrans, CblasNoTrans,
-               blkSize, blkSize, blkSize,
-               -1.0, incomingL,
-               blkSize, incomingU, blkSize,
-               1.0, LU, blkSize);
+  cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, blkSize, blkSize, blkSize,
+               -1.0, incomingL, blkSize, incomingU, blkSize, 1.0, LU, blkSize);
 #endif
 }
 
@@ -201,21 +194,15 @@ void LUBlk::updateLsubBlock(int activeCol, double* U, int offset, int startingRo
   if ((activeCol + offset) >= blkSize || startingRow >= blkSize)
     return;
 #if USE_ESSL || USE_ACML
-  dger(blkSize-(activeCol+offset), blkSize-startingRow,
-       -1.0,
-       U+offset, 1,
-       &LU[getIndex(startingRow,activeCol)], blkSize,
-       &LU[getIndex(startingRow,activeCol+offset)], blkSize);
+  dger(blkSize-(activeCol+offset), blkSize-startingRow, -1.0, U+offset, 1,
+       &LU[getIndex(startingRow,activeCol)], blkSize, &LU[getIndex(startingRow,activeCol+offset)], blkSize);
 #elif USE_ACCELERATE_BLAS
   for(int j = startingRow; j < blkSize; j++)
     for(int k = activeCol+offset; k<blkSize; k++)
       LU[getIndex(j,k)] -=  LU[getIndex(j,activeCol)] * U[k-activeCol];
 #else
-  cblas_dger(CblasRowMajor,
-             blkSize-startingRow, blkSize-(activeCol+offset),
-             -1.0,
-             &LU[getIndex(startingRow,activeCol)], blkSize,
-             U+offset, 1,
+  cblas_dger(CblasRowMajor, blkSize-startingRow, blkSize-(activeCol+offset),
+             -1.0, &LU[getIndex(startingRow,activeCol)], blkSize, U+offset, 1,
              &LU[getIndex(startingRow,activeCol+offset)], blkSize);
 #endif
 }
@@ -261,9 +248,7 @@ inline void LUBlk::scheduleRightwardL() {
  * Is it time to send out the next batch of pivots?
  * @note: Any runtime adaptivity should be plugged here
  */
-bool LUBlk::shouldSendPivots() {
-  return (numRowsSinceLastPivotSend >= suggestedPivotBatchSize);
-}
+bool LUBlk::shouldSendPivots() { return (numRowsSinceLastPivotSend >= suggestedPivotBatchSize); }
 
 /// Periodically send out the agglomerated pivot operations
 void LUBlk::announceAgglomeratedPivots() {
@@ -338,9 +323,7 @@ void LUBlk::requestBlock(int pe, int rx, int ry) {
   }
 }
 
-double* LUBlk::accessLocalBlock() {
-  return LU;
-}
+double* LUBlk::accessLocalBlock() { return LU; }
 
 // Internal functions for creating messages to encapsulate the priority
 blkMsg* LUBlk::createABlkMsg() {
