@@ -108,15 +108,11 @@ struct Benchmark : public CBase_Benchmark {
         luCfg.peTileRows = atoi(m->argv[6]);
         luCfg.peTileCols = atoi(m->argv[7]);
       }
-      if (m->argc < 9)
-        luCfg.peTileRotate = 0;
-      else
-        luCfg.peTileRotate = atoi(m->argv[8]);
+      if (m->argc < 9) luCfg.peTileRotate = 0;
+      else luCfg.peTileRotate = atoi(m->argv[8]);
 
-      if (m->argc < 10)
-        luCfg.peTileStride = luCfg.peTileCols;
-      else
-        luCfg.peTileStride = atoi(m->argv[9]);
+      if (m->argc < 10) luCfg.peTileStride = luCfg.peTileCols;
+      else luCfg.peTileStride = atoi(m->argv[9]);
 
       int peTileSize = luCfg.peTileRows * luCfg.peTileCols;
 

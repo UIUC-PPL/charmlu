@@ -16,9 +16,7 @@ struct blkMsg: public CkMcastBaseMsg, CMessage_blkMsg {
   double *data;
   CkIndex2D src;
 
-  /// Destinations
-  int *pes;
-  int npes_sender, npes_receiver, offset;
+  int *pes,  npes_sender, npes_receiver, offset;
   /// Whether the message has gone to the first half of its destination list
   bool firstHalfSent;
 
@@ -44,9 +42,8 @@ struct BVecMsg : public CMessage_BVecMsg, public CkMcastBaseMsg {
   double *data;
   bool forward;
 
-  BVecMsg(const int numElements, double *bvec, bool _forward) {
+ BVecMsg(const int numElements, double *bvec, bool _forward) : forward(_forward) {
     memcpy(data, bvec, numElements * sizeof(double));
-    forward = _forward;
   }
 };
 
@@ -61,20 +58,16 @@ struct pivotSequencesMsg: public CMessage_pivotSequencesMsg, public CkMcastBaseM
   int numRowsProcessed, numSequences;
   int *seqIndex, *pivotSequence;
 
-  pivotSequencesMsg(const int _firstRowProcessed, const int _numRowsProcessed) {
-    numRowsProcessed = _numRowsProcessed;
-    numSequences = 0;
-    CkSetRefNum(this, _firstRowProcessed);
+  pivotSequencesMsg(const int _fRP, const int _nRP) : numRowsProcessed(_nRP), numSequences(0) {
+    CkSetRefNum(this, _fRP);
   }
 };
 
 struct pivotRowsMsg: public CMessage_pivotRowsMsg, public CkMcastBaseMsg {
-  int nRows, blockSize;
-  int *rowNum;
+  int *rowNum, nRows, blockSize;
   double *rows, *rhs;
 
-  pivotRowsMsg(const int _blockSize, const int _refNum):
-    nRows(0), blockSize(_blockSize) {
+  pivotRowsMsg(const int _blockSize, const int _refNum) : nRows(0), blockSize(_blockSize) {
     CkSetRefNum(this, _refNum);
   }
 
