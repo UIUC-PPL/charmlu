@@ -1,0 +1,17 @@
+CharmLU -- Dense LU Factorization
+
+Computes and validates the factorization of an N x N matrix.
+
+Running:
+./charmrun +p4 ./charmlu 512 64 500 128 3 1 4 2 2
+
+Argument list:
+Matrix size
+Block size
+Memory threshold
+Pivot batch size
+Mapping scheme (3 for block-cyclic)
+Block-cyclic tile rows
+Block-cyclic tile cols
+Block-cyclic tile rotate
+Block-cyclic tile stride
