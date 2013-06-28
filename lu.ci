@@ -125,7 +125,7 @@ module lu {
     entry [nokeep] void applyTrailingPivots(pivotSequencesMsg *msg);
     // Exchange pivot row contents
     entry void trailingPivotRowsSwap(pivotRowsMsg *msg);
-    entry [local] void pivotBatchDone(int tag);
+    entry void pivotBatchDone(int tag);
 
     // Describes the control flow of above-diagonal blocks after
     // they've completed their prescribed trailing updates.
