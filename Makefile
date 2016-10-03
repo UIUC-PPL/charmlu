@@ -17,7 +17,7 @@ OPT       = -O3
 #CPPFLAGS += -DCHARMLU_USEG_FROM_BELOW
 CPPFLAGS += -DSEND_LIM=$(SEND_LIM) $(BLAS_INC)
 CXXFLAGS += -language charm++ $(OPT)
-LDFLAGS  += -module comlib -module CkMulticast $(BLAS_LD)
+LDFLAGS  += -module CkMulticast $(BLAS_LD)
 LDLIBS   += $(BLAS_LIBS)
 
 EXEC      = ./charmrun
