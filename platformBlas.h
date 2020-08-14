@@ -4,7 +4,6 @@
 #if USE_CBLAS_H
 extern "C" {
 #include <cblas.h>
-#include <clapack.h>
 }
 
 #elif USE_MKL_CBLAS_H

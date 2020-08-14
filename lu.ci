@@ -44,7 +44,7 @@ module lu {
     // Describes the control flow of alternating pivoting and trailing
     // updates for all LUBlk chares before they become part of the
     // active panel.
-    entry [local] void updateUntilActive() {
+    entry void updateUntilActive() {
       //-----------------------------------------------------------------------
       // Each chare in the array has to process these many trailing
       // updates before the diagonal chare on its row / column becomes
@@ -89,7 +89,7 @@ module lu {
      */
     // Receive and process batches of pivot operations sent out by
     // the current active diagonal chare
-    entry [local] void pivotBatch(int tag) {
+    entry void pivotBatch(int tag) {
       while (pivotBatchTag < (internalStep+1)*blkSize) {
         // Wait for msg carrying the next batch of pivot ops
         when applyTrailingPivots[pivotBatchTag](pivotSequencesMsg *msg) {
@@ -129,7 +129,7 @@ module lu {
 
     // Describes the control flow of above-diagonal blocks after
     // they've completed their prescribed trailing updates.
-    entry [local] void factorAboveDiagBlock() {
+    entry void factorAboveDiagBlock() {
       // Do one last batch of pivots, from the diagonal on this row
       atomic { thisProxy[thisIndex].pivotBatch(1); }
 
@@ -183,7 +183,7 @@ module lu {
     entry void processComputeU(intptr_t update_ptr);
 
     // Below diagonal
-    entry [local] void factorBelowDiagBlock() {
+    entry void factorBelowDiagBlock() {
       atomic {
         // Find the pivot candidate for just the first column in the block
         pivotCandidate = findMaxElm(0, 0);

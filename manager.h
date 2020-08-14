@@ -57,6 +57,9 @@ struct PrioLU : public LUMgr {
       else
         prio = t * numBlks * blkSize + y * blkSize;
       break;
+    default:
+      CkAbort("Invalid type");
+      break;
     }
     opts.setPriority(prio);
     return opts;
@@ -79,6 +82,9 @@ struct PrioLU : public LUMgr {
       break;
     case PIVOT_NOT_CRITICAL:
       prio = numBlks * numBlks * blkSize;
+      break;
+    default:
+      CkAbort("Invalid type");
       break;
     }
     *(int*)CkPriorityPtr(msg) = prio;
