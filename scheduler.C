@@ -43,8 +43,8 @@ BlockScheduler::BlockScheduler(CProxy_LUBlk luArr_, LUConfig config, CProxy_LUMg
   , pendingTriggered(0), reverseSends(CkMyPe() % 2 == 0)
   , maxMemory(0), maxMemoryIncreases(0), maxMemoryStep(-1) {
   // Calculate the block limit based on the memory threshold
-  blockLimit = config.memThreshold * 1024 * 1024 /
-    (config.blockSize * (config.blockSize + 1) * sizeof(double) + sizeof(LUBlk) + sdagOverheadPerBlock);
+  blockLimit = floor(((double)config.memThreshold * 1024 * 1024) /
+    (config.blockSize * (config.blockSize + 1) * sizeof(double) + sizeof(LUBlk) + sdagOverheadPerBlock));
   contribute(CkCallback(CkIndex_LUBlk::schedulerReady(NULL), luArr));
 }
 
@@ -168,7 +168,7 @@ void BlockScheduler::registerBlock(CkIndex2D index) {
 
 void printMemory(void *time, void *msg) {
   int *s = (int*) ((CkReductionMsg *)msg)->getData();
-  int mem = s[0];
+  size_t mem = (size_t)s[0];
   CkPrintf("%s memory usage: %zu KiB, additional stats: ", time, mem);
   for (int i = 1; i < ((CkReductionMsg*)msg)->getLength() / sizeof(int); i++)
     CkPrintf("%zd ", s[i]);
